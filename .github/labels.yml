@@ -17,3 +17,13 @@
   color: 008672
   description: Extra attention is needed
 
+# Project-specific
+- name: mvp
+  color: 5319e7
+  description: MVP scope and acceptance
+- name: qa
+  color: fbca04
+  description: Quality assurance and testing
+- name: acceptance
+  color: 0e8a16
+  description: Acceptance criteria and checks
