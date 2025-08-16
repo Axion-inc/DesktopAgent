@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ActionEdge Desktop Agent</title>
+  <style>
+    body{font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; margin: 2rem; line-height:1.6}
+    code{background:#f3f3f3;padding:.1rem .3rem;border-radius:4px}
+    .badges img{margin-right:.5rem}
+  </style>
+  </head>
+<body>
+  <h1>ActionEdge Desktop Agent (MVP M0)</h1>
+  <p class="badges">
+    <img src="https://github.com/Axion-inc/DesktopAgent/actions/workflows/ci.yml/badge.svg" alt="CI"/>
+    <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"/>
+  </p>
+  <p>
+    Local-only desktop agent for macOS that organizes files, merges/extracts PDFs, creates Mail.app drafts, and renders timelines with screenshots. Built with FastAPI, SQLite, and Python.
+  </p>
+  <h2>Quickstart</h2>
+  <pre><code>python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+</code></pre>
+
+  <h2>Repository</h2>
+  <p><a href="https://github.com/Axion-inc/DesktopAgent">github.com/Axion-inc/DesktopAgent</a></p>
+
+  <h2>Metrics Badges</h2>
+  <p>Host the app and expose <code>/metrics</code>, then add Shields:</p>
+  <pre><code>![Success](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&amp;label=success&amp;query=$.success_rate&amp;suffix=%25)
+![Runs](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&amp;label=runs&amp;query=$.total_runs)
+</code></pre>
+
+  <h2>Build in Public</h2>
+  <ul>
+    <li>Public dashboard: <code>/public/dashboard</code> (served by your running app)</li>
+    <li>Public run timeline: <code>/public/runs/&lt;id&gt;</code> with PII masking</li>
+  </ul>
+
+</body>
+</html>
+
