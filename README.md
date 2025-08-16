@@ -33,7 +33,9 @@ Notes
 
 Permissions (macOS)
 - Screen Recording: System Settings → Privacy & Security → Screen Recording → allow Terminal and your Python.
+  - Diagram: docs/assets/permissions_screen_recording.svg
 - Automation (Mail, Finder, System Events): First run will prompt; or enable under Privacy & Security → Automation.
+  - Diagram: docs/assets/permissions_automation.svg
 
 Flow
 - Plans → Dry-run (preview) → Approve → Execute → Replay (with screenshots) → Public dashboard.
@@ -42,7 +44,7 @@ Run the Template Plan
 - Navigate to /plans/new, keep the default weekly report YAML, validate, approve, and run.
 
 Sample PDFs
-- Run `scripts/dev_setup_macos.sh` once to generate 10 dummy PDFs into `sample_data/`.
+- 10 dummy PDFs are bundled via generator; run `scripts/dev_setup_macos.sh` to (re)materialize them into `sample_data/` safely (license-free).
 
 Windows Roadmap (stubs included)
 - Mail via Outlook `win32com` (compose, attach, save draft)
