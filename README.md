@@ -21,6 +21,10 @@ Quickstart (macOS 14+)
 Open http://127.0.0.1:8000
 Health check: http://127.0.0.1:8000/healthz
 
+Screenshots (Demo)
+![Run Timeline](docs/assets/runs_timeline.svg)
+![Public Dashboard](docs/assets/dashboard.svg)
+
 Permissions (macOS)
 - Screen Recording: System Settings → Privacy & Security → Screen Recording → allow Terminal and your Python.
 - Automation (Mail, Finder, System Events): First run will prompt; or enable under Privacy & Security → Automation.
