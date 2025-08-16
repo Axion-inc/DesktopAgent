@@ -70,7 +70,9 @@ CLI Usage (headless)
   - `python scripts/run_plan.py plans/templates/weekly_report.yaml --dry-run --var inbox=./sample_data --var workdir=./data/work --var out_pdf=./data/weekly.pdf`
 - Seed 20 runs (dry-run) to validate stability:
   - `python scripts/seed_runs.py plans/templates/weekly_report.yaml --dry-run --n 20 --var inbox=./sample_data --var workdir=./data/work --var out_pdf=./data/weekly.pdf`
-- To actually execute on macOS (will open Preview and create a Mail draft), omit `--dry-run` and ensure permissions are granted.
+- Seed 20 runs (REAL) to record in /runs (opens Preview, creates Mail drafts):
+  - `python scripts/seed_runs_real.py plans/templates/weekly_report.yaml --n 20 --sleep 1 --var inbox=./sample_data --var workdir=./data/work --var out_pdf=./data/weekly.pdf`
+  - Optional: `export PERMISSIONS_STRICT=1` to block if Screen Recording is missing.
 
 Shields.io Badges
 - Example (replace URL with your deployment):

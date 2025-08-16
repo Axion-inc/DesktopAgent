@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import secrets
 from pathlib import Path
 
@@ -195,7 +196,14 @@ def runs_detail(request: Request, run_id: int):
                 pass
     return templates.TemplateResponse(
         "run_detail.html",
-        {"request": request, "run": run, "steps": steps, "any_failed": any_failed, "first_error": first_error, "zero_found": zero_found},
+        {
+            "request": request,
+            "run": run,
+            "steps": steps,
+            "any_failed": any_failed,
+            "first_error": first_error,
+            "zero_found": zero_found,
+        },
     )
 
 
@@ -255,6 +263,7 @@ def dashboard(request: Request):
             if d is not None:
                 durations.append(d)
     durations.sort()
+
     def percentile(p: float) -> float:
         if not durations:
             return 0.0
@@ -268,7 +277,8 @@ def dashboard(request: Request):
     median = percentile(0.5)
     p95 = percentile(0.95)
     cur.execute(
-        "SELECT error_message, COUNT(*) c FROM run_steps WHERE status='failed' GROUP BY error_message ORDER BY c DESC LIMIT 3"
+        "SELECT error_message, COUNT(*) c FROM run_steps WHERE status='failed' "
+        "GROUP BY error_message ORDER BY c DESC LIMIT 3"
     )
     top_errors = cur.fetchall()
     conn.close()
