@@ -1,5 +1,12 @@
 ActionEdge Desktop Agent (MVP M0)
 
+CI: https://github.com/Axion-inc/DesktopAgent/actions
+Badges (add to repo description/README after deploying /metrics):
+- CI: `![CI](https://github.com/Axion-inc/DesktopAgent/actions/workflows/ci.yml/badge.svg)`
+- License: `![License](https://img.shields.io/badge/license-MIT-green.svg)`
+- Success rate: `![Success](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=success&query=$.success_rate&suffix=%25)`
+- Runs: `![Runs](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=runs&query=$.total_runs)`
+
 Purpose: A minimal, local-only desktop AI agent for macOS 14+ that automates Finder file organization, PDF merge/extract, and creates a draft in Mail.app, with screenshots and a public dashboard. Designed for future Windows 11 support with adapter abstractions.
 
 Quickstart (macOS 14+)
@@ -11,6 +18,7 @@ Quickstart (macOS 14+)
   - `uvicorn app.main:app --reload`
 
 Open http://127.0.0.1:8000
+Health check: http://127.0.0.1:8000/healthz
 
 Permissions (macOS)
 - Screen Recording: System Settings → Privacy & Security → Screen Recording → allow Terminal and your Python.

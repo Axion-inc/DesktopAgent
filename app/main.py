@@ -42,6 +42,11 @@ def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+
 @app.get("/plans/new", response_class=HTMLResponse)
 def plans_new(request: Request):
     template_yaml = (
