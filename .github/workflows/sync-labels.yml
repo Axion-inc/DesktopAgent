@@ -7,6 +7,10 @@ on:
       - .github/labels.yml
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   labels:
     runs-on: ubuntu-latest
@@ -17,6 +21,6 @@ jobs:
         with:
           yaml-file: .github/labels.yml
           dry-run: false
+          skip-delete: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
