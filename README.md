@@ -1,9 +1,10 @@
 ActionEdge Desktop Agent (MVP M0)
 
+![CI](https://github.com/Axion-inc/DesktopAgent/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+
 CI: https://github.com/Axion-inc/DesktopAgent/actions
-Badges (add to repo description/README after deploying /metrics):
-- CI: `![CI](https://github.com/Axion-inc/DesktopAgent/actions/workflows/ci.yml/badge.svg)`
-- License: `![License](https://img.shields.io/badge/license-MIT-green.svg)`
+Badges (after deploying /metrics):
 - Success rate: `![Success](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=success&query=$.success_rate&suffix=%25)`
 - Runs: `![Runs](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=runs&query=$.total_runs)`
 
