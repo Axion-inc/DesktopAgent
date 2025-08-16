@@ -78,3 +78,4 @@ Shields.io Badges
 - Example (replace URL with your deployment):
   - Success rate: `https://img.shields.io/endpoint?url=https://your.host/metrics&label=success&query=$.success_rate&suffix=%25`
   - Total runs: `https://img.shields.io/endpoint?url=https://your.host/metrics&label=runs&query=$.total_runs`
+
