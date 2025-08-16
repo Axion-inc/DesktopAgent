@@ -112,8 +112,13 @@ class Runner:
             if self.dry_run:
                 return {"would_attach": len(params.get("paths", []))}
             did = self.state.get("draft_id")
+            # Validate file existence before attempting Mail attach
+            paths = list(params.get("paths", []))
+            missing = [str(p) for p in paths if not Path(str(p)).expanduser().exists()]
+            if missing:
+                raise FileNotFoundError(f"attach_files: missing paths: {', '.join(missing)}")
             if did:
-                self.mail.attach(did, params.get("paths", []))
+                self.mail.attach(did, paths)
             return {"attached": params.get("paths", [])}
         if action == "save_draft":
             if self.dry_run:

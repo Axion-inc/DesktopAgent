@@ -103,7 +103,9 @@ async def runs_approve(run_id: int):
     # Permission preflight (block on Mail automation failure)
     perms = check_permissions()
     mail_status = perms.get("automation_mail", {}).get("status")
-    if mail_status == "fail":
+    strict = os.environ.get("PERMISSIONS_STRICT", "0") in ("1", "true", "True")
+    screen_status = perms.get("screen_recording", {}).get("status")
+    if mail_status == "fail" or (strict and screen_status != "ok"):
         # Show blocking page with guidance
         return templates.TemplateResponse(
             "permissions_block.html",

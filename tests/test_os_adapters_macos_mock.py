@@ -21,7 +21,7 @@ class DummyPreview:
         return None
 
 
-def test_runner_with_mock_adapters(monkeypatch):
+def test_runner_with_mock_adapters(monkeypatch, tmp_path):
     plan = {
         "name": "mock run",
         "variables": {},
@@ -40,7 +40,9 @@ def test_runner_with_mock_adapters(monkeypatch):
     assert out1["message"] == "hello"
     r.execute_step("compose_mail", {"to": ["a@example.com"], "subject": "s", "body": "b"})
     assert r.state["draft_id"] == "123"
-    out3 = r.execute_step("attach_files", {"paths": ["/tmp/a.pdf"]})
+    p = tmp_path / "a.pdf"
+    p.write_bytes(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj<<>>endobj\nstartxref\n0\n%%EOF\n")
+    out3 = r.execute_step("attach_files", {"paths": [str(p)]})
     assert "attached" in out3
     out4 = r.execute_step("save_draft", {})
     assert out4["saved"] is True
