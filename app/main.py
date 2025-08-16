@@ -5,7 +5,8 @@ from pathlib import Path
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from .utils import json_dumps
+from .utils import json_dumps, get_logger
+from .permissions import check_permissions
 
 from .dsl.parser import parse_yaml, render_value
 from .dsl.validator import validate_plan
@@ -36,6 +37,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    get_logger().info("app.startup")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -71,7 +73,9 @@ async def plans_validate(yaml_text: str = Form(...)):
     for step in plan.get("steps", []):
         action, params = list(step.items())[0]
         rendered_steps.append({action: render_value(params, variables)})
-    summary = {"destructive": False}
+    # naive estimation: number of steps * 250ms
+    est_ms = max(250, 250 * max(1, len(plan.get("steps", []))))
+    summary = {"destructive": False, "estimated_ms": est_ms}
     return {"ok": True, "name": plan.get("name"), "steps": rendered_steps, "summary": summary}
 
 
@@ -92,10 +96,22 @@ async def plans_run(request: Request, yaml_text: str = Form(...)):
 
 @app.post("/runs/{run_id}/approve")
 async def runs_approve(run_id: int):
+    log = get_logger()
     run = get_run(run_id)
     if not run:
         raise HTTPException(404, "run not found")
+    # Permission preflight (block on Mail automation failure)
+    perms = check_permissions()
+    mail_status = perms.get("automation_mail", {}).get("status")
+    if mail_status == "fail":
+        # Show blocking page with guidance
+        return templates.TemplateResponse(
+            "permissions_block.html",
+            {"request": Request, "perms": perms, "run_id": run_id},
+            status_code=403,
+        )
     update_run(run_id, status="running")
+    log.info("run.start id=%s", run_id)
     set_run_started_now(run_id)
     # Execute synchronously for MVP
     plan = parse_yaml(run["plan_yaml"])  # type: ignore
@@ -127,6 +143,7 @@ async def runs_approve(run_id: int):
                 output_json=json_dumps(result),
                 screenshot_path=shot,
             )
+            log.info("run.step.success id=%s idx=%s action=%s", run_id, idx, action)
         except Exception as e:
             ok = False
             shot = runner._screenshot(run_id, idx)
@@ -136,11 +153,14 @@ async def runs_approve(run_id: int):
                 error_message=str(e),
                 screenshot_path=shot,
             )
+            log.error("run.step.failed id=%s idx=%s action=%s err=%s", run_id, idx, action, e)
             break
     if ok:
         update_run(run_id, status="success")
+        log.info("run.finish id=%s status=success", run_id)
     else:
         update_run(run_id, status="failed")
+        log.info("run.finish id=%s status=failed", run_id)
     set_run_finished_now(run_id)
     return RedirectResponse(url=f"/runs/{run_id}", status_code=303)
 
@@ -262,6 +282,12 @@ def dashboard(request: Request):
             "top_errors": top_errors,
         },
     )
+
+
+@app.get("/permissions", response_class=HTMLResponse)
+def permissions(request: Request):
+    perms = check_permissions()
+    return templates.TemplateResponse("permissions.html", {"request": request, "perms": perms})
 
 
 @app.get("/metrics")

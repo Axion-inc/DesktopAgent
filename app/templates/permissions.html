@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Permissions</title></head>
+<body>
+  <h1>Permissions (macOS)</h1>
+  <p>実行前に以下の権限を確認してください。</p>
+  <ul>
+    <li>Screen Recording: <strong>{{ perms.get('screen_recording', {}).get('status') }}</strong> — {{ perms.get('screen_recording', {}).get('message') }}</li>
+    <li>Automation (Mail): <strong>{{ perms.get('automation_mail', {}).get('status') }}</strong> — {{ perms.get('automation_mail', {}).get('message') }}</li>
+  </ul>
+  <p>場所: System Settings → Privacy & Security → Screen Recording / Automation</p>
+  <p><a href="/">Home</a></p>
+</body>
+</html>
+

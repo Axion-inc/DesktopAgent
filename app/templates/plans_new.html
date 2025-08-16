@@ -17,6 +17,10 @@
       const data = await res.json();
       const pre = document.getElementById('preview') || document.body.appendChild(Object.assign(document.createElement('pre'),{id:'preview'}));
       pre.textContent = JSON.stringify(data, null, 2);
+      if (data.summary) {
+        const sum = document.getElementById('summary') || document.body.insertBefore(Object.assign(document.createElement('div'),{id:'summary'}), pre);
+        sum.innerHTML = `<p><strong>Summary:</strong> destructive=${data.summary.destructive}, estimated=${data.summary.estimated_ms||'n/a'} ms</p>`;
+      }
       if (data.ok) {
         const runForm = document.getElementById('runform') || document.body.appendChild(Object.assign(document.createElement('form'),{id:'runform',method:'post',action:'/plans/run'}));
         runForm.innerHTML = '';
@@ -27,4 +31,3 @@
   </script>
 </body>
 </html>
-

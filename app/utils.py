@@ -1,6 +1,8 @@
 import json
 import os
 from datetime import datetime
+import logging
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +14,20 @@ except Exception:  # pragma: no cover
 
 SCREENSHOT_DIR = Path(os.environ.get("SCREENSHOT_DIR", "./data/screenshots"))
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def get_logger() -> logging.Logger:
+    logger = logging.getLogger("desktop_agent")
+    if logger.handlers:
+        return logger
+    logger.setLevel(logging.INFO)
+    log_dir = Path("./logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    handler = RotatingFileHandler(log_dir / "app.log", maxBytes=512000, backupCount=3)
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    handler.setFormatter(fmt)
+    logger.addHandler(handler)
+    return logger
 
 
 def now_iso() -> str:

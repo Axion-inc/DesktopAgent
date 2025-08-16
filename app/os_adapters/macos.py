@@ -14,8 +14,20 @@ def _run_osascript(script: str) -> str:
         path = tf.name
     proc = subprocess.run(["/usr/bin/osascript", path], capture_output=True, text=True)
     if proc.returncode != 0:
-        raise RuntimeError(proc.stderr.strip() + "\nSCRIPT:\n" + content)
+        stderr = proc.stderr.strip()
+        hint = _hint_for_error(stderr)
+        raise RuntimeError(stderr + (f"\nHINT: {hint}" if hint else "") + "\nSCRIPT:\n" + content)
     return proc.stdout.strip()
+
+
+def _hint_for_error(stderr: str) -> str:
+    # Map common AppleScript errors to actionable hints
+    # -2741: syntax error / automation blocked often shows up as parse error depending on env
+    if "(-2741)" in stderr:
+        return "AppleScript のパース/自動化エラーです。Automation の許可とクォート/改行を確認してください。"
+    if "Not authorized to send Apple events" in stderr or "Not authorized" in stderr:
+        return "System Settings → Privacy & Security → Automation で Terminal/Python に Mail の許可を付与してください。"
+    return ""
 
 
 class MacMailAdapter(MailAdapter):
