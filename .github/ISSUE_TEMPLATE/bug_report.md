@@ -11,7 +11,9 @@ about: Create a report to help us improve
 
 ### Screenshots / Logs
 
+### Public run link (if applicable)
+- /public/runs/<public_id>
+
 ### Environment
 - OS:
 - Python:
-

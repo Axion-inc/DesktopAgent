@@ -3,6 +3,15 @@
 <head><meta charset="utf-8"><title>Run #{{ run['id'] }}</title></head>
 <body>
   <h1>Run #{{ run['id'] }} - {{ run['plan_name'] }}</h1>
+  {% if any_failed %}
+    <div style="background:#fee2e2;color:#991b1b;padding:8px;border:1px solid #fecaca;border-radius:4px;">
+      実行に失敗しました。原因: {{ first_error }}
+    </div>
+  {% elif zero_found %}
+    <div style="background:#fef9c3;color:#854d0e;padding:8px;border:1px solid #fde68a;border-radius:4px;">
+      find_files の結果が 0 件です。クエリやルートパスを確認してください。
+    </div>
+  {% endif %}
   <p>Status: {{ run['status'] }} | Public: <a href="/public/runs/{{ run['public_id'] }}">link</a></p>
   {% if run['status'] == 'pending' %}
   <form method="post" action="/runs/{{ run['id'] }}/approve"><button type="submit">Approve & Execute</button></form>
@@ -24,4 +33,3 @@
   {% endfor %}
 </body>
 </html>
-

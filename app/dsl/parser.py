@@ -54,7 +54,12 @@ def render_string(s: str, variables: Dict[str, Any]) -> str:
 
 
 def parse_yaml(yaml_text: str) -> Dict[str, Any]:
-    data = yaml.safe_load(yaml_text)
+    try:
+        data = yaml.safe_load(yaml_text)
+    except yaml.YAMLError as e:  # type: ignore[attr-defined]
+        # Include line/column if available
+        msg = str(e)
+        raise ValueError(f"YAML parse error: {msg}") from e
     if not isinstance(data, dict):
         raise ValueError("Invalid plan YAML: root must be mapping")
     return data

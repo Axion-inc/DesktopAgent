@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from .utils import json_dumps
 
 from .dsl.parser import parse_yaml, render_value
 from .dsl.validator import validate_plan
@@ -57,7 +58,10 @@ def plans_new(request: Request):
 
 @app.post("/plans/validate")
 async def plans_validate(yaml_text: str = Form(...)):
-    plan = parse_yaml(yaml_text)
+    try:
+        plan = parse_yaml(yaml_text)
+    except ValueError as e:
+        return JSONResponse({"ok": False, "errors": [str(e)]})
     errors = validate_plan(plan)
     if errors:
         return JSONResponse({"ok": False, "errors": errors})
@@ -67,7 +71,8 @@ async def plans_validate(yaml_text: str = Form(...)):
     for step in plan.get("steps", []):
         action, params = list(step.items())[0]
         rendered_steps.append({action: render_value(params, variables)})
-    return {"ok": True, "name": plan.get("name"), "steps": rendered_steps}
+    summary = {"destructive": False}
+    return {"ok": True, "name": plan.get("name"), "steps": rendered_steps, "summary": summary}
 
 
 @app.post("/plans/run")
@@ -110,7 +115,7 @@ async def runs_approve(run_id: int):
             run_id,
             idx,
             action,
-            input_json=str(params),
+            input_json=json_dumps(params),
             status="running",
         )
         try:
@@ -119,7 +124,7 @@ async def runs_approve(run_id: int):
             models.finalize_run_step(
                 step_id,
                 "success",
-                output_json=str(result),
+                output_json=json_dumps(result),
                 screenshot_path=shot,
             )
         except Exception as e:
@@ -151,7 +156,25 @@ def runs_detail(request: Request, run_id: int):
     if not run:
         raise HTTPException(404, "not found")
     steps = get_run_steps(run_id)
-    return templates.TemplateResponse("run_detail.html", {"request": request, "run": run, "steps": steps})
+    any_failed = False
+    first_error = None
+    zero_found = False
+    import json as _json
+    for s in steps:
+        if s["status"] == "failed" and not any_failed:
+            any_failed = True
+            first_error = s["error_message"]
+        if s["name"] == "find_files" and s["output_json"]:
+            try:
+                out = _json.loads(s["output_json"])  # type: ignore
+                if isinstance(out, dict) and out.get("found") == 0:
+                    zero_found = True
+            except Exception:
+                pass
+    return templates.TemplateResponse(
+        "run_detail.html",
+        {"request": request, "run": run, "steps": steps, "any_failed": any_failed, "first_error": first_error, "zero_found": zero_found},
+    )
 
 
 @app.get("/public/runs/{public_id}", response_class=HTMLResponse)
@@ -186,24 +209,44 @@ def runs_public(request: Request, public_id: str):
 
 @app.get("/public/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
-    # Simple stats from runs
+    # Stats from last 24h; compute median and p95 in Python
     from .models import get_conn
+    import math
 
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        "SELECT COUNT(*), SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) "
-        "FROM runs WHERE started_at >= datetime('now','-1 day')"
+        "SELECT id, status, started_at, finished_at FROM runs WHERE started_at >= datetime('now','-1 day')"
     )
-    total, success = cur.fetchone()
+    rows = cur.fetchall()
+    total = len(rows)
+    success = sum(1 for r in rows if r["status"] == "success")
+    # durations in ms
+    durations = []
+    for r in rows:
+        if r["started_at"] and r["finished_at"]:
+            cur.execute(
+                "SELECT (julianday(?) - julianday(?)) * 24 * 60 * 60 * 1000",
+                (r["finished_at"], r["started_at"]),
+            )
+            d = cur.fetchone()[0]
+            if d is not None:
+                durations.append(d)
+    durations.sort()
+    def percentile(p: float) -> float:
+        if not durations:
+            return 0.0
+        k = (len(durations) - 1) * p
+        f = math.floor(k)
+        c = math.ceil(k)
+        if f == c:
+            return float(durations[int(k)])
+        return float(durations[f] + (durations[c] - durations[f]) * (k - f))
+
+    median = percentile(0.5)
+    p95 = percentile(0.95)
     cur.execute(
-        "SELECT AVG((julianday(finished_at)-julianday(started_at))*24*60*60*1000) "
-        "FROM runs WHERE status IN ('success','failed') AND started_at >= datetime('now','-1 day')"
-    )
-    median = cur.fetchone()[0]
-    cur.execute(
-        "SELECT error_message, COUNT(*) c FROM run_steps WHERE status='failed' "
-        "GROUP BY error_message ORDER BY c DESC LIMIT 3"
+        "SELECT error_message, COUNT(*) c FROM run_steps WHERE status='failed' GROUP BY error_message ORDER BY c DESC LIMIT 3"
     )
     top_errors = cur.fetchall()
     conn.close()
@@ -215,6 +258,7 @@ def dashboard(request: Request):
             "success_rate": success_rate,
             "total_runs": total or 0,
             "median_ms": round(median or 0),
+            "p95_ms": round(p95 or 0),
             "top_errors": top_errors,
         },
     )
