@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+jinja2
+pydantic
+pypdf
+mss
+pyyaml
+pytest
+flake8

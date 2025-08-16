@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>New Plan</title></head>
+<body>
+  <h1>New Plan</h1>
+  <form method="post" action="/plans/validate">
+    <textarea name="yaml_text" rows="24" cols="100">{{ template_yaml }}</textarea><br>
+    <button type="submit">Validate (Dry-run)</button>
+  </form>
+  <script>
+    // Submit via fetch to preview, then allow run
+    const form = document.querySelector('form');
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const fd = new FormData(form);
+      const res = await fetch('/plans/validate', {method:'POST', body:fd});
+      const data = await res.json();
+      const pre = document.getElementById('preview') || document.body.appendChild(Object.assign(document.createElement('pre'),{id:'preview'}));
+      pre.textContent = JSON.stringify(data, null, 2);
+      if (data.ok) {
+        const runForm = document.getElementById('runform') || document.body.appendChild(Object.assign(document.createElement('form'),{id:'runform',method:'post',action:'/plans/run'}));
+        runForm.innerHTML = '';
+        const ta = document.createElement('textarea');ta.name='yaml_text';ta.style.display='none';ta.value=fd.get('yaml_text'); runForm.appendChild(ta);
+        const btn = document.createElement('button');btn.type='submit';btn.textContent='Approve & Run'; runForm.appendChild(btn);
+      }
+    });
+  </script>
+</body>
+</html>
+

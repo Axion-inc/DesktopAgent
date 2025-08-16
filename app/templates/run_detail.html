@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Run #{{ run['id'] }}</title></head>
+<body>
+  <h1>Run #{{ run['id'] }} - {{ run['plan_name'] }}</h1>
+  <p>Status: {{ run['status'] }} | Public: <a href="/public/runs/{{ run['public_id'] }}">link</a></p>
+  {% if run['status'] == 'pending' %}
+  <form method="post" action="/runs/{{ run['id'] }}/approve"><button type="submit">Approve & Execute</button></form>
+  {% endif %}
+  <hr>
+  {% for s in steps %}
+    <div>
+      <h3>Step {{ s['idx'] }}: {{ s['name'] }} - {{ s['status'] }}</h3>
+      <details><summary>Input</summary><pre>{{ s['input_json'] }}</pre></details>
+      <details><summary>Output</summary><pre>{{ s['output_json'] }}</pre></details>
+      {% if s['screenshot_path'] %}
+        <p>Screenshot: <code>{{ s['screenshot_path'] }}</code></p>
+      {% endif %}
+      {% if s['error_message'] %}
+        <p style="color:red">Error: {{ s['error_message'] }}</p>
+      {% endif %}
+    </div>
+    <hr>
+  {% endfor %}
+</body>
+</html>
+

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Run (Public)</title></head>
+<body>
+  <h1>Run (Public)</h1>
+  <p>Status: {{ run['status'] }}</p>
+  <hr>
+  {% for s in steps %}
+    <div>
+      <h3>Step {{ s['idx'] }}: {{ s['name'] }} - {{ s['status'] }}</h3>
+      <details><summary>Input</summary><pre>{{ s['input_json'] }}</pre></details>
+      <details><summary>Output</summary><pre>{{ s['output_json'] }}</pre></details>
+    </div>
+    <hr>
+  {% endfor %}
+</body>
+</html>
+

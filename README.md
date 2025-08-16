@@ -1,0 +1,59 @@
+ActionEdge Desktop Agent (MVP M0)
+
+Purpose: A minimal, local-only desktop AI agent for macOS 14+ that automates Finder file organization, PDF merge/extract, and creates a draft in Mail.app, with screenshots and a public dashboard. Designed for future Windows 11 support with adapter abstractions.
+
+Quickstart (macOS 14+)
+- Prereqs: Python 3.11+, Xcode CLT, permissions for Screen Recording and Automation.
+- Setup:
+  - `python3 -m venv venv`
+  - `source venv/bin/activate`
+  - `pip install -r requirements.txt`
+  - `uvicorn app.main:app --reload`
+
+Open http://127.0.0.1:8000
+
+Permissions (macOS)
+- Screen Recording: System Settings → Privacy & Security → Screen Recording → allow Terminal and your Python.
+- Automation (Mail, Finder, System Events): First run will prompt; or enable under Privacy & Security → Automation.
+
+Flow
+- Plans → Dry-run (preview) → Approve → Execute → Replay (with screenshots) → Public dashboard.
+
+Run the Template Plan
+- Navigate to /plans/new, keep the default weekly report YAML, validate, approve, and run.
+
+Sample PDFs
+- Run `scripts/dev_setup_macos.sh` once to generate 10 dummy PDFs into `sample_data/`.
+
+Windows Roadmap (stubs included)
+- Mail via Outlook `win32com` (compose, attach, save draft)
+- Preview alternative via `os.startfile`
+- Future: UI Automation (UIA) for richer flows
+
+CI
+- GitHub Actions runs flake8 and pytest on push.
+
+Metrics / Badges
+- `/metrics` exposes JSON suitable for Shields.io custom badges (success rate, run count).
+
+Security & Privacy
+- No external LLM/API calls. Public pages mask PII (emails, names, file paths).
+
+Troubleshooting (macOS)
+- Permissions: If screenshots are placeholders or AppleScript fails, grant Terminal/Python.app permissions under System Settings → Privacy & Security (Screen Recording, Automation for Mail/Finder/System Events).
+- Mail AppleScript: We set subject/content with separate setters and attach using the first outgoing message whose id matches the draft. If Japanese text causes parse errors, try ASCII subject/body first to isolate. Logs for failures appear in /runs/{id} steps.
+
+License
+- MIT
+
+CLI Usage (headless)
+- Single run of the weekly template in dry-run mode with sample data:
+  - `python scripts/run_plan.py plans/templates/weekly_report.yaml --dry-run --var inbox=./sample_data --var workdir=./data/work --var out_pdf=./data/weekly.pdf`
+- Seed 20 runs (dry-run) to validate stability:
+  - `python scripts/seed_runs.py plans/templates/weekly_report.yaml --dry-run --n 20 --var inbox=./sample_data --var workdir=./data/work --var out_pdf=./data/weekly.pdf`
+- To actually execute on macOS (will open Preview and create a Mail draft), omit `--dry-run` and ensure permissions are granted.
+
+Shields.io Badges
+- Example (replace URL with your deployment):
+  - Success rate: `https://img.shields.io/endpoint?url=https://your.host/metrics&label=success&query=$.success_rate&suffix=%25`
+  - Total runs: `https://img.shields.io/endpoint?url=https://your.host/metrics&label=runs&query=$.total_runs`
