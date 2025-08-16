@@ -1,4 +1,4 @@
-ActionEdge Desktop Agent (MVP M0)
+Desktop Agent (MVP M0)
 
 Demo Site: https://axion-inc.github.io/DesktopAgent/
 
