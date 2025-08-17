@@ -1,27 +1,284 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>Public Dashboard</title></head>
+<head>
+    <meta charset="utf-8">
+    <title>Desktop Agent - Public Dashboard</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f5f7fa; 
+            color: #333; 
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); 
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 30px; 
+            border-bottom: 2px solid #e9ecef; 
+            padding-bottom: 20px; 
+        }
+        .header h1 { 
+            color: #2c3e50; 
+            margin: 0; 
+            font-size: 28px; 
+        }
+        .header p { 
+            color: #6c757d; 
+            margin: 10px 0 0 0; 
+        }
+        
+        .metrics-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+            gap: 20px; 
+            margin: 30px 0; 
+        }
+        
+        .metric-card { 
+            background: #f8f9fa; 
+            border: 1px solid #e9ecef; 
+            border-radius: 8px; 
+            padding: 20px; 
+            text-align: center; 
+        }
+        
+        .metric-card.primary { border-left: 4px solid #007bff; }
+        .metric-card.success { border-left: 4px solid #28a745; }
+        .metric-card.warning { border-left: 4px solid #ffc107; }
+        .metric-card.info { border-left: 4px solid #17a2b8; }
+        .metric-card.secondary { border-left: 4px solid #6c757d; }
+        
+        .metric-value { 
+            font-size: 2.5em; 
+            font-weight: bold; 
+            margin: 10px 0; 
+            color: #2c3e50; 
+        }
+        
+        .metric-label { 
+            font-size: 0.9em; 
+            color: #6c757d; 
+            font-weight: 500; 
+        }
+        
+        .metric-subtitle { 
+            font-size: 0.8em; 
+            color: #495057; 
+            margin-top: 5px; 
+        }
+        
+        .section { 
+            margin: 30px 0; 
+            padding: 20px; 
+            background: #f8f9fa; 
+            border-radius: 8px; 
+        }
+        
+        .section h3 { 
+            margin: 0 0 15px 0; 
+            color: #2c3e50; 
+        }
+        
+        .error-list { 
+            list-style: none; 
+            padding: 0; 
+        }
+        
+        .error-item { 
+            background: white; 
+            margin: 8px 0; 
+            padding: 12px 16px; 
+            border-radius: 6px; 
+            border-left: 3px solid #dc3545; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        
+        .error-name { 
+            font-weight: 500; 
+            color: #2c3e50; 
+        }
+        
+        .error-count { 
+            background: #dc3545; 
+            color: white; 
+            padding: 4px 8px; 
+            border-radius: 12px; 
+            font-size: 0.8em; 
+            font-weight: bold; 
+        }
+        
+        .rolling-stats { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+        }
+        
+        .rolling-stat { 
+            background: white; 
+            padding: 15px; 
+            border-radius: 6px; 
+            text-align: center; 
+        }
+        
+        .rolling-value { 
+            font-size: 1.8em; 
+            font-weight: bold; 
+            color: #17a2b8; 
+        }
+        
+        .footer { 
+            text-align: center; 
+            margin-top: 30px; 
+            padding-top: 20px; 
+            border-top: 1px solid #e9ecef; 
+            color: #6c757d; 
+        }
+        
+        @media (max-width: 768px) {
+            .metrics-grid { 
+                grid-template-columns: 1fr; 
+            }
+            .container { 
+                margin: 10px; 
+                padding: 20px; 
+            }
+        }
+    </style>
+</head>
 <body>
-  <h1>Public Dashboard</h1>
-  <ul>
-    <li>Success rate: {{ success_rate }}%</li>
-    <li>Total runs (24h): {{ total_runs }}</li>
-    <li>Median duration (ms): {{ median_ms }}</li>
-    <li>P95 duration (ms): {{ p95_ms }}</li>
-  </ul>
-  {% if rolling_7d %}
-  <h3>Rolling 7d</h3>
-  <ul>
-    <li>Success rate: {{ (rolling_7d.success_rate * 100) | round(2) if rolling_7d.success_rate is defined else 0 }}%</li>
-    <li>Median duration (ms): {{ rolling_7d.median_duration_ms if rolling_7d.median_duration_ms is defined else 0 }}</li>
-  </ul>
-  {% endif %}
-  <h3>Top 3 Errors</h3>
-  <ol>
-  {% for row in top_errors %}
-    <li>{{ row[0] }} ({{ row[1] }})</li>
-  {% endfor %}
-  </ol>
-  <p>See /metrics for JSON schema including 7d rolling averages.</p>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Desktop Agent Dashboard</h1>
+            <p>Real-time metrics and performance indicators</p>
+        </div>
+
+        <!-- Main Metrics Grid -->
+        <div class="metrics-grid">
+            <!-- Core Performance -->
+            <div class="metric-card primary">
+                <div class="metric-value">{{ success_rate }}%</div>
+                <div class="metric-label">Success Rate</div>
+                <div class="metric-subtitle">Last 24 hours</div>
+            </div>
+
+            <div class="metric-card info">
+                <div class="metric-value">{{ median_ms }}</div>
+                <div class="metric-label">Median Duration</div>
+                <div class="metric-subtitle">milliseconds</div>
+            </div>
+
+            <div class="metric-card secondary">
+                <div class="metric-value">{{ p95_ms }}</div>
+                <div class="metric-label">P95 Duration</div>
+                <div class="metric-subtitle">milliseconds</div>
+            </div>
+
+            <!-- Phase 2 Metrics: Approvals -->
+            <div class="metric-card warning">
+                <div class="metric-value">{{ approvals_required or 0 }}</div>
+                <div class="metric-label">Approvals Required</div>
+                <div class="metric-subtitle">Last 24 hours</div>
+            </div>
+
+            <div class="metric-card success">
+                <div class="metric-value">{{ approvals_granted or 0 }}</div>
+                <div class="metric-label">Approvals Granted</div>
+                <div class="metric-subtitle">Last 24 hours</div>
+            </div>
+
+            <!-- Phase 2 Metrics: Web Operations -->
+            <div class="metric-card info">
+                <div class="metric-value">{{ (web_success_rate * 100) | round(1) if web_success_rate is defined else 0 }}%</div>
+                <div class="metric-label">Web Success Rate</div>
+                <div class="metric-subtitle">Last 24 hours</div>
+            </div>
+
+            <!-- Phase 2 Metrics: Recovery -->
+            <div class="metric-card success">
+                <div class="metric-value">{{ recovery_applied or 0 }}</div>
+                <div class="metric-label">Recovery Applied</div>
+                <div class="metric-subtitle">Auto-healing actions</div>
+            </div>
+        </div>
+
+        <!-- Rolling 7-day Statistics -->
+        {% if rolling_7d %}
+        <div class="section">
+            <h3>📈 7-Day Rolling Average</h3>
+            <div class="rolling-stats">
+                <div class="rolling-stat">
+                    <div class="rolling-value">{{ (rolling_7d.success_rate * 100) | round(1) if rolling_7d.success_rate is defined else 0 }}%</div>
+                    <div class="metric-label">Success Rate</div>
+                </div>
+                <div class="rolling-stat">
+                    <div class="rolling-value">{{ rolling_7d.median_duration_ms if rolling_7d.median_duration_ms is defined else 0 }}</div>
+                    <div class="metric-label">Median Duration (ms)</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Error Analysis -->
+        <div class="section">
+            <h3>🚨 Top Error Categories (24h)</h3>
+            {% if top_errors %}
+            <ul class="error-list">
+                {% for error in top_errors %}
+                <li class="error-item">
+                    <span class="error-name">{{ error[0] }}</span>
+                    <span class="error-count">{{ error[1] }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p style="text-align: center; color: #28a745; font-weight: 500;">✅ No errors in the last 24 hours!</p>
+            {% endif %}
+        </div>
+
+        <div class="footer">
+            <p><strong>Desktop Agent</strong> - Automated workflow execution platform</p>
+            <p>
+                <a href="/metrics" style="color: #007bff; text-decoration: none;">📊 Raw JSON Metrics</a> | 
+                <a href="/" style="color: #007bff; text-decoration: none;">🏠 Home</a>
+            </p>
+            <p style="font-size: 0.8em; margin-top: 15px;">
+                Dashboard updates in real-time. Phase 2 metrics include approval workflows, web operations, and self-recovery statistics.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-refresh dashboard every 30 seconds
+        setTimeout(function() {
+            location.reload();
+        }, 30000);
+        
+        // Add some visual feedback for metrics
+        document.addEventListener('DOMContentLoaded', function() {
+            const metricCards = document.querySelectorAll('.metric-card');
+            metricCards.forEach((card, index) => {
+                setTimeout(() => {
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateY(20px)';
+                    card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                    
+                    setTimeout(() => {
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0)';
+                    }, 100);
+                }, index * 100);
+            });
+        });
+    </script>
 </body>
 </html>

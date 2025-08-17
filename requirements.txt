@@ -7,3 +7,4 @@ mss
 pyyaml
 pytest
 flake8
+playwright

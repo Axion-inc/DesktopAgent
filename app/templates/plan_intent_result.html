@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generated Plan - Planner L1 - Desktop Agent</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { border-bottom: 2px solid #e1e5e9; padding-bottom: 20px; margin-bottom: 20px; }
+        .title { color: #0366d6; font-size: 24px; font-weight: bold; margin: 0; }
+        .subtitle { color: #586069; margin: 5px 0 0 0; }
+        
+        .alert { padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid; }
+        .alert-success { background-color: #d4edda; border-color: #28a745; color: #155724; }
+        .alert-warning { background-color: #fff3cd; border-color: #ffc107; color: #856404; }
+        .alert-info { background-color: #d1ecf1; border-color: #17a2b8; color: #0c5460; }
+        
+        .confidence-bar { background: #e9ecef; border-radius: 10px; height: 20px; margin: 10px 0; overflow: hidden; }
+        .confidence-fill { height: 100%; border-radius: 10px; transition: width 0.3s ease; }
+        .confidence-high { background: linear-gradient(90deg, #28a745, #20c997); }
+        .confidence-medium { background: linear-gradient(90deg, #ffc107, #fd7e14); }
+        .confidence-low { background: linear-gradient(90deg, #dc3545, #e83e8c); }
+        
+        .intent-display { background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #0366d6; }
+        .intent-text { font-style: italic; color: #24292e; font-size: 16px; }
+        
+        .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }
+        
+        .plan-preview { background: #f6f8fa; padding: 15px; border-radius: 6px; }
+        .plan-edit { background: #fff; padding: 15px; border: 1px solid #d1d5da; border-radius: 6px; }
+        
+        .step-preview { background: white; border: 1px solid #e1e5e9; padding: 10px; margin: 8px 0; border-radius: 4px; }
+        .step-number { font-weight: bold; color: #0366d6; }
+        .step-action { color: #28a745; font-weight: 500; }
+        .step-params { color: #586069; font-size: 14px; margin-top: 4px; }
+        
+        .form-group { margin: 15px 0; }
+        .form-label { display: block; font-weight: bold; margin-bottom: 5px; color: #24292e; }
+        .form-textarea { width: 100%; padding: 12px; border: 1px solid #d1d5da; border-radius: 4px; font-size: 14px; font-family: 'Monaco', 'Menlo', monospace; min-height: 400px; resize: vertical; }
+        
+        .btn { display: inline-block; padding: 10px 20px; border: none; border-radius: 6px; text-decoration: none; font-weight: 500; cursor: pointer; font-size: 14px; margin: 5px; }
+        .btn-primary { background-color: #0366d6; color: white; }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-warning { background-color: #ffc107; color: black; }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        .btn:hover { opacity: 0.9; }
+        
+        .actions { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e1e5e9; }
+        
+        .metadata { background: #fff5f5; border: 1px solid #fed7d7; padding: 15px; border-radius: 6px; margin: 20px 0; }
+        .metadata-item { margin: 5px 0; }
+        .metadata-label { font-weight: bold; color: #2d3748; }
+        .metadata-value { color: #4a5568; }
+        
+        .warning-box { background: #fffbeb; border: 1px solid #f59e0b; padding: 15px; border-radius: 6px; margin: 20px 0; }
+        
+        @media (max-width: 768px) {
+            .two-column { grid-template-columns: 1fr; }
+            .container { margin: 10px; padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">✨ Plan Generated Successfully</h1>
+            <p class="subtitle">Review and edit the generated plan before execution</p>
+        </div>
+
+        <!-- Success Message -->
+        <div class="alert alert-success">
+            <strong>Plan Generated!</strong> {{ message }}
+        </div>
+
+        <!-- Original Intent -->
+        <div class="intent-display">
+            <h3>📝 Original Intent</h3>
+            <div class="intent-text">"{{ intent_text }}"</div>
+        </div>
+
+        <!-- Confidence Score -->
+        <div style="margin: 20px 0;">
+            <h3>🎯 Generation Confidence</h3>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div class="confidence-bar" style="flex: 1;">
+                    <div class="confidence-fill 
+                        {% if confidence >= 0.7 %}confidence-high
+                        {% elif confidence >= 0.4 %}confidence-medium
+                        {% else %}confidence-low{% endif %}" 
+                        style="width: {{ (confidence * 100)|round }}%;"></div>
+                </div>
+                <div style="font-weight: bold; color: 
+                    {% if confidence >= 0.7 %}#28a745
+                    {% elif confidence >= 0.4 %}#ffc107
+                    {% else %}#dc3545{% endif %};">
+                    {{ (confidence * 100)|round }}%
+                </div>
+            </div>
+            <small style="color: #586069;">
+                {% if confidence >= 0.7 %}High confidence - Plan should work well with minimal editing
+                {% elif confidence >= 0.4 %}Medium confidence - Review and adjust as needed
+                {% else %}Low confidence - Significant editing may be required{% endif %}
+            </small>
+        </div>
+
+        <!-- Warning for Manual Review -->
+        <div class="warning-box">
+            <h4>⚠️ Important: Manual Review Required</h4>
+            <p>This plan was generated automatically and <strong>must be reviewed and approved</strong> before execution. Generated plans may contain placeholder data and require customization for your specific use case.</p>
+        </div>
+
+        <!-- Two Column Layout -->
+        <div class="two-column">
+            <!-- Plan Preview -->
+            <div>
+                <h3>👀 Plan Preview</h3>
+                <div class="plan-preview">
+                    <div><strong>Name:</strong> {{ plan.name }}</div>
+                    <div style="margin: 10px 0;"><strong>Description:</strong> {{ plan.description }}</div>
+                    
+                    {% if plan.variables %}
+                    <div style="margin: 15px 0;">
+                        <strong>Variables:</strong>
+                        <ul style="margin: 5px 0; padding-left: 20px;">
+                            {% for key, value in plan.variables.items() %}
+                            <li><code>{{ key }}</code>: {{ value }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    
+                    <div style="margin: 15px 0;">
+                        <strong>Steps ({{ plan.steps|length }}):</strong>
+                        {% for step in plan.steps %}
+                        <div class="step-preview">
+                            {% for action, params in step.items() %}
+                            <div>
+                                <span class="step-number">{{ loop.index }}.</span>
+                                <span class="step-action">{{ action }}</span>
+                            </div>
+                            <div class="step-params">{{ params }}</div>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plan Editor -->
+            <div>
+                <h3>✏️ Edit Plan (YAML)</h3>
+                <div class="plan-edit">
+                    <form method="post" action="/plans/run">
+                        <div class="form-group">
+                            <label class="form-label" for="plan_yaml">Plan YAML (editable):</label>
+                            <textarea class="form-textarea" id="plan_yaml" name="yaml_text">{{ plan_yaml }}</textarea>
+                            <small style="color: #586069;">Edit the plan as needed, then validate and run.</small>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metadata -->
+        <div class="metadata">
+            <h4>📊 Generation Metadata</h4>
+            <div class="metadata-item">
+                <span class="metadata-label">Primary Intent:</span>
+                <span class="metadata-value">{{ plan._analysis.primary_intent }}</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Matched Intents:</span>
+                <span class="metadata-value">{{ plan._analysis.matched_intents|join(', ') }}</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">DSL Version:</span>
+                <span class="metadata-value">{{ plan.dsl_version }}</span>
+            </div>
+            {% if plan._analysis.entities %}
+            <div class="metadata-item">
+                <span class="metadata-label">Detected Entities:</span>
+                <span class="metadata-value">{{ plan._analysis.entities }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Actions -->
+        <div class="actions">
+            <button onclick="validateAndRun()" class="btn btn-success">
+                ✅ Validate & Run Plan
+            </button>
+            <button onclick="validatePlan()" class="btn btn-warning">
+                🔍 Validate Only
+            </button>
+            <a href="/plans/intent" class="btn btn-secondary">← Generate Another Plan</a>
+            <a href="/" class="btn btn-secondary">🏠 Home</a>
+        </div>
+
+        <!-- Validation Results (hidden by default) -->
+        <div id="validation-results" style="display: none; margin-top: 20px;"></div>
+    </div>
+
+    <script>
+        function validatePlan() {
+            const yaml = document.getElementById('plan_yaml').value;
+            const resultsDiv = document.getElementById('validation-results');
+            
+            // Show loading
+            resultsDiv.innerHTML = '<div class="alert alert-info">Validating plan...</div>';
+            resultsDiv.style.display = 'block';
+            
+            fetch('/plans/validate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'yaml_text': yaml
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.ok) {
+                    resultsDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <strong>✅ Validation Successful!</strong><br>
+                            Plan: ${data.name}<br>
+                            Steps: ${data.steps.length}<br>
+                            Estimated duration: ${data.summary.estimated_ms}ms
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <strong>❌ Validation Failed!</strong><br>
+                            Please fix the errors and try again.
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                resultsDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            });
+        }
+        
+        function validateAndRun() {
+            // First validate, then submit if valid
+            const yaml = document.getElementById('plan_yaml').value;
+            
+            fetch('/plans/validate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'yaml_text': yaml
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.ok) {
+                    // Valid - submit for execution
+                    const form = document.querySelector('form');
+                    form.submit();
+                } else {
+                    alert('Plan validation failed. Please check the YAML and try again.');
+                    validatePlan(); // Show validation results
+                }
+            })
+            .catch(error => {
+                alert('Error validating plan: ' + error.message);
+            });
+        }
+        
+        // Auto-resize textarea
+        document.addEventListener('DOMContentLoaded', function() {
+            const textarea = document.getElementById('plan_yaml');
+            if (textarea) {
+                // Set initial height based on content
+                textarea.style.height = Math.max(400, textarea.scrollHeight) + 'px';
+                
+                // Auto-resize on input
+                textarea.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = Math.max(400, this.scrollHeight) + 'px';
+                });
+            }
+        });
+    </script>
+</body>
+</html>

@@ -33,16 +33,29 @@ class Runner:
         self.step_diffs: List[Dict[str, Any]] = []  # Track before/after state for replay UI
 
     def _screenshot(self, run_id: int, idx: int) -> str:
-        return take_screenshot(f"{run_id}_{idx}.png")
+        screenshot_path = take_screenshot(f"{run_id}_{idx}.png")
 
-    def _capture_state_diff(self, action: str, before_state: Dict[str, Any], after_result: Dict[str, Any]) -> Dict[str, Any]:
+        # Also take web screenshot if web context is active
+        if self.state.get("web_context"):
+            try:
+                from app.actions import web_actions
+                web_screenshot_path = f"data/screenshots/{run_id}_{idx}_web.png"
+                web_actions.take_screenshot(
+                    self.state["web_context"], web_screenshot_path)
+            except Exception:
+                pass  # Continue if web screenshot fails
+
+        return screenshot_path
+
+    def _capture_state_diff(self, action: str, before_state: Dict[str, Any],
+                            after_result: Dict[str, Any]) -> Dict[str, Any]:
         """Capture before/after state changes for replay UI."""
         diff = {
             "action": action,
             "before": before_state,
             "after": after_result,
         }
-        
+
         # Add specific diff details based on action type
         if action == "find_files":
             diff["file_count_change"] = after_result.get("found", 0) - before_state.get("file_count", 0)
@@ -52,7 +65,13 @@ class Runner:
             diff["page_count"] = after_result.get("page_count")
         elif action == "pdf_extract_pages":
             diff["extracted_pages"] = after_result.get("page_count")
-            
+        elif action in ["open_browser", "fill_by_label", "click_by_text", "download_file"]:
+            diff["web_action"] = {
+                "status": after_result.get("status"),
+                "strategy": after_result.get("strategy"),
+                "recovery": after_result.get("recovery")
+            }
+
         return diff
 
     def _should_run(self, params: Dict[str, Any]) -> bool:
@@ -115,7 +134,7 @@ class Runner:
             if self.dry_run:
                 return {"would_move": len(self.state.get("files", []))}
             dest = params["dest"]
-            
+
             # Self-healing: auto-create output directory if it doesn't exist
             dest_path = Path(dest).expanduser()
             healed = False
@@ -125,7 +144,7 @@ class Runner:
                     healed = True
                 except Exception:
                     pass  # Let move_to handle the error normally
-            
+
             moved = fs_actions.move_to(
                 self.state.get("files", []),
                 dest,
@@ -133,7 +152,7 @@ class Runner:
             )
             self.state["files"] = moved
             self.state.pop("newnames", None)
-            
+
             result = {"moved": len(moved), "out_paths": moved}
             if healed:
                 result["self_heal"] = {"strategy": "auto_create_dir", "effective": True}
@@ -215,6 +234,141 @@ class Runner:
             return {"saved": True}
         if action == "log":
             return {"message": params.get("message", "")}
+
+        # Web Actions (Phase 2)
+        if action == "open_browser":
+            if self.dry_run:
+                return {"would_open": params.get("url")}
+            from app.actions import web_actions
+            result = web_actions.open_browser(
+                params["url"],
+                params.get("context", "default")
+            )
+            self.state["web_context"] = params.get("context", "default")
+            return result
+
+        if action == "fill_by_label":
+            if self.dry_run:
+                return {"would_fill": params.get("label")}
+            from app.actions import web_actions
+
+            # First attempt
+            result = web_actions.fill_by_label(
+                params["label"],
+                params["text"],
+                self.state.get("web_context", "default")
+            )
+
+            # Self-recovery for fill_by_label
+            if result.get("status") == "not_found":
+                # Strategy 1: Try common label synonyms
+                label_synonyms = {
+                    "氏名": ["名前", "お名前", "Name", "Full Name"],
+                    "名前": ["氏名", "お名前", "Name"],
+                    "メール": ["Email", "メールアドレス", "E-mail", "mail"],
+                    "Email": ["メール", "メールアドレス", "E-mail"],
+                    "件名": ["Subject", "タイトル", "Title"],
+                    "本文": ["Message", "メッセージ", "Content", "内容"]
+                }
+
+                original_label = params["label"]
+                synonyms = label_synonyms.get(original_label, [])
+
+                recovery_attempted = False
+                for synonym in synonyms:
+                    try:
+                        recovery_result = web_actions.fill_by_label(
+                            synonym,
+                            params["text"],
+                            self.state.get("web_context", "default")
+                        )
+                        if recovery_result.get("status") == "success":
+                            result = recovery_result
+                            result["recovery"] = {
+                                "strategy": "label_synonym",
+                                "original_label": original_label,
+                                "successful_label": synonym,
+                                "effective": True
+                            }
+                            recovery_attempted = True
+                            break
+                    except Exception:
+                        continue
+
+                if not recovery_attempted or result.get("status") != "success":
+                    result["recovery"] = {
+                        "strategy": "label_synonym",
+                        "original_label": original_label,
+                        "attempted_synonyms": synonyms,
+                        "effective": False
+                    }
+
+            return result
+
+        if action == "click_by_text":
+            if self.dry_run:
+                return {"would_click": params.get("text")}
+            from app.actions import web_actions
+
+            # First attempt
+            result = web_actions.click_by_text(
+                params["text"],
+                params.get("role"),
+                self.state.get("web_context", "default")
+            )
+
+            # Self-recovery for click_by_text
+            if result.get("status") in ["not_found", "error"]:
+                try:
+                    # Strategy: Page reload and retry
+                    session = web_actions.get_web_session()
+                    page = session.get_page(self.state.get("web_context", "default"))
+
+                    # Reload page
+                    page.reload(wait_until="networkidle")
+                    page.wait_for_load_state("domcontentloaded")
+
+                    # Retry the click
+                    recovery_result = web_actions.click_by_text(
+                        params["text"],
+                        params.get("role"),
+                        self.state.get("web_context", "default")
+                    )
+
+                    if recovery_result.get("status") == "success":
+                        result = recovery_result
+                        result["recovery"] = {
+                            "strategy": "page_reload_retry",
+                            "original_error": result.get("error", "not_found"),
+                            "effective": True
+                        }
+                    else:
+                        result["recovery"] = {
+                            "strategy": "page_reload_retry",
+                            "original_error": result.get("error", "not_found"),
+                            "effective": False
+                        }
+
+                except Exception as e:
+                    result["recovery"] = {
+                        "strategy": "page_reload_retry",
+                        "original_error": result.get("error", "not_found"),
+                        "recovery_error": str(e),
+                        "effective": False
+                    }
+
+            return result
+
+        if action == "download_file":
+            if self.dry_run:
+                return {"would_download": params.get("to")}
+            from app.actions import web_actions
+            result = web_actions.download_file(
+                params["to"],
+                self.state.get("web_context", "default")
+            )
+            return result
+
         raise ValueError(f"Unknown action: {action}")
 
     def execute_step_with_diff(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -224,15 +378,15 @@ class Runner:
             "file_count": len(self.state.get("files", [])),
             "state": dict(self.state),
         }
-        
+
         # Execute the step
         result = self.execute_step(action, params)
-        
+
         # Store result for future step references
         self.step_results.append(result)
-        
+
         # Capture diff
         diff = self._capture_state_diff(action, before_state, result)
         self.step_diffs.append(diff)
-        
+
         return result

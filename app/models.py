@@ -65,6 +65,31 @@ def init_db() -> None:
             median_duration_ms INTEGER,
             top_errors_json TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS plan_approvals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id INTEGER NOT NULL,
+            risk_analysis_json TEXT,
+            approval_status TEXT DEFAULT 'pending',
+            approved_by TEXT,
+            approved_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(plan_id) REFERENCES plans(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS approval_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id INTEGER NOT NULL,
+            run_id INTEGER,
+            action TEXT NOT NULL,
+            risk_level TEXT,
+            approved_by TEXT,
+            decision TEXT,
+            reason TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(plan_id) REFERENCES plans(id),
+            FOREIGN KEY(run_id) REFERENCES runs(id)
+        );
         """
     )
     conn.commit()
@@ -207,3 +232,99 @@ def get_run_steps(run_id: int) -> List[sqlite3.Row]:
     rows = cur.fetchall()
     conn.close()
     return list(rows)
+
+
+# Approval system functions
+
+def create_plan_approval(plan_id: int, risk_analysis_json: str) -> int:
+    """Create a new approval request for a plan."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO plan_approvals (plan_id, risk_analysis_json) VALUES (?, ?)",
+        (plan_id, risk_analysis_json)
+    )
+    approval_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return approval_id
+
+
+def get_plan_approval(plan_id: int) -> Optional[sqlite3.Row]:
+    """Get the latest approval request for a plan."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM plan_approvals WHERE plan_id=? ORDER BY created_at DESC LIMIT 1",
+        (plan_id,)
+    )
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+
+def approve_plan(approval_id: int, approved_by: str) -> None:
+    """Approve a plan."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE plan_approvals SET approval_status='approved', approved_by=?, approved_at=CURRENT_TIMESTAMP WHERE id=?",
+        (approved_by, approval_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def reject_plan(approval_id: int, approved_by: str) -> None:
+    """Reject a plan."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE plan_approvals SET approval_status='rejected', approved_by=?, approved_at=CURRENT_TIMESTAMP WHERE id=?",
+        (approved_by, approval_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def log_approval_action(plan_id: int, action: str, risk_level: str,
+                        approved_by: str, decision: str,
+                        reason: Optional[str] = None,
+                        run_id: Optional[int] = None) -> int:
+    """Log an approval action."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO approval_logs (plan_id, run_id, action, risk_level, "
+        "approved_by, decision, reason) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (plan_id, run_id, action, risk_level, approved_by, decision, reason)
+    )
+    log_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return log_id
+
+
+def get_approval_logs(plan_id: Optional[int] = None, limit: int = 100) -> List[sqlite3.Row]:
+    """Get approval logs, optionally filtered by plan_id."""
+    conn = get_conn()
+    cur = conn.cursor()
+    if plan_id:
+        cur.execute(
+            "SELECT * FROM approval_logs WHERE plan_id=? ORDER BY created_at DESC LIMIT ?",
+            (plan_id, limit)
+        )
+    else:
+        cur.execute(
+            "SELECT * FROM approval_logs ORDER BY created_at DESC LIMIT ?",
+            (limit,)
+        )
+    rows = cur.fetchall()
+    conn.close()
+    return list(rows)
+
+
+def is_plan_approved(plan_id: int) -> bool:
+    """Check if a plan has been approved."""
+    approval = get_plan_approval(plan_id)
+    return approval and approval['approval_status'] == 'approved'

@@ -23,8 +23,16 @@ from .models import (
     update_run,
     set_run_started_now,
     set_run_finished_now,
+    create_plan_approval,
+    get_plan_approval,
+    approve_plan,
+    reject_plan,
+    log_approval_action,
+    is_plan_approved,
 )
 from .security import mask
+from .approval import analyze_plan_risks, check_plan_approval_required, format_approval_summary, get_approval_ui_message
+from .planner import generate_plan_from_intent, is_planner_enabled, set_planner_enabled
 import json as _json
 
 
@@ -36,6 +44,7 @@ DATA_DIR.mkdir(exist_ok=True, parents=True)
 app = FastAPI()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+
 # Add custom Jinja2 filters
 def from_json_filter(json_str: str) -> dict:
     """Convert JSON string to dict for template access."""
@@ -43,6 +52,7 @@ def from_json_filter(json_str: str) -> dict:
         return _json.loads(json_str) if isinstance(json_str, str) else json_str
     except Exception:
         return {}
+
 
 templates.env.filters["from_json"] = from_json_filter
 
@@ -98,13 +108,129 @@ async def plans_run(request: Request, yaml_text: str = Form(...)):
     errors = validate_plan(plan)
     if errors:
         raise HTTPException(400, "; ".join(errors))
+
+    # Check if approval is required
+    approval_required = check_plan_approval_required(plan)
+
     pid = insert_plan(plan.get("name", "Unnamed"), yaml_text)
-    run_id = insert_run(
-        pid,
-        status="pending",
-        public_id=secrets.token_hex(8),
+
+    if approval_required:
+        # Create approval request
+        risk_analysis = analyze_plan_risks(plan)
+        create_plan_approval(pid, json_dumps(risk_analysis))
+
+        # Create run in pending_approval status
+        run_id = insert_run(
+            pid,
+            status="pending_approval",
+            public_id=secrets.token_hex(8),
+        )
+
+        # Log approval requirement
+        log_approval_action(
+            pid,
+            "plan_submission",
+            risk_analysis["risk_level"],
+            "system",
+            "approval_required",
+            "Plan requires approval due to detected risks"
+        )
+
+        return RedirectResponse(url=f"/plans/{pid}/approve", status_code=303)
+    else:
+        # No approval required, proceed normally
+        run_id = insert_run(
+            pid,
+            status="pending",
+            public_id=secrets.token_hex(8),
+        )
+        return RedirectResponse(url=f"/runs/{run_id}", status_code=303)
+
+
+@app.get("/plans/{plan_id}/approve", response_class=HTMLResponse)
+async def plans_approve_get(request: Request, plan_id: int):
+    """Show approval page for a plan."""
+    from .models import get_plan
+
+    plan_data = get_plan(plan_id)
+    if not plan_data:
+        raise HTTPException(404, "Plan not found")
+
+    approval = get_plan_approval(plan_id)
+    if not approval:
+        raise HTTPException(404, "Approval request not found")
+
+    # Parse plan for display
+    plan = parse_yaml(plan_data["yaml"])
+    risk_analysis = _json.loads(approval["risk_analysis_json"])
+
+    return templates.TemplateResponse(
+        "plan_approval.html",
+        {
+            "request": request,
+            "plan": plan,
+            "plan_id": plan_id,
+            "approval": approval,
+            "risk_analysis": risk_analysis,
+            "approval_message": get_approval_ui_message(risk_analysis),
+            "risk_summary": format_approval_summary(risk_analysis)
+        }
     )
-    return RedirectResponse(url=f"/runs/{run_id}", status_code=303)
+
+
+@app.post("/plans/{plan_id}/approve")
+async def plans_approve_post(request: Request, plan_id: int, action: str = Form(...), reason: str = Form("")):
+    """Process approval decision for a plan."""
+    approval = get_plan_approval(plan_id)
+    if not approval:
+        raise HTTPException(404, "Approval request not found")
+
+    if approval["approval_status"] != "pending":
+        raise HTTPException(400, "Approval already processed")
+
+    # Get user identifier (in real app, this would come from authentication)
+    user_id = "admin"  # Placeholder for MVP
+
+    if action == "approve":
+        approve_plan(approval["id"], user_id)
+
+        # Log approval action
+        risk_analysis = _json.loads(approval["risk_analysis_json"])
+        log_approval_action(
+            plan_id,
+            "plan_approval",
+            risk_analysis["risk_level"],
+            user_id,
+            "approved",
+            reason if reason else "Manual approval granted"
+        )
+
+        # Create approved run
+        run_id = insert_run(
+            plan_id,
+            status="pending",
+            public_id=secrets.token_hex(8),
+        )
+
+        return RedirectResponse(url=f"/runs/{run_id}", status_code=303)
+
+    elif action == "reject":
+        reject_plan(approval["id"], user_id)
+
+        # Log rejection action
+        risk_analysis = _json.loads(approval["risk_analysis_json"])
+        log_approval_action(
+            plan_id,
+            "plan_approval",
+            risk_analysis["risk_level"],
+            user_id,
+            "rejected",
+            reason if reason else "Manual approval denied"
+        )
+
+        return RedirectResponse(url=f"/plans/{plan_id}/approve?rejected=1", status_code=303)
+    else:
+        raise HTTPException(400, "Invalid action")
 
 
 @app.post("/runs/{run_id}/approve")
@@ -113,6 +239,13 @@ async def runs_approve(run_id: int):
     run = get_run(run_id)
     if not run:
         raise HTTPException(404, "run not found")
+
+    # Check if plan requires approval and is approved
+    plan = parse_yaml(run["plan_yaml"])  # type: ignore
+    if check_plan_approval_required(plan):
+        if not is_plan_approved(run["plan_id"]):
+            raise HTTPException(403, "Plan execution requires approval. Please complete approval process first.")
+
     # Permission preflight (block on Mail automation failure)
     perms = check_permissions()
     mail_status = perms.get("automation_mail", {}).get("status")
@@ -295,6 +428,12 @@ def dashboard(request: Request):
             "p95_ms": m.get("p95_duration_ms_24h", 0),
             "top_errors": [(e.get("cluster"), e.get("count")) for e in m.get("top_errors_24h", [])],
             "rolling_7d": m.get("rolling_7d", {}),
+
+            # Phase 2 metrics
+            "approvals_required": m.get("approvals_required_24h", 0),
+            "approvals_granted": m.get("approvals_granted_24h", 0),
+            "web_success_rate": m.get("web_step_success_rate_24h", 0),
+            "recovery_applied": m.get("recovery_applied_24h", 0),
         },
     )
 
@@ -308,3 +447,134 @@ def permissions(request: Request):
 @app.get("/metrics")
 def metrics():
     return compute_metrics()
+
+
+# Mock SaaS endpoints for testing
+
+@app.get("/mock/form", response_class=HTMLResponse)
+async def mock_form_get(request: Request):
+    """Mock SaaS form for testing web automation."""
+    return templates.TemplateResponse(
+        "mock_form.html",
+        {"request": request}
+    )
+
+
+@app.post("/mock/form")
+async def mock_form_post(
+    request: Request,
+    name: str = Form(None),
+    email: str = Form(None),
+    subject: str = Form(None),
+    message: str = Form(None)
+):
+    """Handle mock form submission."""
+
+    # Simulate processing
+    submission_data = {
+        "name": name or "",
+        "email": email or "",
+        "subject": subject or "",
+        "message": message or "",
+        "timestamp": _json.dumps({"submitted_at": "2023-01-01T00:00:00Z"}),
+        "status": "success"
+    }
+
+    # Validate required fields
+    errors = []
+    if not name or not name.strip():
+        errors.append("氏名は必須です")
+    if not email or not email.strip():
+        errors.append("メールアドレスは必須です")
+    if not subject or not subject.strip():
+        errors.append("件名は必須です")
+    if not message or not message.strip():
+        errors.append("本文は必須です")
+
+    if errors:
+        return templates.TemplateResponse(
+            "mock_form.html",
+            {
+                "request": request,
+                "errors": errors,
+                "form_data": submission_data
+            },
+            status_code=400
+        )
+
+    # Success response
+    return templates.TemplateResponse(
+        "mock_form_success.html",
+        {
+            "request": request,
+            "submission_data": submission_data
+        }
+    )
+
+
+# Planner L1 endpoints
+
+@app.get("/plans/intent", response_class=HTMLResponse)
+async def plans_intent_get(request: Request):
+    """Show intent input page for Planner L1."""
+    return templates.TemplateResponse(
+        "plan_intent.html",
+        {
+            "request": request,
+            "planner_enabled": is_planner_enabled()
+        }
+    )
+
+
+@app.post("/plans/intent")
+async def plans_intent_post(request: Request, intent_text: str = Form(...), enable_planner: bool = Form(False)):
+    """Process natural language intent and generate DSL plan."""
+
+    # Handle planner enable/disable
+    if enable_planner and not is_planner_enabled():
+        set_planner_enabled(True)
+    elif not enable_planner and is_planner_enabled():
+        set_planner_enabled(False)
+
+    if not is_planner_enabled():
+        return templates.TemplateResponse(
+            "plan_intent.html",
+            {
+                "request": request,
+                "planner_enabled": False,
+                "error": "Planner L1 is disabled. Enable it to generate plans from natural language."
+            },
+            status_code=400
+        )
+
+    # Generate plan from intent
+    success, plan, message = generate_plan_from_intent(intent_text)
+
+    if not success:
+        return templates.TemplateResponse(
+            "plan_intent.html",
+            {
+                "request": request,
+                "planner_enabled": is_planner_enabled(),
+                "intent_text": intent_text,
+                "error": message,
+                "plan": plan if plan else None
+            },
+            status_code=400
+        )
+
+    # Success - show generated plan for editing
+    import yaml
+    plan_yaml = yaml.dump(plan, default_flow_style=False, allow_unicode=True)
+
+    return templates.TemplateResponse(
+        "plan_intent_result.html",
+        {
+            "request": request,
+            "intent_text": intent_text,
+            "plan": plan,
+            "plan_yaml": plan_yaml,
+            "message": message,
+            "confidence": plan.get('_confidence', 0.0)
+        }
+    )

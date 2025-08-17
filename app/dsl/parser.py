@@ -63,16 +63,16 @@ def render_string(s: str, variables: Dict[str, Any]) -> str:
 def _resolve_steps_reference(steps_ref: str, variables: Dict[str, Any]) -> Any:
     """Resolve steps[i].field references from step results."""
     import re
-    
+
     # Parse steps[i].field format
     match = re.match(r"steps\[(\d+)\]\.(\w+)", steps_ref)
     if not match:
         return ""
-    
+
     try:
         step_idx = int(match.group(1))
         field_name = match.group(2)
-        
+
         # Get steps from variables context
         steps = variables.get("steps", [])
         if step_idx < len(steps) and isinstance(steps[step_idx], dict):

@@ -82,6 +82,43 @@ def compute_metrics() -> Dict[str, float]:
             return float(lst[mid])
         return float((lst[mid - 1] + lst[mid]) / 2)
 
+    # Phase 2 metrics: Approval and Recovery stats
+
+    # Approval metrics (24h)
+    cur.execute("SELECT COUNT(*) FROM approval_logs WHERE created_at >= datetime('now','-1 day')")
+    approvals_required_24h = cur.fetchone()[0] or 0
+
+    cur.execute("""
+        SELECT COUNT(*) FROM approval_logs
+        WHERE decision='approved' AND created_at >= datetime('now','-1 day')
+    """)
+    approvals_granted_24h = cur.fetchone()[0] or 0
+
+    # Web step success rate (24h)
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'download_file')
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    web_steps_total = cur.fetchone()[0] or 0
+
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'download_file')
+        AND status='success'
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    web_steps_success = cur.fetchone()[0] or 0
+
+    # Recovery applied count (24h) - count steps with recovery info in output_json
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE output_json LIKE '%recovery%'
+        AND output_json LIKE '%effective":true%'
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    recovery_applied_24h = cur.fetchone()[0] or 0
+
     out = {
         "success_rate_24h": round((succ24) / (total24 or 1), 2),
         "median_duration_ms_24h": round(median24 or 0),
@@ -91,6 +128,12 @@ def compute_metrics() -> Dict[str, float]:
             "success_rate": round((succ7) / (total7 or 1), 2),
             "median_duration_ms": round(med(durs7) or 0),
         },
+
+        # Phase 2 metrics
+        "approvals_required_24h": approvals_required_24h,
+        "approvals_granted_24h": approvals_granted_24h,
+        "web_step_success_rate_24h": round((web_steps_success) / (web_steps_total or 1), 2),
+        "recovery_applied_24h": recovery_applied_24h,
     }
     conn.close()
     return out

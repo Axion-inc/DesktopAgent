@@ -1,4 +1,4 @@
-Desktop Agent (MVP M0)
+Desktop Agent (Phase 2)
 
 Demo Site: https://axion-inc.github.io/DesktopAgent/
 
@@ -10,18 +10,49 @@ Badges (after deploying /metrics):
 - Success rate: `![Success](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=success&query=$.success_rate&suffix=%25)`
 - Runs: `![Runs](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=runs&query=$.total_runs)`
 
-Purpose: A minimal, local-only desktop AI agent for macOS 14+ that automates Finder file organization, PDF merge/extract, and creates a draft in Mail.app, with screenshots and a public dashboard. Designed for future Windows 11 support with adapter abstractions.
+Purpose: A comprehensive desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **and web form automation**. Features approval gates for destructive operations, natural language plan generation, and comprehensive testing. Designed for future Windows 11 support with adapter abstractions.
+
+## Phase 2 Features ✨
+
+**Web Automation** - Automate web forms with Playwright
+- `open_browser` - Navigate to websites
+- `fill_by_label` - Fill form fields by label text
+- `click_by_text` - Click buttons and links
+- `download_file` - Download files from web pages
+
+**Approval Gates** - Risk analysis for destructive operations
+- Automatic detection of high-risk actions (submit, delete, etc.)
+- Manual approval workflow for destructive operations
+- Risk categorization and detailed analysis
+
+**Planner L1** - Natural language to DSL conversion
+- Template-based plan generation from natural language
+- Support for CSV-to-form, PDF workflows, and file organization
+- Local-only processing, no external API calls
+
+**Enhanced Self-Recovery** - Improved error handling
+- Web form field recovery with label synonyms
+- Enhanced file operation recovery
+- Detailed recovery action logging
+
+**Mock SaaS Testing** - Built-in testing environment
+- Japanese mock form for E2E testing
+- Realistic form validation and submission
+- Perfect for testing web automation workflows
 
 Quickstart (macOS 14+)
-- Prereqs: Python 3.11+, Xcode CLT, permissions for Screen Recording and Automation.
+- Prereqs: Python 3.11+, Xcode CLT, Node.js (for Playwright), permissions for Screen Recording and Automation.
 - Setup:
   - `python3 -m venv venv`
   - `source venv/bin/activate`
   - `pip install -r requirements.txt`
+  - `npx playwright install --with-deps chromium` (for web automation)
   - `uvicorn app.main:app --reload`
 
 Open http://127.0.0.1:8000
 Health check: http://127.0.0.1:8000/healthz
+
+**Quick Test**: Try the mock form at http://127.0.0.1:8000/mock/form
 
 Screenshots (Demo)
 ![Run Timeline](docs/assets/runs_timeline.svg)
@@ -40,10 +71,99 @@ Permissions (macOS)
 - **Blocking Mode**: Set `PERMISSIONS_STRICT=1` to block execution when permissions are missing (default: warning only).
 
 Flow
-- Plans → Dry-run (preview) → Approve → Execute → Replay (with screenshots) → Public dashboard.
+- Plans → Dry-run (preview) → **Risk Analysis & Approval** → Execute → Replay (with screenshots) → Public dashboard.
 
 Run the Template Plan
 - Navigate to /plans/new, keep the default weekly report YAML, validate, approve, and run.
+
+## Web Automation (Phase 2)
+
+**Setup Playwright**
+```bash
+npx playwright install --with-deps chromium
+```
+
+**Web DSL Actions**
+```yaml
+# Open browser and navigate
+- open_browser:
+    url: "https://example.com/form"
+    context: "default"
+
+# Fill form fields by label
+- fill_by_label:
+    label: "氏名"  # or "Name", "Full Name"
+    text: "{{csv_data.name}}"
+    context: "default"
+
+# Click buttons or links
+- click_by_text:
+    text: "送信"  # or "Submit", "Send"
+    role: "button"  # optional: button, link
+    context: "default"
+
+# Download files
+- download_file:
+    target_path: "./downloads/"
+    context: "default"
+```
+
+**Label Recovery** - Automatic fallback strategies:
+- Primary: `page.get_by_label()` (most stable)
+- Fallback 1: Synonym matching (`氏名` → `名前`, `お名前`, `Name`)
+- Fallback 2: Placeholder text matching
+- Fallback 3: CSS selector patterns
+
+**Mock SaaS Form** - Test web automation:
+- Visit http://localhost:8000/mock/form
+- Japanese form with realistic validation
+- Perfect for testing CSV-to-form workflows
+
+## Approval Gates (Phase 2)
+
+**Risk Analysis** - Automatic detection of destructive operations:
+- **High Risk**: `送信`, `確定`, `Submit`, `Delete`, `削除`, `上書き`
+- **Medium Risk**: Form submissions, file moves, email composition
+- **Low Risk**: Read-only operations, logging
+
+**Approval Workflow**:
+1. Plan submitted → Risk analysis
+2. If risky → Manual approval required
+3. Approval granted → Plan executes
+4. All actions logged with approval status
+
+**View Approvals**: Visit `/plans/approval/{plan_id}` for risk details
+
+## Planner L1 (Phase 2)
+
+**Natural Language to DSL** - Convert intent to executable plans:
+
+**Enable Planner**:
+```python
+from app.planner import set_planner_enabled
+set_planner_enabled(True)
+```
+
+**Usage**:
+- Visit `/plans/intent` for the Planner UI
+- Enter natural language: "Process CSV file and submit to web form"
+- Get generated DSL plan ready for execution
+
+**Supported Workflows**:
+- **CSV to Form**: "csvファイルをフォームに転記"
+- **PDF Merge**: "Merge PDF files and email result"  
+- **File Organization**: "ダウンロードフォルダを整理"
+
+**Templates Generated**:
+- CSV processing with web form submission
+- PDF operations with email attachment
+- File organization with pattern matching
+
+**Features**:
+- Local-only processing (no API calls)
+- Template-based generation
+- Confidence scoring
+- Entity extraction (file types, actions, quantities)
 
 Sample PDFs
 - 10 dummy PDFs are bundled via generator; run `scripts/dev_setup_macos.sh` to (re)materialize them into `sample_data/` safely (license-free).
@@ -53,23 +173,72 @@ Windows Roadmap (stubs included)
 - Preview alternative via `os.startfile`
 - Future: UI Automation (UIA) for richer flows
 
-CI
-- GitHub Actions runs flake8 and pytest on push.
+## Testing (Phase 2)
 
-Metrics / Badges
-- `/metrics` exposes extended JSON with 24h p95 and 7d rolling stats suitable for Shields.io and dashboards.
-  - Example schema:
-    {
-      "success_rate_24h": 0.94,
-      "median_duration_ms_24h": 18200,
-      "p95_duration_ms_24h": 41000,
-      "top_errors_24h": [
-        {"cluster": "PDF_PARSE_ERROR", "count": 3},
-        {"cluster": "NO_FILES_FOUND", "count": 2},
-        {"cluster": "PERMISSION_BLOCKED", "count": 1}
-      ],
-      "rolling_7d": {"success_rate": 0.93, "median_duration_ms": 19000}
-    }
+**Unit Tests**
+```bash
+pytest tests/ -v -k "not e2e"
+```
+
+**E2E Tests** (with Playwright)
+```bash
+# Start server
+uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+
+# Run E2E tests
+export BASE_URL="http://localhost:8000"
+export PLAYWRIGHT_HEADLESS="true"
+pytest tests/ -v -k "e2e" --maxfail=3
+```
+
+**Test Coverage**:
+- Web actions (mocked and real browser)
+- Approval system (risk analysis, workflow)
+- Planner L1 (intent matching, DSL generation)
+- Mock form automation (Japanese form testing)
+- Self-recovery mechanisms
+- Dashboard and metrics endpoints
+
+## CI
+
+**GitHub Actions** - Enhanced pipeline:
+- **Unit Tests**: flake8 linting + pytest (non-E2E)
+- **E2E Tests**: Playwright browser automation (main branch only)
+- **Playwright Setup**: Automatic browser installation
+- **Parallel Jobs**: Unit and E2E tests run separately for efficiency
+
+## Metrics / Badges (Phase 2)
+
+**Enhanced Metrics** - `/metrics` exposes comprehensive JSON with Phase 2 indicators:
+```json
+{
+  "success_rate_24h": 0.94,
+  "median_duration_ms_24h": 18200,
+  "p95_duration_ms_24h": 41000,
+  "approvals_required_24h": 12,
+  "approvals_granted_24h": 10,
+  "web_step_success_rate_24h": 0.92,
+  "recovery_applied_24h": 5,
+  "top_errors_24h": [
+    {"cluster": "PDF_PARSE_ERROR", "count": 3},
+    {"cluster": "WEB_ELEMENT_NOT_FOUND", "count": 2},
+    {"cluster": "APPROVAL_DENIED", "count": 1}
+  ],
+  "rolling_7d": {"success_rate": 0.93, "median_duration_ms": 19000}
+}
+```
+
+**Phase 2 Metrics**:
+- **Approval Metrics**: Required vs granted approvals (24h)
+- **Web Success Rate**: Web automation step success rate (24h)
+- **Recovery Applied**: Self-recovery actions triggered (24h)
+- **Enhanced Errors**: Web-specific error clustering
+
+**Dashboard** - Visit `/public/dashboard` for visual metrics including:
+- Traditional success rates and run counts
+- Approval workflow statistics
+- Web automation performance
+- Recovery action frequency
 
 Security & Privacy
 - No external LLM/API calls. Public pages mask PII (emails, names, file paths).
@@ -88,10 +257,30 @@ Troubleshooting (macOS)
 - **Path errors** → Use `~/` for home directory expansion, check file existence
 - **AppleScript Mail** → Launch Mail.app once manually, then retry
 
-**Self-Recovery Features** (v1.1)
+**Self-Recovery Features** (Phase 2 Enhanced)
 - **Auto-directory creation**: `move_to` creates missing output folders automatically
 - **Search expansion**: `find_files` with 0 results widens search by one level (once)
+- **Web field recovery**: Label synonyms and fallback strategies for web forms
 - **Replay tracking**: Recovery actions are logged in step diffs for visibility
+
+**Phase 2 Troubleshooting**
+
+**Web Automation Issues**
+- **"Browser not found"** → Run `npx playwright install --with-deps chromium`
+- **"Element not found"** → Check label text, try synonyms (氏名 vs 名前 vs Name)
+- **"Page timeout"** → Increase timeout in DSL or check network connectivity
+- **"Context not found"** → Ensure `open_browser` step creates the context first
+
+**Approval Workflow Issues**
+- **"Approval required"** → Check plan for destructive keywords (送信, Submit, Delete)
+- **"Approval denied"** → Review risk analysis at `/plans/approval/{plan_id}`
+- **"Approval not found"** → Ensure plan ID is correct and approval exists
+
+**Planner L1 Issues**
+- **"Planner disabled"** → Call `set_planner_enabled(True)` or use UI at `/plans/intent`
+- **"Low confidence"** → Refine natural language input, be more specific about actions
+- **"Unknown intent"** → Use supported patterns (CSV process, PDF merge, file organization)
+- **"Template not found"** → Check if templates exist in `plans/templates/`
 
 **Logs & Debugging**
 - Step-by-step logs appear in `/runs/{id}` with input/output/screenshots
@@ -115,16 +304,35 @@ Shields.io Badges
   - Success rate: `https://img.shields.io/endpoint?url=https://your.host/metrics&label=success&query=$.success_rate&suffix=%25`
   - Total runs: `https://img.shields.io/endpoint?url=https://your.host/metrics&label=runs&query=$.total_runs`
 
-DSL v1.1 Features
+## DSL v1.1 Features (Phase 2)
+
+**Core Features**:
 - **Version Declaration**: Plans must start with `dsl_version: "1.1"`
 - **Conditional Execution**: `when:` expressions support step references like `"{{steps[0].found}} > 0"`
 - **Step Output Access**: Reference previous step results via `{{steps[i].field}}` (e.g., `{{steps[0].found}}`, `{{steps[3].page_count}}`)
 - **Static Validation**: Prevents referencing future steps in `when` conditions (compile-time check)
-- **Self-Recovery**: Auto-directory creation (`move_to`) and search expansion (`find_files`) with replay tracking
-- **Enhanced Templates**: 
-  - `weekly_report.yaml` - Updated for v1.1 with conditional steps
-  - `weekly_report_split.yaml` - PDF merge → extract → digest workflow  
-  - `downloads_tidy.yaml` - Automated file organization with pattern matching
+
+**Phase 2 Web Actions**:
+- **`open_browser`**: Navigate to websites with context management
+- **`fill_by_label`**: Fill form fields with intelligent label matching
+- **`click_by_text`**: Click buttons/links with role-based targeting
+- **`download_file`**: Download files to specified paths
+
+**Enhanced Self-Recovery**: 
+- Auto-directory creation (`move_to`) and search expansion (`find_files`)
+- Web form field recovery with label synonyms
+- All recovery actions logged in step diffs
+
+**Templates** (Phase 2):
+- **`csv_to_form.yaml`** - CSV data to web form submission with approval gates
+- **`weekly_report.yaml`** - Updated for v1.1 with conditional steps
+- **`weekly_report_split.yaml`** - PDF merge → extract → digest workflow  
+- **`downloads_tidy.yaml`** - Automated file organization with pattern matching
+
+**Approval Integration**:
+- Automatic risk analysis for destructive actions
+- Manual approval workflow for high-risk operations
+- Risk categorization and detailed logging
 
 Permissions (Blocking UI)
 - `/permissions` shows current status; approval blocks if Mail Automation is denied (and optionally Screen Recording with `PERMISSIONS_STRICT=1`).

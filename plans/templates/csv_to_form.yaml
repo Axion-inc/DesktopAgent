@@ -1,0 +1,107 @@
+dsl_version: "1.1"
+name: "CSV → Webフォーム転記（承認つき）"
+description: "CSVファイルからデータを読み込み、Webフォームに自動転記します。送信操作は承認ゲートによって保護されます。"
+
+variables:
+  csv_file: "sample_data/contacts.csv"  # CSVファイルのパス
+  form_url: "http://localhost:8000/mock/form"  # 転記先フォームURL
+  max_records: 5  # 処理する最大レコード数（テスト用）
+  name_column: "name"      # CSVの氏名列名
+  email_column: "email"    # CSVのメール列名  
+  subject_column: "subject"  # CSVの件名列名
+  message_column: "message"  # CSVの本文列名
+
+steps:
+  # Step 1: CSVファイルの存在確認
+  - find_files:
+      query: "{{csv_file}}"
+      roots: ["./"]
+      limit: 1
+
+  # Step 2: CSVファイルが見つからない場合はスキップ（条件実行）
+  - log:
+      message: "CSV file found: {{steps[0].found}} files"
+      when: "{{steps[0].found}} > 0"
+
+  # Step 3: ブラウザを開いてフォームページにアクセス
+  - open_browser:
+      url: "{{form_url}}"
+      context: "form_session"
+      when: "{{steps[0].found}} > 0"
+
+  # Step 4: フォーム1件目のテストデータ転記（サンプル）
+  - fill_by_label:
+      label: "氏名"
+      text: "山田太郎"
+      when: "{{steps[0].found}} > 0"
+
+  - fill_by_label:
+      label: "メール"
+      text: "yamada@example.com"
+      when: "{{steps[0].found}} > 0"
+
+  - fill_by_label:
+      label: "件名"
+      text: "自動転記テスト"
+      when: "{{steps[0].found}} > 0"
+
+  - fill_by_label:
+      label: "本文"
+      text: "これは自動転記のテストメッセージです。CSVデータから転記されました。"
+      when: "{{steps[0].found}} > 0"
+
+  # Step 5: 送信ボタンクリック（承認ゲートで保護される）
+  - click_by_text:
+      text: "送信"
+      role: "button"
+      when: "{{steps[0].found}} > 0"
+
+  # Step 6: 成功確認
+  - log:
+      message: "Form submission completed successfully"
+      when: "{{steps[0].found}} > 0"
+
+  # Step 7: 2件目のデータ転記（オプション）
+  - fill_by_label:
+      label: "氏名"
+      text: "佐藤花子"
+      when: "{{steps[0].found}} > 0 and {{max_records}} > 1"
+
+  - fill_by_label:
+      label: "メール"
+      text: "sato@example.com"
+      when: "{{steps[0].found}} > 0 and {{max_records}} > 1"
+
+  - fill_by_label:
+      label: "件名"
+      text: "自動転記テスト2"
+      when: "{{steps[0].found}} > 0 and {{max_records}} > 1"
+
+  - fill_by_label:
+      label: "本文"
+      text: "これは2件目の自動転記テストです。"
+      when: "{{steps[0].found}} > 0 and {{max_records}} > 1"
+
+  # Step 8: 2件目送信（承認ゲートで保護される）
+  - click_by_text:
+      text: "送信"
+      role: "button"
+      when: "{{steps[0].found}} > 0 and {{max_records}} > 1"
+
+  # Step 9: 完了ログ
+  - log:
+      message: "CSV to form transfer completed. Processed up to {{max_records}} records."
+      when: "{{steps[0].found}} > 0"
+
+# テンプレート使用例:
+# 1. CSVファイルを sample_data/contacts.csv に配置
+# 2. サーバーを起動: uvicorn app.main:app --reload
+# 3. このテンプレートを /plans/new で実行
+# 4. 承認ゲートで送信操作を確認してから実行
+# 5. http://localhost:8000/mock/form で結果確認
+
+# 注意事項:
+# - 送信操作は承認ゲートで保護されます
+# - テスト用に最大処理件数を制限しています
+# - 実際のCSV読み込み機能は今後のフェーズで実装予定
+# - 現在はハードコーディングされたテストデータを使用
