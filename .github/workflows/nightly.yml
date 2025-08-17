@@ -21,21 +21,7 @@ jobs:
         id: runs
         run: |
           python scripts/seed_runs.py plans/templates/weekly_report.yaml --dry-run --n 50 --var inbox=./sample_data --var workdir=./data/work --var out_pdf=./data/weekly.pdf || true
-          python - <<'PY'
-import json
-from app.metrics import compute_metrics
-m = compute_metrics()
-succ_line = f"success_rate_24h={m.get('success_rate_24h',0):.2f}"
-summary = {
-  "success_rate_24h": m.get("success_rate_24h", 0),
-  "median_duration_ms_24h": m.get("median_duration_ms_24h", 0),
-  "p95_duration_ms_24h": m.get("p95_duration_ms_24h", 0),
-  "top_errors_24h": m.get("top_errors_24h", []),
-}
-with open('nightly_metrics.json','w') as f:
-  json.dump(summary, f)
-print("METRICS:", json.dumps(summary))
-PY
+          python scripts/compute_nightly_metrics.py
       - name: Comment to tracking issue
         uses: actions/github-script@v7
         with:
