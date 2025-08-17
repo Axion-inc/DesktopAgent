@@ -44,24 +44,55 @@ jobs:
       - name: Install Playwright with browsers (Python)
         run: |
           python -m playwright install --with-deps chromium
+      - name: Prepare data directories
+        run: |
+          mkdir -p data
+          mkdir -p .playwright
       - name: Start server
         run: |
-          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          # Start server in background
+          uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+          SERVER_PID=$!
+          echo "Started server with PID: $SERVER_PID"
+          
+          # Wait for server to be ready
           echo "Waiting for server to be ready..." 
           for i in {1..60}; do 
-            if curl -fsS http://127.0.0.1:8000/healthz >/dev/null; then 
-              echo "Server is up"; 
+            if curl -fsS http://127.0.0.1:8000/healthz >/dev/null 2>&1; then 
+              echo "Server is ready at http://127.0.0.1:8000"; 
               break; 
             fi; 
-            sleep 1; 
+            echo "Attempt $i/60: Server not ready yet, waiting...";
+            sleep 2; 
           done
+          
+          # Check if server is actually running
+          if ! kill -0 $SERVER_PID 2>/dev/null; then
+            echo "ERROR: Server process died"
+            exit 1
+          fi
+          
+          # Final health check
+          if ! curl -fsS http://127.0.0.1:8000/healthz >/dev/null 2>&1; then
+            echo "ERROR: Health check failed after waiting"
+            curl -v http://127.0.0.1:8000/healthz || true
+            exit 1
+          fi
+          
+          echo "Server is running and healthy"
         env:
           PLAYWRIGHT_HEADLESS: "true"
+          DATABASE_URL: "sqlite:///./data/app.db"
+          SCREENSHOT_DIR: "./data/screenshots"
+          PERMISSIONS_STRICT: "0"
       - name: Run E2E tests
         run: pytest tests/ -v -k "e2e" --maxfail=3
         env:
           PLAYWRIGHT_HEADLESS: "true"
           BASE_URL: "http://127.0.0.1:8000"
+          DATABASE_URL: "sqlite:///./data/app.db"
+          SCREENSHOT_DIR: "./data/screenshots"
+          PERMISSIONS_STRICT: "0"
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
