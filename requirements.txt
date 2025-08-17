@@ -8,3 +8,4 @@ pyyaml
 pytest
 flake8
 playwright
+python-multipart
