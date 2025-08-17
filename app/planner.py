@@ -17,14 +17,23 @@ class IntentMatcher:
                 r'ファイル.*探',
                 r'ファイル.*検索',
                 r'.*pdf.*探',
-                r'.*pdf.*find'
+                r'.*pdf.*find',
+                r'.*pdf.*files',
+                r'move.*pdf.*files',
+                r'pdf.*backup'
             ],
             'file_move': [
                 r'move\s+.*files?',
                 r'copy\s+.*files?',
                 r'ファイル.*移動',
                 r'ファイル.*コピー',
-                r'.*移動.*フォルダ'
+                r'.*移動.*フォルダ',
+                r'organize.*files?',
+                r'.*整理.*ファイル',
+                r'ファイル.*整理',
+                r'.*整理.*フォルダ',
+                r'downloads.*folder',
+                r'ダウンロード.*フォルダ'
             ],
             'pdf_merge': [
                 r'merge\s+.*pdf',
@@ -71,9 +80,13 @@ class IntentMatcher:
             # Data operations
             'csv_process': [
                 r'csv.*process',
+                r'process.*csv',
                 r'csv.*読',
                 r'csv.*処理',
-                r'.*処理.*csv'
+                r'.*処理.*csv',
+                r'csv.*file',
+                r'csvファイル',
+                r'.*csv.*data'
             ]
         }
 

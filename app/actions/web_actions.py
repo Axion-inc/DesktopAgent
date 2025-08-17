@@ -423,9 +423,9 @@ def take_screenshot(context: str = "default", path: Optional[str] = None) -> str
 
 # Risk detection for approval gate
 DESTRUCTIVE_KEYWORDS = [
-    "送信", "確定", "Submit", "Delete", "削除", "上書き",
+    "送信", "確定", "Delete", "削除", "上書き",
     "支払", "送付", "Apply Changes", "Purchase", "Buy",
-    "Remove", "Cancel", "Confirm", "Send"
+    "Remove", "Confirm"
 ]
 
 

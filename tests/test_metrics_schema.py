@@ -1,7 +1,10 @@
 from app.metrics import compute_metrics
+from app.models import init_db
 
 
 def test_compute_metrics_schema_keys():
+    # Initialize database before computing metrics
+    init_db()
     m = compute_metrics()
     # Keys exist (values may be zero on empty DB)
     assert "success_rate_24h" in m
