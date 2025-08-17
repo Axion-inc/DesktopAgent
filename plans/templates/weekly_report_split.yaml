@@ -1,0 +1,60 @@
+dsl_version: "1.1"
+name: "週次レポート分割版 - PDF結合→指定範囲抽出→Digest作成"
+variables:
+  inbox: "~/Downloads"
+  workdir: "~/Reports/inbox_split"
+  merged_pdf: "~/Reports/weekly_merged_{{date}}.pdf"
+  digest_pdf: "~/Reports/weekly_digest_{{date}}.pdf"
+  pages_to_extract: "1,3-5"
+
+steps:
+  - find_files: 
+      query: "kind:pdf modified:this week"
+      roots: ["{{inbox}}"]
+      limit: 100
+
+  - rename: 
+      rule: "{{date}}_{{index}}_{{basename}}"
+      when: "{{steps[0].found}} > 0"
+
+  - move_to: 
+      dest: "{{workdir}}"
+      when: "{{steps[0].found}} > 0"
+
+  - pdf_merge: 
+      inputs_from: "{{workdir}}"
+      out: "{{merged_pdf}}"
+      when: "{{steps[0].found}} > 0"
+
+  - pdf_extract_pages: 
+      input: "{{merged_pdf}}"
+      pages: "{{pages_to_extract}}"
+      out: "{{digest_pdf}}"
+      when: "{{steps[3].page_count}} > 0"
+
+  - open_preview: 
+      path: "{{digest_pdf}}"
+      when: "{{steps[4].page_count}} > 0"
+
+  - compose_mail:
+      to: ["digest@example.com"]
+      subject: "週次レポート Digest {{date}} ({{pages_to_extract}})"
+      body: |
+        自動作成されたダイジェスト版です。
+        
+        元ファイル数: {{steps[0].found}}件
+        結合後ページ数: {{steps[3].page_count}}ページ
+        抽出ページ: {{pages_to_extract}}
+        抽出後ページ数: {{steps[4].page_count}}ページ
+        
+        成功率: {{metrics.success_rate_24h * 100}}%
+      when: "{{steps[4].page_count}} > 0"
+
+  - attach_files: 
+      paths: ["{{digest_pdf}}"]
+      when: "{{steps[4].page_count}} > 0"
+
+  - save_draft: {}
+
+  - log:
+      message: "週次レポート分割処理完了: 元{{steps[0].found}}件 → 結合{{steps[3].page_count}}p → 抽出{{steps[4].page_count}}p"

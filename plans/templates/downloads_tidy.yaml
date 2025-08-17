@@ -1,0 +1,85 @@
+dsl_version: "1.1"
+name: "Downloads整理 - PDF自動リネーム＆仕分け"
+variables:
+  downloads_dir: "~/Downloads"
+  archive_dir: "~/Documents/PDF_Archive"
+  work_dir: "~/Documents/PDF_Work"
+  personal_dir: "~/Documents/PDF_Personal"
+
+steps:
+  - find_files:
+      query: "kind:pdf modified:last week"
+      roots: ["{{downloads_dir}}"]
+      limit: 50
+
+  - log:
+      message: "Downloads内のPDFファイルを{{steps[0].found}}件発見しました"
+      when: "{{steps[0].found}} > 0"
+
+  - rename:
+      rule: "{{date}}_tidy_{{index}}_{{basename}}"
+      when: "{{steps[0].found}} > 0"
+
+  - find_files:
+      query: "name:*invoice* OR name:*請求書* OR name:*receipt*"
+      roots: ["{{downloads_dir}}"]
+      limit: 20
+      when: "{{steps[0].found}} > 0"
+
+  - move_to:
+      dest: "{{work_dir}}"
+      when: "{{steps[3].found}} > 0"
+
+  - log:
+      message: "業務関連ファイル{{steps[3].found}}件を{{work_dir}}に移動"
+      when: "{{steps[3].found}} > 0"
+
+  - find_files:
+      query: "name:*personal* OR name:*private* OR name:*個人*"
+      roots: ["{{downloads_dir}}"]
+      limit: 20
+      when: "{{steps[0].found}} > 0"
+
+  - move_to:
+      dest: "{{personal_dir}}"
+      when: "{{steps[6].found}} > 0"
+
+  - log:
+      message: "個人ファイル{{steps[6].found}}件を{{personal_dir}}に移動"
+      when: "{{steps[6].found}} > 0"
+
+  - find_files:
+      query: "kind:pdf"
+      roots: ["{{downloads_dir}}"]
+      limit: 100
+      when: "{{steps[0].found}} > 0"
+
+  - move_to:
+      dest: "{{archive_dir}}"
+      when: "{{steps[9].found}} > 0"
+
+  - log:
+      message: "残りの{{steps[9].found}}件のPDFを{{archive_dir}}にアーカイブ"
+      when: "{{steps[9].found}} > 0"
+
+  - compose_mail:
+      to: ["filing@example.com"]
+      subject: "Downloads自動整理完了 {{date}}"
+      body: |
+        PDFファイルの自動整理が完了しました。
+        
+        📊 処理サマリ:
+        - 発見したPDFファイル: {{steps[0].found}}件
+        - 業務関連 → {{work_dir}}: {{steps[3].found}}件
+        - 個人関連 → {{personal_dir}}: {{steps[6].found}}件  
+        - その他アーカイブ → {{archive_dir}}: {{steps[9].found}}件
+        
+        🔧 自動修復機能:
+        {% if steps[4].self_heal %}自動ディレクトリ作成: 有効{% endif %}
+        {% if steps[0].self_heal %}検索範囲拡大: 有効{% endif %}
+        
+        📈 システム成功率: {{metrics.success_rate_24h * 100}}%
+      when: "{{steps[0].found}} > 0"
+
+  - save_draft:
+      when: "{{steps[0].found}} > 0"

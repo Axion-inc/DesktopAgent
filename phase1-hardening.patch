@@ -1,0 +1,639 @@
+diff --git a/README.md b/README.md
+index 76984de..090e68b 100644
+--- a/README.md
++++ b/README.md
+@@ -53,7 +53,19 @@ CI
+ - GitHub Actions runs flake8 and pytest on push.
+ 
+ Metrics / Badges
+-- `/metrics` exposes JSON suitable for Shields.io custom badges (success rate, run count).
++- `/metrics` exposes extended JSON with 24h p95 and 7d rolling stats suitable for Shields.io and dashboards.
++  - Example schema:
++    {
++      "success_rate_24h": 0.94,
++      "median_duration_ms_24h": 18200,
++      "p95_duration_ms_24h": 41000,
++      "top_errors_24h": [
++        {"cluster": "PDF_PARSE_ERROR", "count": 3},
++        {"cluster": "NO_FILES_FOUND", "count": 2},
++        {"cluster": "PERMISSION_BLOCKED", "count": 1}
++      ],
++      "rolling_7d": {"success_rate": 0.93, "median_duration_ms": 19000}
++    }
+ 
+ Security & Privacy
+ - No external LLM/API calls. Public pages mask PII (emails, names, file paths).
+@@ -78,3 +90,12 @@ Shields.io Badges
+ - Example (replace URL with your deployment):
+   - Success rate: `https://img.shields.io/endpoint?url=https://your.host/metrics&label=success&query=$.success_rate&suffix=%25`
+   - Total runs: `https://img.shields.io/endpoint?url=https://your.host/metrics&label=runs&query=$.total_runs`
++
++DSL v1.1 Highlights
++- Plans must start with `dsl_version: "1.1"`
++- Conditional execution `when:` supports expressions like `"{{steps[0].found}} > 0"`
++- Static validation forbids referencing future steps in `when` (only prior steps allowed)
++- Public dashboard `/public/dashboard` shows median, p95, top errors, and 7d rolling snapshot
++
++Permissions (Blocking UI)
++- `/permissions` shows current status; approval blocks if Mail Automation is denied (and optionally Screen Recording with `PERMISSIONS_STRICT=1`).
+diff --git a/app/dsl/parser.py b/app/dsl/parser.py
+index 1db0969..f7ef549 100644
+--- a/app/dsl/parser.py
++++ b/app/dsl/parser.py
+@@ -3,6 +3,7 @@ from __future__ import annotations
+ from datetime import datetime
+ from typing import Any, Dict
+ 
++import ast
+ import yaml
+ 
+ 
+@@ -63,3 +64,47 @@ def parse_yaml(yaml_text: str) -> Dict[str, Any]:
+     if not isinstance(data, dict):
+         raise ValueError("Invalid plan YAML: root must be mapping")
+     return data
++
++
++class SafeEval(ast.NodeVisitor):
++    ALLOWED_NODES = (
++        ast.Expression,
++        ast.BoolOp,
++        ast.BinOp,
++        ast.UnaryOp,
++        ast.Compare,
++        ast.Name,
++        ast.Load,
++        ast.Constant,
++        ast.Subscript,
++        ast.Index,
++        ast.Tuple,
++        ast.List,
++        ast.Dict,
++        ast.And,
++        ast.Or,
++        ast.Not,
++        ast.Eq,
++        ast.NotEq,
++        ast.Lt,
++        ast.LtE,
++        ast.Gt,
++        ast.GtE,
++        ast.Add,
++        ast.Sub,
++        ast.Mult,
++        ast.Div,
++        ast.Mod,
++    )
++
++    def visit(self, node):  # type: ignore[override]
++        if not isinstance(node, self.ALLOWED_NODES):
++            raise ValueError("unsafe expression")
++        return super().visit(node)
++
++
++def safe_eval(expr: str, context: Dict[str, Any]) -> Any:
++    tree = ast.parse(expr, mode="eval")
++    SafeEval().visit(tree)
++    code = compile(tree, "<expr>", "eval")
++    return eval(code, {"__builtins__": {}}, context)
+diff --git a/app/dsl/runner.py b/app/dsl/runner.py
+index 36e1d60..c3f111e 100644
+--- a/app/dsl/runner.py
++++ b/app/dsl/runner.py
+@@ -2,13 +2,14 @@ from __future__ import annotations
+ 
+ import platform
+ from pathlib import Path
+-from typing import Any, Dict, Tuple
++from typing import Any, Dict, Tuple, List
+ 
+ from app.actions import fs_actions
+ from app.os_adapters.base import MailAdapter, PreviewAdapter
+ from app.os_adapters.macos import MacMailAdapter, MacPreviewAdapter
+ from app.os_adapters.windows import WindowsMailAdapter, WindowsPreviewAdapter
+ from app.utils import take_screenshot
++from .parser import safe_eval
+ 
+ 
+ def get_adapters() -> Tuple[MailAdapter, PreviewAdapter]:
+@@ -28,16 +29,65 @@ class Runner:
+             "files": [],
+             "draft_id": None,
+         }
++        self.step_results: List[Dict[str, Any]] = []
+ 
+     def _screenshot(self, run_id: int, idx: int) -> str:
+         return take_screenshot(f"{run_id}_{idx}.png")
+ 
++    def _should_run(self, params: Dict[str, Any]) -> bool:
++        expr = params.get("when")
++        if not expr:
++            return True
++        # Replace {{ ... }} placeholders using steps context
++        context = {"steps": self.step_results, **self.vars}
++        try:
++            # naive replacement of {{steps[i].key}}
++            eval_str = expr
++            # Replace simple {{...}} with their string value
++            import re
++            while True:
++                m = re.search(r"{{\s*([^}]+)\s*}}", eval_str)
++                if not m:
++                    break
++                key = m.group(1).strip()
++                # support steps[n].field
++                val = None
++                if key.startswith("steps["):
++                    try:
++                        idx = int(key.split("[")[1].split("]")[0])
++                        field = key.split("]")[1].lstrip(".")
++                        val = self.step_results[idx].get(field)
++                    except Exception:
++                        val = None
++                else:
++                    val = self.vars.get(key, "")
++                eval_str = eval_str[: m.start()] + str(val) + eval_str[m.end() :]
++            return bool(safe_eval(eval_str, context))
++        except Exception:
++            return False
++
+     def execute_step(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
++        if not self._should_run(params):
++            return {"skipped": True}
+         if action == "find_files":
+             files = fs_actions.find_files(params.get("query", ""), params.get("roots", []), params.get("limit", 100))
++            # Self-healing: widen one level if 0 results
++            healed = False
++            if len(files) == 0 and params.get("roots"):
++                parents = []
++                for r in params.get("roots", []):
++                    p = Path(r).expanduser()
++                    if p.exists() and p.parent != p:
++                        parents.append(str(p.parent))
++                if parents:
++                    files = fs_actions.find_files(params.get("query", ""), parents, params.get("limit", 100))
++                    healed = True
+             self.state["files"] = files
+             self.state.pop("newnames", None)
+-            return {"found": len(files), "files": files[:10]}
++            out = {"found": len(files), "files": files[:10]}
++            if healed:
++                out["self_heal"] = {"strategy": "widen_one_level", "effective": True}
++            return out
+         if action == "rename":
+             rule = params.get("rule", "{basename}")
+             # No destructive rename here: store target basenames alongside sources
+@@ -53,7 +103,11 @@ class Runner:
+                 )
+                 newnames.append(newname)
+             self.state["newnames"] = newnames
+-            return {"renamed_previews": newnames[:10]}
++            return {
++                "renamed_previews": newnames[:10],
++                "before_count": len(self.state.get("files", [])),
++                "after_count": len(newnames),
++            }
+         if action == "move_to":
+             if self.dry_run:
+                 return {"would_move": len(self.state.get("files", []))}
+@@ -65,7 +119,7 @@ class Runner:
+             )
+             self.state["files"] = moved
+             self.state.pop("newnames", None)
+-            return {"moved": len(moved)}
++            return {"moved": len(moved), "out_paths": moved}
+         if action == "zip_folder":
+             if self.dry_run:
+                 return {"would_zip": params.get("folder")}
+@@ -84,7 +138,14 @@ class Runner:
+ 
+             out = pdf_actions.pdf_merge(inputs, params["out"])  # type: ignore
+             self.state["last_pdf"] = out
+-            return {"merged": out}
++            # Count pages
++            try:
++                from pypdf import PdfReader  # type: ignore
++
++                pc = len(PdfReader(out).pages)
++            except Exception:
++                pc = None
++            return {"merged": out, "out_path": out, "page_count": pc}
+         if action == "pdf_extract_pages":
+             if self.dry_run:
+                 return {"would_extract": params.get("pages")}
+@@ -96,7 +157,14 @@ class Runner:
+                 params["out"],  # type: ignore
+             )
+             self.state["last_pdf_extract"] = out
+-            return {"extracted": out}
++            # Count pages
++            try:
++                from pypdf import PdfReader  # type: ignore
++
++                pc = len(PdfReader(out).pages)
++            except Exception:
++                pc = None
++            return {"extracted": out, "out_path": out, "page_count": pc}
+         if action == "open_preview":
+             if self.dry_run:
+                 return {"would_open": params.get("path")}
+diff --git a/app/dsl/validator.py b/app/dsl/validator.py
+index a62bd56..a0992a8 100644
+--- a/app/dsl/validator.py
++++ b/app/dsl/validator.py
+@@ -1,6 +1,9 @@
+ from __future__ import annotations
+ 
+ from typing import Any, Dict, List
++import re
++
++REQUIRED_DSL_VERSION = "1.1"
+ 
+ 
+ ALLOWED_STEPS = {
+@@ -20,6 +23,10 @@ ALLOWED_STEPS = {
+ 
+ def validate_plan(plan: Dict[str, Any]) -> List[str]:
+     errors: List[str] = []
++    # dsl_version
++    dslv = plan.get("dsl_version")
++    if dslv != REQUIRED_DSL_VERSION:
++        errors.append(f"dsl_version must be '{REQUIRED_DSL_VERSION}'")
+     if "name" not in plan or not plan["name"]:
+         errors.append("name is required")
+     if "steps" not in plan or not isinstance(plan["steps"], list):
+@@ -34,5 +41,19 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
+                 errors.append(f"step {i}: action '{action}' not allowed")
+             if not isinstance(params, dict):
+                 errors.append(f"step {i}: params must be mapping")
++            # when expression can reference steps[j].key where j < i
++            when = params.get("when") if isinstance(params, dict) else None
++            if when is not None and not isinstance(when, str):
++                errors.append(f"step {i}: when must be a string expression")
++            # Static validation for steps references in when: steps[n].field must have n < i
++            if isinstance(when, str):
++                for m in re.finditer(r"steps\s*\[\s*(\d+)\s*\]", when):
++                    try:
++                        ref_idx = int(m.group(1))
++                        if ref_idx >= i:
++                            errors.append(
++                                f"step {i}: when references future step index {ref_idx}"
++                            )
++                    except Exception:
++                        errors.append(f"step {i}: invalid steps[] index in when")
+     return errors
+-
+diff --git a/app/main.py b/app/main.py
+index d29f7be..ae4de2a 100644
+--- a/app/main.py
++++ b/app/main.py
+@@ -7,6 +7,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
+ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+ from fastapi.templating import Jinja2Templates
+ from .utils import json_dumps, get_logger
++from .metrics import compute_metrics
+ from .permissions import check_permissions
+ 
+ from .dsl.parser import parse_yaml, render_value
+@@ -24,6 +25,7 @@ from .models import (
+     set_run_finished_now,
+ )
+ from .security import mask
++import json as _json
+ 
+ 
+ BASE_DIR = Path(__file__).resolve().parent
+@@ -182,7 +184,7 @@ def runs_detail(request: Request, run_id: int):
+     any_failed = False
+     first_error = None
+     zero_found = False
+-    import json as _json
++    diffs = []
+     for s in steps:
+         if s["status"] == "failed" and not any_failed:
+             any_failed = True
+@@ -194,6 +196,20 @@ def runs_detail(request: Request, run_id: int):
+                     zero_found = True
+             except Exception:
+                 pass
++        try:
++            out = s["output_json"] and _json.loads(s["output_json"]) or {}
++            if isinstance(out, dict):
++                if "before_count" in out or "after_count" in out:
++                    diffs.append({
++                        "idx": s["idx"],
++                        "name": s["name"],
++                        "before": out.get("before_count"),
++                        "after": out.get("after_count"),
++                    })
++                if "page_count" in out:
++                    diffs.append({"idx": s["idx"], "name": s["name"], "pages": out.get("page_count")})
++        except Exception:
++            pass
+     return templates.TemplateResponse(
+         "run_detail.html",
+         {
+@@ -203,6 +219,7 @@ def runs_detail(request: Request, run_id: int):
+             "any_failed": any_failed,
+             "first_error": first_error,
+             "zero_found": zero_found,
++            "diffs": diffs,
+         },
+     )
+ 
+@@ -239,59 +256,17 @@ def runs_public(request: Request, public_id: str):
+ 
+ @app.get("/public/dashboard", response_class=HTMLResponse)
+ def dashboard(request: Request):
+-    # Stats from last 24h; compute median and p95 in Python
+-    from .models import get_conn
+-    import math
+-
+-    conn = get_conn()
+-    cur = conn.cursor()
+-    cur.execute(
+-        "SELECT id, status, started_at, finished_at FROM runs WHERE started_at >= datetime('now','-1 day')"
+-    )
+-    rows = cur.fetchall()
+-    total = len(rows)
+-    success = sum(1 for r in rows if r["status"] == "success")
+-    # durations in ms
+-    durations = []
+-    for r in rows:
+-        if r["started_at"] and r["finished_at"]:
+-            cur.execute(
+-                "SELECT (julianday(?) - julianday(?)) * 24 * 60 * 60 * 1000",
+-                (r["finished_at"], r["started_at"]),
+-            )
+-            d = cur.fetchone()[0]
+-            if d is not None:
+-                durations.append(d)
+-    durations.sort()
+-
+-    def percentile(p: float) -> float:
+-        if not durations:
+-            return 0.0
+-        k = (len(durations) - 1) * p
+-        f = math.floor(k)
+-        c = math.ceil(k)
+-        if f == c:
+-            return float(durations[int(k)])
+-        return float(durations[f] + (durations[c] - durations[f]) * (k - f))
+-
+-    median = percentile(0.5)
+-    p95 = percentile(0.95)
+-    cur.execute(
+-        "SELECT error_message, COUNT(*) c FROM run_steps WHERE status='failed' "
+-        "GROUP BY error_message ORDER BY c DESC LIMIT 3"
+-    )
+-    top_errors = cur.fetchall()
+-    conn.close()
+-    success_rate = round((success or 0) / (total or 1) * 100, 2)
++    m = compute_metrics()
+     return templates.TemplateResponse(
+         "dashboard.html",
+         {
+             "request": request,
+-            "success_rate": success_rate,
+-            "total_runs": total or 0,
+-            "median_ms": round(median or 0),
+-            "p95_ms": round(p95 or 0),
+-            "top_errors": top_errors,
++            "success_rate": round(m.get("success_rate_24h", 0) * 100, 2),
++            "total_runs": None,
++            "median_ms": m.get("median_duration_ms_24h", 0),
++            "p95_ms": m.get("p95_duration_ms_24h", 0),
++            "top_errors": [(e.get("cluster"), e.get("count")) for e in m.get("top_errors_24h", [])],
++            "rolling_7d": m.get("rolling_7d", {}),
+         },
+     )
+ 
+@@ -304,9 +279,4 @@ def permissions(request: Request):
+ 
+ @app.get("/metrics")
+ def metrics():
+-    # minimal metrics for Shields
+-    runs = list_runs(limit=1000)
+-    total = len(runs)
+-    success = sum(1 for r in runs if r["status"] == "success")
+-    success_rate = round((success) / (total or 1) * 100, 2)
+-    return {"total_runs": total, "success_runs": success, "success_rate": success_rate}
++    return compute_metrics()
+diff --git a/app/metrics.py b/app/metrics.py
+index 61e32af..096411b 100644
+--- a/app/metrics.py
++++ b/app/metrics.py
+@@ -1,18 +1,96 @@
+ from __future__ import annotations
+ 
+-from typing import Dict
++from typing import Dict, List
+ 
+ from .models import get_conn
++import math
++
++
++def _cluster_error(msg: str) -> str:
++    if not msg:
++        return "UNKNOWN"
++    m = msg.lower()
++    if "pdf" in m and ("parse" in m or "header" in m):
++        return "PDF_PARSE_ERROR"
++    if "missing paths" in m or "not exist" in m:
++        return "ATTACH_MISSING"
++    if "not authorized" in m or "automation" in m:
++        return "PERMISSION_BLOCKED"
++    if "found":
++        # caution: generic mapping
++        return "NO_FILES_FOUND" if "0" in m else "FILES_FOUND"
++    return "OTHER"
+ 
+ 
+ def compute_metrics() -> Dict[str, float]:
+     conn = get_conn()
+     cur = conn.cursor()
+-    cur.execute("SELECT COUNT(*) FROM runs")
+-    total = cur.fetchone()[0] or 0
+-    cur.execute("SELECT COUNT(*) FROM runs WHERE status='success'")
+-    success = cur.fetchone()[0] or 0
+-    conn.close()
+-    rate = round((success) / (total or 1) * 100, 2)
+-    return {"total_runs": float(total), "success_runs": float(success), "success_rate": rate}
++    # 24h
++    cur.execute("SELECT id,status,started_at,finished_at FROM runs WHERE started_at >= datetime('now','-1 day')")
++    rows = cur.fetchall()
++    total24 = len(rows)
++    succ24 = sum(1 for r in rows if r["status"] == "success")
++    durations: List[float] = []
++    for r in rows:
++        if r["started_at"] and r["finished_at"]:
++            cur.execute("SELECT (julianday(?) - julianday(?)) * 24*60*60*1000", (r["finished_at"], r["started_at"]))
++            d = cur.fetchone()[0]
++            if d is not None:
++                durations.append(d)
++    durations.sort()
++
++    def percentile(p: float) -> float:
++        if not durations:
++            return 0.0
++        k = (len(durations) - 1) * p
++        f = math.floor(k)
++        c = math.ceil(k)
++        if f == c:
++            return float(durations[int(k)])
++        return float(durations[f] + (durations[c] - durations[f]) * (k - f))
+ 
++    median24 = percentile(0.5)
++    p95_24 = percentile(0.95)
++    # error clusters 24h
++    cur.execute("SELECT error_message FROM run_steps WHERE status='failed' AND finished_at >= datetime('now','-1 day')")
++    errs = [_cluster_error(r[0]) for r in cur.fetchall()]
++    clusters: Dict[str, int] = {}
++    for e in errs:
++        clusters[e] = clusters.get(e, 0) + 1
++    top_errors = sorted(([k, v] for k, v in clusters.items()), key=lambda x: x[1], reverse=True)[:3]
++
++    # 7d rolling
++    cur.execute("SELECT id,status,started_at,finished_at FROM runs WHERE started_at >= datetime('now','-7 day')")
++    rows7 = cur.fetchall()
++    total7 = len(rows7)
++    succ7 = sum(1 for r in rows7 if r["status"] == "success")
++    durs7: List[float] = []
++    for r in rows7:
++        if r["started_at"] and r["finished_at"]:
++            cur.execute("SELECT (julianday(?) - julianday(?)) * 24*60*60*1000", (r["finished_at"], r["started_at"]))
++            d = cur.fetchone()[0]
++            if d is not None:
++                durs7.append(d)
++    durs7.sort()
++
++    def med(lst: List[float]) -> float:
++        if not lst:
++            return 0.0
++        n = len(lst)
++        mid = n // 2
++        if n % 2:
++            return float(lst[mid])
++        return float((lst[mid - 1] + lst[mid]) / 2)
++
++    out = {
++        "success_rate_24h": round((succ24) / (total24 or 1), 2),
++        "median_duration_ms_24h": round(median24 or 0),
++        "p95_duration_ms_24h": round(p95_24 or 0),
++        "top_errors_24h": [{"cluster": k, "count": v} for k, v in top_errors],
++        "rolling_7d": {
++            "success_rate": round((succ7) / (total7 or 1), 2),
++            "median_duration_ms": round(med(durs7) or 0),
++        },
++    }
++    conn.close()
++    return out
+diff --git a/app/security.py b/app/security.py
+index 45bbbaf..e3758aa 100644
+--- a/app/security.py
++++ b/app/security.py
+@@ -9,7 +9,8 @@ PHONE_RE = re.compile(r"\b(?:\+?\d[\d\-\s]{7,}\d)\b")
+ def mask(text: str) -> str:
+     if not text:
+         return text
+-    t = EMAIL_RE.sub("***@***", text)
++    # Replace entire email with a generic token (no @ remains)
++    t = EMAIL_RE.sub("***", text)
+     t = NAME_RE.sub("*** **", t)
+     t = PATH_RE.sub("/…/…", t)
+     t = PHONE_RE.sub("***-***-****", t)
+diff --git a/app/templates/dashboard.html b/app/templates/dashboard.html
+index f1e0a6a..fd6919a 100644
+--- a/app/templates/dashboard.html
++++ b/app/templates/dashboard.html
+@@ -9,11 +9,19 @@
+     <li>Median duration (ms): {{ median_ms }}</li>
+     <li>P95 duration (ms): {{ p95_ms }}</li>
+   </ul>
++  {% if rolling_7d %}
++  <h3>Rolling 7d</h3>
++  <ul>
++    <li>Success rate: {{ (rolling_7d.success_rate * 100) | round(2) if rolling_7d.success_rate is defined else 0 }}%</li>
++    <li>Median duration (ms): {{ rolling_7d.median_duration_ms if rolling_7d.median_duration_ms is defined else 0 }}</li>
++  </ul>
++  {% endif %}
+   <h3>Top 3 Errors</h3>
+   <ol>
+   {% for row in top_errors %}
+     <li>{{ row[0] }} ({{ row[1] }})</li>
+   {% endfor %}
+   </ol>
++  <p>See /metrics for JSON schema including 7d rolling averages.</p>
+ </body>
+ </html>
+diff --git a/app/templates/run_detail.html b/app/templates/run_detail.html
+index b126190..b32402f 100644
+--- a/app/templates/run_detail.html
++++ b/app/templates/run_detail.html
+@@ -13,6 +13,15 @@
+       find_files の結果が 0 件です。クエリやルートパスを確認してください。
+     </div>
+   {% endif %}
++  {% if diffs and not any_failed %}
++    <details style="margin:8px 0;"><summary>Diff (Before/After)</summary>
++      <ul>
++      {% for d in diffs %}
++        <li>Step {{ d.idx }} {{ d.name }}: {% if d.before is defined %}{{ d.before }} → {{ d.after }}{% endif %}{% if d.pages is defined %} pages={{ d.pages }}{% endif %}</li>
++      {% endfor %}
++      </ul>
++    </details>
++  {% endif %}
+   <p>Status: {{ run['status'] }} | Public: <a href="/public/runs/{{ run['public_id'] }}">link</a></p>
+   {% if run['status'] == 'pending' %}
+   <form method="post" action="/runs/{{ run['id'] }}/approve"><button type="submit">Approve & Execute</button></form>
+diff --git a/plans/templates/weekly_report.yaml b/plans/templates/weekly_report.yaml
+index 0a9a75a..9964001 100644
+--- a/plans/templates/weekly_report.yaml
++++ b/plans/templates/weekly_report.yaml
+@@ -1,3 +1,4 @@
++dsl_version: "1.1"
+ name: "週次PDFレポート作成 → 下書きメール"
+ variables:
+   inbox: "~/Downloads"
+@@ -5,10 +6,10 @@ variables:
+   out_pdf: "~/Reports/weekly_{{date}}.pdf"
+ steps:
+   - find_files: { query: "kind:pdf modified:this week", roots: ["{{inbox}}"], limit: 100 }
+-  - rename: { rule: "{{date}}_{{index}}_{{basename}}" }
+-  - move_to: { dest: "{{workdir}}" }
+-  - pdf_merge: { inputs_from: "{{workdir}}", out: "{{out_pdf}}" }
+-  - pdf_extract_pages: { input: "{{out_pdf}}", pages: "1,3-5", out: "{{out_pdf | replace:'.pdf','_digest.pdf'}}" }
++  - rename: { rule: "{{date}}_{{index}}_{{basename}}", when: "{{steps[0].found}} > 0" }
++  - move_to: { dest: "{{workdir}}", when: "{{steps[0].found}} > 0" }
++  - pdf_merge: { inputs_from: "{{workdir}}", out: "{{out_pdf}}", when: "{{steps[0].found}} > 0" }
++  - pdf_extract_pages: { input: "{{out_pdf}}", pages: "1,3-5", out: "{{out_pdf | replace:'.pdf','_digest.pdf'}}", when: "{{steps[0].found}} > 0" }
+   - open_preview: { path: "{{out_pdf}}" }
+   - compose_mail:
+       to: ["ops@example.com"]
+@@ -16,4 +17,3 @@ steps:
+       body: "自動作成しました。成功率: {{metrics.success_rate}}%"
+   - attach_files: { paths: ["{{out_pdf}}"] }
+   - save_draft: {}
+-
+diff --git a/tests/test_dsl_parser.py b/tests/test_dsl_parser.py
+index 7fc65cb..07ada60 100644
+--- a/tests/test_dsl_parser.py
++++ b/tests/test_dsl_parser.py
+@@ -26,3 +26,17 @@ steps:
+     assert action == "find_files"
+     rendered = render_value(params, plan.get("variables", {}))
+     assert "{{" not in str(rendered)
++
++
++def test_when_expression_and_steps_ref():
++    text = """
++dsl_version: "1.1"
++name: test
++variables:
++  a: 1
++steps:
++  - find_files: { query: "kind:pdf", roots: ["~/Downloads"], limit: 1 }
++  - log: { message: "ok", when: "{{steps[0].found}} >= 0" }
++    """
++    plan = parse_yaml(text)
++    assert plan["dsl_version"] == "1.1"

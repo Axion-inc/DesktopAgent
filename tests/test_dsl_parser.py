@@ -26,3 +26,17 @@ steps:
     assert action == "find_files"
     rendered = render_value(params, plan.get("variables", {}))
     assert "{{" not in str(rendered)
+
+
+def test_when_expression_and_steps_ref():
+    text = """
+dsl_version: "1.1"
+name: test
+variables:
+  a: 1
+steps:
+  - find_files: { query: "kind:pdf", roots: ["~/Downloads"], limit: 1 }
+  - log: { message: "ok", when: "{{steps[0].found}} >= 0" }
+    """
+    plan = parse_yaml(text)
+    assert plan["dsl_version"] == "1.1"

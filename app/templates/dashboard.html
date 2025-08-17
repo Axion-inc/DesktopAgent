@@ -9,11 +9,19 @@
     <li>Median duration (ms): {{ median_ms }}</li>
     <li>P95 duration (ms): {{ p95_ms }}</li>
   </ul>
+  {% if rolling_7d %}
+  <h3>Rolling 7d</h3>
+  <ul>
+    <li>Success rate: {{ (rolling_7d.success_rate * 100) | round(2) if rolling_7d.success_rate is defined else 0 }}%</li>
+    <li>Median duration (ms): {{ rolling_7d.median_duration_ms if rolling_7d.median_duration_ms is defined else 0 }}</li>
+  </ul>
+  {% endif %}
   <h3>Top 3 Errors</h3>
   <ol>
   {% for row in top_errors %}
     <li>{{ row[0] }} ({{ row[1] }})</li>
   {% endfor %}
   </ol>
+  <p>See /metrics for JSON schema including 7d rolling averages.</p>
 </body>
 </html>

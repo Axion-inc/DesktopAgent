@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict
 
+import ast
 import yaml
 
 
@@ -17,7 +18,7 @@ def render_value(val: Any, variables: Dict[str, Any]) -> Any:
 
 
 def render_string(s: str, variables: Dict[str, Any]) -> str:
-    # Very small templating: {{var}} and {{ var | replace:'a','b' }}
+    # Enhanced templating: {{var}}, {{ var | replace:'a','b' }}, and {{steps[i].field}}
     out = s
 
     def current_date() -> str:
@@ -35,6 +36,9 @@ def render_string(s: str, variables: Dict[str, Any]) -> str:
             var_part, filt_part = [p.strip() for p in expr.split("|", 1)]
             if var_part == "date":
                 val = current_date()
+            elif var_part.startswith("steps["):
+                # Handle steps[i].field with filters
+                val = _resolve_steps_reference(var_part, variables)
             else:
                 val = str(variables.get(var_part, ""))
             # only support replace:'x','y'
@@ -47,10 +51,35 @@ def render_string(s: str, variables: Dict[str, Any]) -> str:
             key = expr
             if key == "date":
                 val = current_date()
+            elif key.startswith("steps["):
+                # Handle steps[i].field references
+                val = _resolve_steps_reference(key, variables)
             else:
                 val = variables.get(key, "")
         out = out[: m.start()] + str(val) + out[m.end() :]
     return out
+
+
+def _resolve_steps_reference(steps_ref: str, variables: Dict[str, Any]) -> Any:
+    """Resolve steps[i].field references from step results."""
+    import re
+    
+    # Parse steps[i].field format
+    match = re.match(r"steps\[(\d+)\]\.(\w+)", steps_ref)
+    if not match:
+        return ""
+    
+    try:
+        step_idx = int(match.group(1))
+        field_name = match.group(2)
+        
+        # Get steps from variables context
+        steps = variables.get("steps", [])
+        if step_idx < len(steps) and isinstance(steps[step_idx], dict):
+            return steps[step_idx].get(field_name, "")
+        return ""
+    except (ValueError, IndexError, KeyError):
+        return ""
 
 
 def parse_yaml(yaml_text: str) -> Dict[str, Any]:
@@ -63,3 +92,47 @@ def parse_yaml(yaml_text: str) -> Dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("Invalid plan YAML: root must be mapping")
     return data
+
+
+class SafeEval(ast.NodeVisitor):
+    ALLOWED_NODES = (
+        ast.Expression,
+        ast.BoolOp,
+        ast.BinOp,
+        ast.UnaryOp,
+        ast.Compare,
+        ast.Name,
+        ast.Load,
+        ast.Constant,
+        ast.Subscript,
+        ast.Index,
+        ast.Tuple,
+        ast.List,
+        ast.Dict,
+        ast.And,
+        ast.Or,
+        ast.Not,
+        ast.Eq,
+        ast.NotEq,
+        ast.Lt,
+        ast.LtE,
+        ast.Gt,
+        ast.GtE,
+        ast.Add,
+        ast.Sub,
+        ast.Mult,
+        ast.Div,
+        ast.Mod,
+    )
+
+    def visit(self, node):  # type: ignore[override]
+        if not isinstance(node, self.ALLOWED_NODES):
+            raise ValueError("unsafe expression")
+        return super().visit(node)
+
+
+def safe_eval(expr: str, context: Dict[str, Any]) -> Any:
+    tree = ast.parse(expr, mode="eval")
+    SafeEval().visit(tree)
+    code = compile(tree, "<expr>", "eval")
+    return eval(code, {"__builtins__": {}}, context)

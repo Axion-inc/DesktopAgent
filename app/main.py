@@ -7,6 +7,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from .utils import json_dumps, get_logger
+from .metrics import compute_metrics
 from .permissions import check_permissions
 
 from .dsl.parser import parse_yaml, render_value
@@ -24,6 +25,7 @@ from .models import (
     set_run_finished_now,
 )
 from .security import mask
+import json as _json
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -33,6 +35,16 @@ DATA_DIR.mkdir(exist_ok=True, parents=True)
 
 app = FastAPI()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+# Add custom Jinja2 filters
+def from_json_filter(json_str: str) -> dict:
+    """Convert JSON string to dict for template access."""
+    try:
+        return _json.loads(json_str) if isinstance(json_str, str) else json_str
+    except Exception:
+        return {}
+
+templates.env.filters["from_json"] = from_json_filter
 
 
 @app.on_event("startup")
@@ -138,12 +150,16 @@ async def runs_approve(run_id: int):
             status="running",
         )
         try:
-            result = runner.execute_step(action, params)
+            result = runner.execute_step_with_diff(action, params)
             shot = runner._screenshot(run_id, idx)
+            # Include diff data in the step output for replay UI
+            result_with_diff = {**result}
+            if idx <= len(runner.step_diffs):
+                result_with_diff["_diff"] = runner.step_diffs[idx - 1]
             models.finalize_run_step(
                 step_id,
                 "success",
-                output_json=json_dumps(result),
+                output_json=json_dumps(result_with_diff),
                 screenshot_path=shot,
             )
             log.info("run.step.success id=%s idx=%s action=%s", run_id, idx, action)
@@ -182,7 +198,7 @@ def runs_detail(request: Request, run_id: int):
     any_failed = False
     first_error = None
     zero_found = False
-    import json as _json
+    diffs = []
     for s in steps:
         if s["status"] == "failed" and not any_failed:
             any_failed = True
@@ -194,6 +210,20 @@ def runs_detail(request: Request, run_id: int):
                     zero_found = True
             except Exception:
                 pass
+        try:
+            out = s["output_json"] and _json.loads(s["output_json"]) or {}
+            if isinstance(out, dict):
+                if "before_count" in out or "after_count" in out:
+                    diffs.append({
+                        "idx": s["idx"],
+                        "name": s["name"],
+                        "before": out.get("before_count"),
+                        "after": out.get("after_count"),
+                    })
+                if "page_count" in out:
+                    diffs.append({"idx": s["idx"], "name": s["name"], "pages": out.get("page_count")})
+        except Exception:
+            pass
     return templates.TemplateResponse(
         "run_detail.html",
         {
@@ -203,6 +233,21 @@ def runs_detail(request: Request, run_id: int):
             "any_failed": any_failed,
             "first_error": first_error,
             "zero_found": zero_found,
+            "diffs": diffs,
+        },
+    )
+
+
+@app.get("/permissions", response_class=HTMLResponse)
+def permissions_page(request: Request, run_id: int = None):
+    """Permission diagnostics page."""
+    perms = check_permissions()
+    return templates.TemplateResponse(
+        "permissions.html",
+        {
+            "request": request,
+            "perms": perms,
+            "run_id": run_id,
         },
     )
 
@@ -239,59 +284,17 @@ def runs_public(request: Request, public_id: str):
 
 @app.get("/public/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
-    # Stats from last 24h; compute median and p95 in Python
-    from .models import get_conn
-    import math
-
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT id, status, started_at, finished_at FROM runs WHERE started_at >= datetime('now','-1 day')"
-    )
-    rows = cur.fetchall()
-    total = len(rows)
-    success = sum(1 for r in rows if r["status"] == "success")
-    # durations in ms
-    durations = []
-    for r in rows:
-        if r["started_at"] and r["finished_at"]:
-            cur.execute(
-                "SELECT (julianday(?) - julianday(?)) * 24 * 60 * 60 * 1000",
-                (r["finished_at"], r["started_at"]),
-            )
-            d = cur.fetchone()[0]
-            if d is not None:
-                durations.append(d)
-    durations.sort()
-
-    def percentile(p: float) -> float:
-        if not durations:
-            return 0.0
-        k = (len(durations) - 1) * p
-        f = math.floor(k)
-        c = math.ceil(k)
-        if f == c:
-            return float(durations[int(k)])
-        return float(durations[f] + (durations[c] - durations[f]) * (k - f))
-
-    median = percentile(0.5)
-    p95 = percentile(0.95)
-    cur.execute(
-        "SELECT error_message, COUNT(*) c FROM run_steps WHERE status='failed' "
-        "GROUP BY error_message ORDER BY c DESC LIMIT 3"
-    )
-    top_errors = cur.fetchall()
-    conn.close()
-    success_rate = round((success or 0) / (total or 1) * 100, 2)
+    m = compute_metrics()
     return templates.TemplateResponse(
         "dashboard.html",
         {
             "request": request,
-            "success_rate": success_rate,
-            "total_runs": total or 0,
-            "median_ms": round(median or 0),
-            "p95_ms": round(p95 or 0),
-            "top_errors": top_errors,
+            "success_rate": round(m.get("success_rate_24h", 0) * 100, 2),
+            "total_runs": None,
+            "median_ms": m.get("median_duration_ms_24h", 0),
+            "p95_ms": m.get("p95_duration_ms_24h", 0),
+            "top_errors": [(e.get("cluster"), e.get("count")) for e in m.get("top_errors_24h", [])],
+            "rolling_7d": m.get("rolling_7d", {}),
         },
     )
 
@@ -304,9 +307,4 @@ def permissions(request: Request):
 
 @app.get("/metrics")
 def metrics():
-    # minimal metrics for Shields
-    runs = list_runs(limit=1000)
-    total = len(runs)
-    success = sum(1 for r in runs if r["status"] == "success")
-    success_rate = round((success) / (total or 1) * 100, 2)
-    return {"total_runs": total, "success_runs": success, "success_rate": success_rate}
+    return compute_metrics()

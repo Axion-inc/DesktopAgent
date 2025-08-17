@@ -9,7 +9,8 @@ PHONE_RE = re.compile(r"\b(?:\+?\d[\d\-\s]{7,}\d)\b")
 def mask(text: str) -> str:
     if not text:
         return text
-    t = EMAIL_RE.sub("***@***", text)
+    # Replace entire email with a generic token (no @ remains)
+    t = EMAIL_RE.sub("***", text)
     t = NAME_RE.sub("*** **", t)
     t = PATH_RE.sub("/…/…", t)
     t = PHONE_RE.sub("***-***-****", t)

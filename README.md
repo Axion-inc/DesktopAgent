@@ -32,10 +32,12 @@ Notes
 - Set `PERMISSIONS_STRICT=1` to block runs when Screen Recording is not granted (default is warn-only).
 
 Permissions (macOS)
-- Screen Recording: System Settings → Privacy & Security → Screen Recording → allow Terminal and your Python.
+- **Screen Recording**: System Settings → Privacy & Security → Screen Recording → allow Terminal and your Python.
   - Diagram: docs/assets/permissions_screen_recording.svg
-- Automation (Mail, Finder, System Events): First run will prompt; or enable under Privacy & Security → Automation.
+- **Automation (Mail, Finder, System Events)**: First run will prompt; or enable under Privacy & Security → Automation.
   - Diagram: docs/assets/permissions_automation.svg
+- **Diagnostic UI**: Visit `/permissions` for real-time permission status and step-by-step fix instructions.
+- **Blocking Mode**: Set `PERMISSIONS_STRICT=1` to block execution when permissions are missing (default: warning only).
 
 Flow
 - Plans → Dry-run (preview) → Approve → Execute → Replay (with screenshots) → Public dashboard.
@@ -55,14 +57,46 @@ CI
 - GitHub Actions runs flake8 and pytest on push.
 
 Metrics / Badges
-- `/metrics` exposes JSON suitable for Shields.io custom badges (success rate, run count).
+- `/metrics` exposes extended JSON with 24h p95 and 7d rolling stats suitable for Shields.io and dashboards.
+  - Example schema:
+    {
+      "success_rate_24h": 0.94,
+      "median_duration_ms_24h": 18200,
+      "p95_duration_ms_24h": 41000,
+      "top_errors_24h": [
+        {"cluster": "PDF_PARSE_ERROR", "count": 3},
+        {"cluster": "NO_FILES_FOUND", "count": 2},
+        {"cluster": "PERMISSION_BLOCKED", "count": 1}
+      ],
+      "rolling_7d": {"success_rate": 0.93, "median_duration_ms": 19000}
+    }
 
 Security & Privacy
 - No external LLM/API calls. Public pages mask PII (emails, names, file paths).
 
 Troubleshooting (macOS)
-- Permissions: If screenshots are placeholders or AppleScript fails, grant Terminal/Python.app permissions under System Settings → Privacy & Security (Screen Recording, Automation for Mail/Finder/System Events).
-- Mail AppleScript: We set subject/content with separate setters and attach using the first outgoing message whose id matches the draft. If Japanese text causes parse errors, try ASCII subject/body first to isolate. Logs for failures appear in /runs/{id} steps.
+
+**Permissions Issues**
+- **Access `/permissions`** for real-time diagnostics and step-by-step fix instructions
+- **Screen Recording**: Black screenshots or blank captures → System Settings → Privacy & Security → Screen Recording → add Terminal/Python
+- **Mail Automation**: "Not authorized" errors → System Settings → Privacy & Security → Automation → Terminal → Mail (enable)
+- **Strict Mode**: Set `PERMISSIONS_STRICT=1` to block execution instead of warning
+
+**Common Failures**
+- **"No files found"** → Check query syntax and root paths in `find_files` steps
+- **PDF errors** → Ensure input files exist and are valid PDFs
+- **Path errors** → Use `~/` for home directory expansion, check file existence
+- **AppleScript Mail** → Launch Mail.app once manually, then retry
+
+**Self-Recovery Features** (v1.1)
+- **Auto-directory creation**: `move_to` creates missing output folders automatically
+- **Search expansion**: `find_files` with 0 results widens search by one level (once)
+- **Replay tracking**: Recovery actions are logged in step diffs for visibility
+
+**Logs & Debugging**
+- Step-by-step logs appear in `/runs/{id}` with input/output/screenshots
+- Error details with line numbers in validation failures
+- Use `--dry-run` mode for safe testing without file operations
 
 License
 - MIT
@@ -80,3 +114,17 @@ Shields.io Badges
 - Example (replace URL with your deployment):
   - Success rate: `https://img.shields.io/endpoint?url=https://your.host/metrics&label=success&query=$.success_rate&suffix=%25`
   - Total runs: `https://img.shields.io/endpoint?url=https://your.host/metrics&label=runs&query=$.total_runs`
+
+DSL v1.1 Features
+- **Version Declaration**: Plans must start with `dsl_version: "1.1"`
+- **Conditional Execution**: `when:` expressions support step references like `"{{steps[0].found}} > 0"`
+- **Step Output Access**: Reference previous step results via `{{steps[i].field}}` (e.g., `{{steps[0].found}}`, `{{steps[3].page_count}}`)
+- **Static Validation**: Prevents referencing future steps in `when` conditions (compile-time check)
+- **Self-Recovery**: Auto-directory creation (`move_to`) and search expansion (`find_files`) with replay tracking
+- **Enhanced Templates**: 
+  - `weekly_report.yaml` - Updated for v1.1 with conditional steps
+  - `weekly_report_split.yaml` - PDF merge → extract → digest workflow  
+  - `downloads_tidy.yaml` - Automated file organization with pattern matching
+
+Permissions (Blocking UI)
+- `/permissions` shows current status; approval blocks if Mail Automation is denied (and optionally Screen Recording with `PERMISSIONS_STRICT=1`).
