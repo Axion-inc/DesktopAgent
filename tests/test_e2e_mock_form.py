@@ -87,6 +87,13 @@ class TestMockFormE2E:
         page.goto(f"{base_url}/mock/form")
         page.wait_for_load_state("networkidle")
 
+        # Remove HTML5 required attributes to test server-side validation
+        page.evaluate("""
+            document.querySelectorAll('input[required], textarea[required]').forEach(el => {
+                el.removeAttribute('required');
+            });
+        """)
+
         # Submit empty form
         page.get_by_role("button", name="送信").click()
         page.wait_for_load_state("networkidle")
