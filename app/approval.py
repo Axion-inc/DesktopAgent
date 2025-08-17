@@ -71,15 +71,28 @@ class RiskAnalyzer:
 
         return risks
 
-    def _analyze_click_by_text(self, step_index: int, action: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _analyze_click_by_text(self, step_index: int, action: str,
+                               params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Analyze click_by_text for destructive patterns."""
         text = params.get("text", "")
         if not text:
             return None
 
         # Check for destructive keywords
+        import re
         for keyword in self.destructive_keywords:
-            if keyword.lower() in text.lower():
+            # Use word boundary for English, simple contains for Japanese/non-ASCII
+            if any(ord(c) > 127 for c in keyword):
+                # Japanese/non-ASCII keywords - use simple contains
+                if keyword.lower() in text.lower():
+                    match = True
+                else:
+                    match = False
+            else:
+                # English keywords - use word boundary
+                pattern = r'\b' + re.escape(keyword.lower()) + r'\b'
+                match = re.search(pattern, text.lower()) is not None
+            if match:
                 return {
                     "step_index": step_index,
                     "action": action,
@@ -93,6 +106,26 @@ class RiskAnalyzer:
                     },
                     "mitigation": "Manual approval required before execution"
                 }
+
+        # Special case: Check for Submit forms (high risk)
+        form_submit_pattern = r'\bsubmit\b.*\bform\b|\bform\b.*\bsubmit\b'
+        has_submit_form = re.search(form_submit_pattern, text.lower())
+        has_submit_button = (re.search(r'\bsubmit\b', text.lower())
+                             and any(word in text.lower() for word in ['form', 'button']))
+        if has_submit_form or has_submit_button:
+            return {
+                "step_index": step_index,
+                "action": action,
+                "level": "high",
+                "category": "destructive_click",
+                "description": "Click action contains destructive keyword: 'Submit'",
+                "details": {
+                    "text": text,
+                    "keyword": "Submit",
+                    "role": params.get("role")
+                },
+                "mitigation": "Manual approval required before execution"
+            }
 
         # Check for form submission patterns
         submission_patterns = ["submit", "send", "post", "save", "update"]
@@ -157,7 +190,8 @@ class RiskAnalyzer:
 
         return None
 
-    def _analyze_mail_action(self, step_index: int, action: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _analyze_mail_action(self, step_index: int, action: str,
+                             params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Analyze mail composition for risks."""
         recipients = params.get("to", [])
         if recipients:
@@ -169,9 +203,9 @@ class RiskAnalyzer:
                 "description": "Email composition with recipients",
                 "details": {
                     "recipient_count": len(recipients),
-                    "subject": (params.get("subject", "")[:50] + "..."
-                                if len(params.get("subject", "")) > 50
-                                else params.get("subject", ""))
+                    "subject": (params.get("subject", "")[:50] + "..." if
+                                len(params.get("subject", "")) > 50 else
+                                params.get("subject", ""))
                 },
                 "mitigation": "Review recipients and email content"
             }
@@ -221,9 +255,11 @@ class ApprovalGate:
             return "No approval required. Plan is safe to execute."
 
         if analysis["risk_level"] == "high":
-            return "⚠️ HIGH RISK: This plan contains destructive operations. Manual approval required."
+            return ("⚠️ HIGH RISK: This plan contains destructive operations. "
+                    "Manual approval required.")
         elif analysis["risk_level"] == "medium":
-            return "⚡ MEDIUM RISK: This plan contains potentially risky operations. Approval recommended."
+            return ("⚡ MEDIUM RISK: This plan contains potentially risky operations. "
+                    "Approval recommended.")
         else:
             return "✅ LOW RISK: Plan appears safe but approval required due to policy."
 

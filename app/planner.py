@@ -86,7 +86,9 @@ class IntentMatcher:
                 r'.*処理.*csv',
                 r'csv.*file',
                 r'csvファイル',
-                r'.*csv.*data'
+                r'.*csv.*data',
+                r'csvから',
+                r'csv.*転記'
             ]
         }
 
