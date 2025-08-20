@@ -18,6 +18,11 @@ ALLOWED_STEPS = {
     "attach_files",
     "save_draft",
     "log",
+    # Phase 2: Web Actions
+    "open_browser",
+    "fill_by_label",
+    "click_by_text",
+    "download_file",
 }
 
 

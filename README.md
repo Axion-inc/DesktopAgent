@@ -10,7 +10,7 @@ Badges (after deploying /metrics):
 - Success rate: `![Success](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=success&query=$.success_rate&suffix=%25)`
 - Runs: `![Runs](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=runs&query=$.total_runs)`
 
-Purpose: A comprehensive desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **and web form automation**. Features approval gates for destructive operations, natural language plan generation, and comprehensive testing. Designed for future Windows 11 support with adapter abstractions.
+Purpose: A comprehensive desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **and web form automation**. Features CLI interface, approval gates for destructive operations, natural language plan generation, and comprehensive testing. Designed for future Windows 11 support with adapter abstractions.
 
 ## Phase 2 Features ✨
 
@@ -48,18 +48,17 @@ Quickstart (macOS 14+)
   - `pip install -r requirements.txt`
   - `npx playwright install --with-deps chromium` (for web automation)
 
-**Web Interface**:
-  - `uvicorn app.main:app --reload`
-  - Open http://127.0.0.1:8000
-  - Health check: http://127.0.0.1:8000/healthz
-  - **Quick Test**: Try the mock form at http://127.0.0.1:8000/mock/form
-
-**CLI Interface** (NEW):
+**CLI Interface**:
   - `./cli.py templates` - List available templates
   - `./cli.py validate plans/templates/weekly_report.yaml` - Validate plan
   - `./cli.py run plans/templates/weekly_report.yaml` - Execute plan
   - `./cli.py list` - View run history
   - `./cli.py show <run_id>` - View run details
+
+**Optional API Server** (for metrics only):
+  - `uvicorn app.main:app --reload`
+  - Health check: http://127.0.0.1:8000/healthz
+  - Metrics: http://127.0.0.1:8000/metrics
 
 Screenshots (Demo)
 ![Run Timeline](docs/assets/runs_timeline.svg)
@@ -78,10 +77,10 @@ Permissions (macOS)
 - **Blocking Mode**: Set `PERMISSIONS_STRICT=1` to block execution when permissions are missing (default: warning only).
 
 Flow
-- Plans → Dry-run (preview) → **Risk Analysis & Approval** → Execute → Replay (with screenshots) → Public dashboard.
+- Plans → CLI Validation → **Risk Analysis & Approval** → Execute → View Results
 
-Run the Template Plan
-- Navigate to /plans/new, keep the default weekly report YAML, validate, approve, and run.
+Quick Start
+- `./cli.py run plans/templates/weekly_report.yaml` - Run the default weekly report plan
 
 ## Web Automation (Phase 2)
 
@@ -121,10 +120,7 @@ npx playwright install --with-deps chromium
 - Fallback 2: Placeholder text matching
 - Fallback 3: CSS selector patterns
 
-**Mock SaaS Form** - Test web automation:
-- Visit http://localhost:8000/mock/form
-- Japanese form with realistic validation
-- Perfect for testing CSV-to-form workflows
+**Mock SaaS Form** - Test web automation with included templates targeting mock forms for E2E testing
 
 ## Approval Gates (Phase 2)
 
@@ -139,22 +135,13 @@ npx playwright install --with-deps chromium
 3. Approval granted → Plan executes
 4. All actions logged with approval status
 
-**View Approvals**: Visit `/plans/approval/{plan_id}` for risk details
+**CLI Approval**: Use `--auto-approve` flag to bypass approval gates, or CLI will prompt when approval is required
 
 ## Planner L1 (Phase 2)
 
 **Natural Language to DSL** - Convert intent to executable plans:
 
-**Enable Planner**:
-```python
-from app.planner import set_planner_enabled
-set_planner_enabled(True)
-```
-
-**Usage**:
-- Visit `/plans/intent` for the Planner UI
-- Enter natural language: "Process CSV file and submit to web form"
-- Get generated DSL plan ready for execution
+**Usage**: Natural language planning is integrated into the CLI workflow and available through the included plan templates
 
 **Supported Workflows**:
 - **CSV to Form**: "csvファイルをフォームに転記"
@@ -241,7 +228,7 @@ pytest tests/ -v -k "e2e" --maxfail=3
 - **Recovery Applied**: Self-recovery actions triggered (24h)
 - **Enhanced Errors**: Web-specific error clustering
 
-**Dashboard** - Visit `/public/dashboard` for visual metrics including:
+**Dashboard** - Metrics available via API endpoint `/metrics` including:
 - Traditional success rates and run counts
 - Approval workflow statistics
 - Web automation performance
@@ -253,7 +240,6 @@ Security & Privacy
 Troubleshooting (macOS)
 
 **Permissions Issues**
-- **Access `/permissions`** for real-time diagnostics and step-by-step fix instructions
 - **Screen Recording**: Black screenshots or blank captures → System Settings → Privacy & Security → Screen Recording → add Terminal/Python
 - **Mail Automation**: "Not authorized" errors → System Settings → Privacy & Security → Automation → Terminal → Mail (enable)
 - **Strict Mode**: Set `PERMISSIONS_STRICT=1` to block execution instead of warning
@@ -279,20 +265,17 @@ Troubleshooting (macOS)
 - **"Context not found"** → Ensure `open_browser` step creates the context first
 
 **Approval Workflow Issues**
-- **"Approval required"** → Check plan for destructive keywords (送信, Submit, Delete)
-- **"Approval denied"** → Review risk analysis at `/plans/approval/{plan_id}`
-- **"Approval not found"** → Ensure plan ID is correct and approval exists
+- **"Approval required"** → Use `--auto-approve` flag or check plan for destructive keywords (送信, Submit, Delete)
+- **"Approval denied"** → Review plan content and use `--auto-approve` if appropriate
 
-**Planner L1 Issues**
-- **"Planner disabled"** → Call `set_planner_enabled(True)` or use UI at `/plans/intent`
-- **"Low confidence"** → Refine natural language input, be more specific about actions
-- **"Unknown intent"** → Use supported patterns (CSV process, PDF merge, file organization)
-- **"Template not found"** → Check if templates exist in `plans/templates/`
+**Template Issues**
+- **"Template not found"** → Use `./cli.py templates` to list available templates
+- **"Plan validation failed"** → Use `./cli.py validate <file>` to check syntax errors
 
 **Logs & Debugging**
-- Step-by-step logs appear in `/runs/{id}` with input/output/screenshots
-- Error details with line numbers in validation failures
-- Use `--dry-run` mode for safe testing without file operations
+- Use `./cli.py show <run_id>` to view detailed run results
+- Error details with line numbers in validation failures  
+- Screenshots and step outputs stored in data directory
 
 License
 - MIT
@@ -334,9 +317,10 @@ License
 ./cli.py show 1
 ```
 
-**CLI vs Web Interface**:
-- **CLI**: Perfect for automation, scripting, and headless operation
-- **Web**: Better for development, debugging, and visual feedback with screenshots
+**CLI Advantages**:
+- **Pure CLI**: No web dependencies, perfect for automation and scripting
+- **Headless Operation**: Ideal for server environments and CI/CD
+- **Direct Execution**: Immediate feedback without browser overhead
 
 ## Legacy CLI Scripts
 - Single run of the weekly template in dry-run mode with sample data:
@@ -382,5 +366,5 @@ Shields.io Badges
 - Manual approval workflow for high-risk operations
 - Risk categorization and detailed logging
 
-Permissions (Blocking UI)
-- `/permissions` shows current status; approval blocks if Mail Automation is denied (and optionally Screen Recording with `PERMISSIONS_STRICT=1`).
+Permissions
+- CLI will check and warn about missing permissions; approval blocks if Mail Automation is denied (and optionally Screen Recording with `PERMISSIONS_STRICT=1`).

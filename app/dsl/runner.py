@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, Tuple, List
 
 from app.actions import fs_actions
+from app.actions import web_actions
 from app.os_adapters.base import MailAdapter, PreviewAdapter
 from app.os_adapters.macos import MacMailAdapter, MacPreviewAdapter
 from app.os_adapters.windows import WindowsMailAdapter, WindowsPreviewAdapter
@@ -246,6 +247,18 @@ class Runner:
             )
             self.state["web_context"] = params.get("context", "default")
             return result
+        if action == "wait_for_selector":
+            if self.dry_run:
+                return {"would_wait_for": params.get("selector")}
+            from app.actions import web_actions
+            selector = params.get("selector")
+            timeout_ms = params.get("timeout_ms")
+            result = web_actions.wait_for_selector(
+                selector,
+                timeout_ms,
+                self.state.get("web_context", "default")
+            )
+            return result
 
         if action == "fill_by_label":
             if self.dry_run:
@@ -320,13 +333,8 @@ class Runner:
             # Self-recovery for click_by_text
             if result.get("status") in ["not_found", "error"]:
                 try:
-                    # Strategy: Page reload and retry
-                    session = web_actions.get_web_session()
-                    page = session.get_page(self.state.get("web_context", "default"))
-
-                    # Reload page
-                    page.reload(wait_until="networkidle")
-                    page.wait_for_load_state("domcontentloaded")
+                    # Strategy: Page reload and retry (via worker thread helper)
+                    web_actions.reload_page(self.state.get("web_context", "default"))
 
                     # Retry the click
                     recovery_result = web_actions.click_by_text(
@@ -388,5 +396,16 @@ class Runner:
         # Capture diff
         diff = self._capture_state_diff(action, before_state, result)
         self.step_diffs.append(diff)
+
+        # Propagate web-action failures to step status so UI reflects correctly
+        try:
+            if isinstance(result, dict):
+                status = str(result.get("status", "success")).lower()
+                if status in ("error", "timeout", "not_found"):
+                    msg = result.get("error") or f"{action} returned status={status}"
+                    raise RuntimeError(msg)
+        except Exception as e:
+            # Re-raise to be caught by caller loop which marks step as failed
+            raise
 
         return result

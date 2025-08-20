@@ -27,3 +27,10 @@ htmlcov/
 # Build artifacts
 build/
 dist/
+
+# Playwright browsers
+.playwright/
+node_modules/
+
+# Logs
+logs/
