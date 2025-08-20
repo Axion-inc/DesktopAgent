@@ -457,7 +457,7 @@ def _open_browser_sync(url: str, context: str = "default", wait_for_load: bool =
         }
 
 
-def open_browser(url: str, context: str = "default", wait_for_load: bool = True) -> Dict[str, Any]:
+def open_browser(url: str, context: str = "default", wait_for_load: bool = True, visible: Optional[bool] = None) -> Dict[str, Any]:
     """
     Open browser and navigate to URL.
 
@@ -477,7 +477,15 @@ def open_browser(url: str, context: str = "default", wait_for_load: bool = True)
     if not parsed.scheme:
         url = f"http://{url}"
 
-    # Ensure session is available
+    # Apply headless override if requested BEFORE session init
+    # visible=True => headless=False
+    if visible is not None:
+        try:
+            set_headless_override(not bool(visible))
+        except Exception:
+            pass
+
+    # Ensure session is available (may launch browser)
     get_web_session()
     return _execute_in_web_thread(_open_browser_sync, url, context, wait_for_load)
 
@@ -497,6 +505,27 @@ def _fill_by_label_sync(label: str, text: str, context: str = "default") -> Dict
         # Proactively dismiss any overlays (autocomplete popups, etc.)
         try:
             page.keyboard.press('Escape')
+        except Exception:
+            pass
+
+        # If this looks like our mock form and we know the target selector,
+        # wait briefly for it to appear before querying to avoid race conditions.
+        try:
+            label_to_selector_peek = {
+                "氏名": "#name",
+                "名前": "#name",
+                "お名前": "#name",
+                "メール": "#email",
+                "メールアドレス": "#email",
+                "件名": "#subject",
+                "本文": "#message",
+            }
+            sel_peek = label_to_selector_peek.get(label)
+            if sel_peek:
+                try:
+                    page.wait_for_selector(sel_peek, timeout=_get_env_int("WEB_SELECTOR_TIMEOUT_MS", 15000))
+                except Exception:
+                    pass
         except Exception:
             pass
 

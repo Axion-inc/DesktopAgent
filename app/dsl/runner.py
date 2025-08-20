@@ -240,11 +240,15 @@ class Runner:
             if self.dry_run:
                 return {"would_open": params.get("url")}
             from app.actions import web_actions
+            ctx = params.get("context", "default")
             result = web_actions.open_browser(
                 params["url"],
-                params.get("context", "default")
+                ctx,
+                True,
+                params.get("visible")
             )
-            self.state["web_context"] = params.get("context", "default")
+            # Remember active web context for subsequent steps and screenshots
+            self.state["web_context"] = ctx
             return result
         if action == "wait_for_selector":
             if self.dry_run:

@@ -3,7 +3,8 @@ name: "シンプルWebフォームテスト"
 description: "モックフォームへの基本的な自動入力テスト"
 steps:
   - open_browser:
-      url: "http://127.0.0.1:8000/mock/form"
+      url: "http://localhost:8000/mock/form"
+      visible: true
   - fill_by_label:
       label: "氏名"
       text: "テスト太郎"
