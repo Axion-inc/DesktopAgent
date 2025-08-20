@@ -151,6 +151,8 @@ _result_queue: Optional[queue.Queue] = None
 _session_lock = threading.Lock()
 
 # Utility: env int and slow-mode sleeps for stabilizing slow environments
+
+
 def _get_env_int(name: str, default: int) -> int:
     try:
         return int(os.environ.get(name, str(default)))
@@ -166,12 +168,16 @@ def _slow_mode_sleep(point: str = "") -> None:
         except Exception:
             pass
 
+
 # Runtime headless override controlled from the app (for debugging)
+
 _headless_override: Optional[bool] = None
+
 
 def set_headless_override(val: Optional[bool]) -> None:
     global _headless_override
     _headless_override = val
+
 
 def get_headless_override() -> Optional[bool]:
     return _headless_override
@@ -179,7 +185,7 @@ def get_headless_override() -> Optional[bool]:
 
 def _web_worker():
     """Persistent worker thread for Playwright operations."""
-    global _web_session, _command_queue, _result_queue
+    global _web_session
 
     try:
         # Initialize session in this thread
@@ -248,7 +254,7 @@ def get_web_session() -> WebSession:
 
 def _execute_in_web_thread(func, *args, **kwargs):
     """Execute function in the web worker thread."""
-    global _command_queue, _result_queue
+    # Use existing queues; no rebinding here
 
     if _command_queue is None or _result_queue is None:
         raise RuntimeError("Web session not initialized")
@@ -317,21 +323,19 @@ def _open_browser_sync(url: str, context: str = "default", wait_for_load: bool =
             if host in ("127.0.0.1", "localhost"):
                 hc_url = f"{parsed.scheme}://{host}:{port}/healthz"
                 deadline = time.time() + float(os.environ.get("WEB_HEALTHCHECK_WAIT", "5"))
-                last_err = None
                 while time.time() < deadline:
                     try:
                         with urllib.request.urlopen(hc_url, timeout=1) as resp:
                             if resp.status == 200:
                                 break
-                    except Exception as e:  # pragma: no cover
-                        last_err = e
+                    except Exception:  # pragma: no cover
                         time.sleep(0.3)
                 # If health check never succeeded, continue anyway but annotate
         except Exception:
             pass
         # Navigation strategy: favor quick commit, then target selector wait
         nav_ok = False
-        last_err: Optional[Exception] = None
+        # Track navigation state; errors are handled inline
         nav_timeout_ms = _get_env_int("WEB_NAV_TIMEOUT_MS", 30000)
         commit_timeout_ms = max(8000, min(nav_timeout_ms, 15000))
 
@@ -339,15 +343,13 @@ def _open_browser_sync(url: str, context: str = "default", wait_for_load: bool =
         try:
             page.goto(url, wait_until="commit", timeout=commit_timeout_ms)
             nav_ok = True
-        except Exception as e:
-            last_err = e
+        except Exception:
             # Fallback 1: try without wait condition
             try:
                 page.goto(url, timeout=nav_timeout_ms)
                 nav_ok = True
-            except Exception as e2:
-                last_err = e2
-
+            except Exception:
+                pass
         # If navigation still not ok and host is loopback, try swapping 127.0.0.1/localhost
         if not nav_ok:
             try:
