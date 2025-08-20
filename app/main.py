@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
-from fastapi import FastAPI
+from fastapi import FastAPI, Form
+from fastapi.responses import HTMLResponse
 from .utils import get_logger
 from .metrics import compute_metrics
 from .models import init_db
@@ -26,3 +27,162 @@ def healthz():
 @app.get("/metrics")
 def metrics():
     return compute_metrics()
+
+
+# ------------------------
+# Mock Form (for E2E tests)
+# ------------------------
+
+@app.get("/mock/form", response_class=HTMLResponse)
+def mock_form():
+    html = """
+    <!DOCTYPE html>
+    <html lang="ja">
+      <head>
+        <meta charset="utf-8" />
+        <title>お問い合わせフォーム</title>
+      </head>
+      <body>
+        <h1>お問い合わせフォーム</h1>
+        <form method="post" action="/mock/form">
+          <div>
+            <label for="name">氏名</label>
+            <input id="name" name="name" type="text" required placeholder="山田太郎" />
+          </div>
+          <div>
+            <label for="email">メール</label>
+            <input id="email" name="email" type="email" required placeholder="example@email.com" />
+          </div>
+          <div>
+            <label for="subject">件名</label>
+            <input id="subject" name="subject" type="text" required placeholder="お問い合わせの件名" />
+          </div>
+          <div>
+            <label for="message">本文</label>
+            <textarea id="message" name="message" required placeholder="お問い合わせ内容をご記入ください..."></textarea>
+          </div>
+          <button type="submit">送信</button>
+        </form>
+      </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
+
+
+@app.post("/mock/form", response_class=HTMLResponse)
+def mock_form_post(
+    name: str = Form("") ,
+    email: str = Form(""),
+    subject: str = Form(""),
+    message: str = Form("")
+):
+    errors = []
+    if not (name or "").strip():
+        errors.append("氏名は必須です")
+    if not (email or "").strip():
+        errors.append("メールアドレスは必須です")
+    if not (subject or "").strip():
+        errors.append("件名は必須です")
+    if not (message or "").strip():
+        errors.append("本文は必須です")
+
+    if errors:
+        items = "".join(f"<li>{e}</li>" for e in errors)
+        err_html = f"""
+        <!DOCTYPE html>
+        <html lang="ja">
+          <head>
+            <meta charset="utf-8" />
+            <title>お問い合わせフォーム</title>
+          </head>
+          <body>
+            <h1>お問い合わせフォーム</h1>
+            <div class="error">入力エラーがあります</div>
+            <ul>
+              {items}
+            </ul>
+            <form method="post" action="/mock/form">
+              <div>
+                <label for="name">氏名</label>
+                <input id="name" name="name" type="text" placeholder="山田太郎" value="{name}" />
+              </div>
+              <div>
+                <label for="email">メール</label>
+                <input id="email" name="email" type="email" placeholder="example@email.com" value="{email}" />
+              </div>
+              <div>
+                <label for="subject">件名</label>
+                <input id="subject" name="subject" type="text" placeholder="お問い合わせの件名" value="{subject}" />
+              </div>
+              <div>
+                <label for="message">本文</label>
+                <textarea id="message" name="message" placeholder="お問い合わせ内容をご記入ください...">{message}</textarea>
+              </div>
+              <button type="submit">送信</button>
+            </form>
+          </body>
+        </html>
+        """
+        return HTMLResponse(content=err_html)
+
+    # Success page
+    ok_html = f"""
+    <!DOCTYPE html>
+    <html lang=\"ja\">
+      <head>
+        <meta charset=\"utf-8\" />
+        <title>送信完了</title>
+      </head>
+      <body>
+        <h1>送信完了</h1>
+        <div>氏名: {name}</div>
+        <div>メール: {email}</div>
+        <div>件名: {subject}</div>
+        <div>本文: {message}</div>
+      </body>
+    </html>
+    """
+    return HTMLResponse(content=ok_html)
+
+
+# ------------------------
+# Simple Pages for E2E
+# ------------------------
+
+@app.get("/plans/intent", response_class=HTMLResponse)
+def plans_intent():
+    return HTMLResponse(
+        content="""
+        <!DOCTYPE html>
+        <html lang='en'>
+          <head><meta charset='utf-8' /><title>Planner L1</title></head>
+          <body><h1>Planner L1</h1></body>
+        </html>
+        """
+    )
+
+
+@app.get("/public/dashboard", response_class=HTMLResponse)
+def public_dashboard():
+    m = compute_metrics()
+    html = f"""
+    <!DOCTYPE html>
+    <html lang='en'>
+      <head>
+        <meta charset='utf-8' />
+        <title>Dashboard</title>
+        <style>.metric-value{{font-weight:bold}}</style>
+      </head>
+      <body>
+        <h1>Dashboard</h1>
+        <div>Success Rate: <span class='metric-value'>{m.get('success_rate_24h', 0)}</span></div>
+        <div>Approvals Required: <span class='metric-value'>{m.get('approvals_required_24h', 0)}</span></div>
+        <div>Approvals Granted: <span class='metric-value'>{m.get('approvals_granted_24h', 0)}</span></div>
+        <div>Web Success Rate: <span class='metric-value'>{m.get('web_step_success_rate_24h', 0)}</span></div>
+        <div>Recovery Applied: <span class='metric-value'>{m.get('recovery_applied_24h', 0)}</span></div>
+        <div>Median (24h): <span class='metric-value'>{m.get('median_duration_ms_24h', 0)}</span></div>
+        <div>P95 (24h): <span class='metric-value'>{m.get('p95_duration_ms_24h', 0)}</span></div>
+      </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
