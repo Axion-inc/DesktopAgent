@@ -1,8 +1,6 @@
 from __future__ import annotations
-import os
 from pathlib import Path
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 from .utils import get_logger
 from .metrics import compute_metrics
 from .models import init_db

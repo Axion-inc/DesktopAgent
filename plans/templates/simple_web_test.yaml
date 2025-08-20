@@ -1,0 +1,21 @@
+dsl_version: "1.1"
+name: "シンプルWebフォームテスト"
+description: "モックフォームへの基本的な自動入力テスト"
+steps:
+  - open_browser:
+      url: "http://127.0.0.1:8000/mock/form"
+  - fill_by_label:
+      label: "氏名"
+      text: "テスト太郎"
+  - fill_by_label:
+      label: "メール"
+      text: "test@example.com"
+  - fill_by_label:
+      label: "件名"
+      text: "自動入力テスト"
+  - fill_by_label:
+      label: "本文"
+      text: "Desktop Agentによる自動入力テストです"
+  - click_by_text:
+      text: "送信"
+      role: "button"

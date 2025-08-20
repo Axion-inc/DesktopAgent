@@ -72,17 +72,17 @@ class WebSession:
                 args=extra_args,
                 slow_mo=slow_mo_ms if slow_mo_ms > 0 else None,
             )
-            
+
             if self.browser is None:
                 raise RuntimeError("Failed to launch browser")
-                
+
             return self
         except Exception as e:
             # Clean up on failure
             if self.playwright:
                 try:
                     self.playwright.stop()
-                except:
+                except Exception:
                     pass
             raise RuntimeError(f"Failed to initialize Playwright: {str(e)}")
 
@@ -96,7 +96,7 @@ class WebSession:
         """Get or create a browser context."""
         if self.browser is None:
             raise RuntimeError("Browser not initialized. WebSession must be used as context manager.")
-        
+
         if context_name not in self.contexts:
             ctx_kwargs: Dict[str, Any] = dict(
                 viewport={'width': 1280, 'height': 720},
@@ -180,37 +180,37 @@ def get_headless_override() -> Optional[bool]:
 def _web_worker():
     """Persistent worker thread for Playwright operations."""
     global _web_session, _command_queue, _result_queue
-    
+
     try:
         # Initialize session in this thread
         _web_session = WebSession()
         _web_session.__enter__()
-        
+
         # Signal successful initialization
         _result_queue.put({"status": "initialized"})
-        
+
         # Process commands
         while True:
             try:
                 command = _command_queue.get(timeout=60)  # 60 second timeout
-                
+
                 if command["action"] == "shutdown":
                     break
-                
+
                 # Execute the command
                 func = command["func"]
                 args = command.get("args", ())
                 kwargs = command.get("kwargs", {})
-                
+
                 try:
                     result = func(*args, **kwargs)
                     _result_queue.put({"status": "success", "result": result})
                 except Exception as e:
                     _result_queue.put({"status": "error", "error": str(e)})
-                
+
             except queue.Empty:
                 continue  # Continue processing
-                
+
     except Exception as e:
         _result_queue.put({"status": "init_error", "error": str(e)})
     finally:
@@ -218,7 +218,7 @@ def _web_worker():
         if _web_session:
             try:
                 _web_session.__exit__(None, None, None)
-            except:
+            except Exception:
                 pass
         _web_session = None
 
@@ -226,7 +226,7 @@ def _web_worker():
 def get_web_session() -> WebSession:
     """Get or create global web session."""
     global _web_thread, _command_queue, _result_queue
-    
+
     with _session_lock:
         if _web_thread is None or not _web_thread.is_alive():
             # Start worker thread
@@ -234,7 +234,7 @@ def get_web_session() -> WebSession:
             _result_queue = queue.Queue()
             _web_thread = threading.Thread(target=_web_worker, daemon=True)
             _web_thread.start()
-            
+
             # Wait for initialization
             try:
                 result = _result_queue.get(timeout=30)
@@ -242,17 +242,17 @@ def get_web_session() -> WebSession:
                     raise RuntimeError(f"Failed to initialize session: {result.get('error', 'Unknown error')}")
             except queue.Empty:
                 raise RuntimeError("Session initialization timeout")
-        
+
         return _web_session
 
 
 def _execute_in_web_thread(func, *args, **kwargs):
     """Execute function in the web worker thread."""
     global _command_queue, _result_queue
-    
+
     if _command_queue is None or _result_queue is None:
         raise RuntimeError("Web session not initialized")
-    
+
     # Send command
     _command_queue.put({
         "action": "execute",
@@ -260,7 +260,7 @@ def _execute_in_web_thread(func, *args, **kwargs):
         "args": args,
         "kwargs": kwargs
     })
-    
+
     # Wait for result
     try:
         # Compute a sensible default timeout based on nav/selector budgets
@@ -284,14 +284,14 @@ def _execute_in_web_thread(func, *args, **kwargs):
 def close_web_session():
     """Close global web session."""
     global _web_thread, _command_queue, _result_queue
-    
+
     with _session_lock:
         if _command_queue is not None:
             _command_queue.put({"action": "shutdown"})
-        
+
         if _web_thread is not None and _web_thread.is_alive():
             _web_thread.join(timeout=5)
-        
+
         _web_thread = None
         _command_queue = None
         _result_queue = None
@@ -574,7 +574,7 @@ def _fill_by_label_sync(label: str, text: str, context: str = "default") -> Dict
                 f'label:text-is("{label}")',   # text-is for exact match
                 f'label:text("{label}")',      # partial match
             ]
-            
+
             for selector in label_selectors:
                 try:
                     label_element = page.locator(selector).first
@@ -741,7 +741,9 @@ def _fill_by_label_sync(label: str, text: str, context: str = "default") -> Dict
             if sel:
                 el = page.locator(sel)
                 if el.count() > 0:
-                    el.evaluate("(e, v) => { e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }", text)
+                    el.evaluate("(e, v) => { e.value = v; "
+                                "e.dispatchEvent(new Event('input', { bubbles: true })); "
+                                "e.dispatchEvent(new Event('change', { bubbles: true })); }", text)
                     return {
                         "label": label,
                         "text": text,
@@ -929,7 +931,8 @@ def reload_page(context: str = "default") -> str:
 
 
 # Wait for selector
-def _wait_for_selector_sync(selector: str, timeout_ms: Optional[int] = None, context: str = "default") -> Dict[str, Any]:
+def _wait_for_selector_sync(selector: str, timeout_ms: Optional[int] = None,
+                            context: str = "default") -> Dict[str, Any]:
     session = get_web_session()
     page = session.get_page(context)
     try:

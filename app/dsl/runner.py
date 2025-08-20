@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Dict, Tuple, List
 
 from app.actions import fs_actions
-from app.actions import web_actions
 from app.os_adapters.base import MailAdapter, PreviewAdapter
 from app.os_adapters.macos import MacMailAdapter, MacPreviewAdapter
 from app.os_adapters.windows import WindowsMailAdapter, WindowsPreviewAdapter
@@ -404,7 +403,7 @@ class Runner:
                 if status in ("error", "timeout", "not_found"):
                     msg = result.get("error") or f"{action} returned status={status}"
                     raise RuntimeError(msg)
-        except Exception as e:
+        except Exception:
             # Re-raise to be caught by caller loop which marks step as failed
             raise
 
