@@ -47,12 +47,19 @@ Quickstart (macOS 14+)
   - `source venv/bin/activate`
   - `pip install -r requirements.txt`
   - `npx playwright install --with-deps chromium` (for web automation)
+
+**Web Interface**:
   - `uvicorn app.main:app --reload`
+  - Open http://127.0.0.1:8000
+  - Health check: http://127.0.0.1:8000/healthz
+  - **Quick Test**: Try the mock form at http://127.0.0.1:8000/mock/form
 
-Open http://127.0.0.1:8000
-Health check: http://127.0.0.1:8000/healthz
-
-**Quick Test**: Try the mock form at http://127.0.0.1:8000/mock/form
+**CLI Interface** (NEW):
+  - `./cli.py templates` - List available templates
+  - `./cli.py validate plans/templates/weekly_report.yaml` - Validate plan
+  - `./cli.py run plans/templates/weekly_report.yaml` - Execute plan
+  - `./cli.py list` - View run history
+  - `./cli.py show <run_id>` - View run details
 
 Screenshots (Demo)
 ![Run Timeline](docs/assets/runs_timeline.svg)
@@ -290,7 +297,48 @@ Troubleshooting (macOS)
 License
 - MIT
 
-CLI Usage (headless)
+## CLI Interface (NEW)
+
+**Command Overview**:
+```bash
+# Template management
+./cli.py templates                    # List available templates
+./cli.py template <filename>          # Show template content
+
+# Plan validation and execution  
+./cli.py validate <file>              # Validate YAML plan
+./cli.py run <file>                   # Execute plan
+./cli.py run <file> --auto-approve    # Execute with auto-approval
+
+# Run management
+./cli.py list                         # List all runs
+./cli.py show <run_id>                # Show run details
+```
+
+**Examples**:
+```bash
+# List available templates
+./cli.py templates
+
+# Validate a plan
+./cli.py validate plans/templates/weekly_report.yaml
+
+# Run a plan (will prompt for approval if needed)
+./cli.py run plans/templates/weekly_report.yaml
+
+# Run with auto-approval for high-risk operations
+./cli.py run plans/templates/csv_to_form.yaml --auto-approve
+
+# Check run history
+./cli.py list
+./cli.py show 1
+```
+
+**CLI vs Web Interface**:
+- **CLI**: Perfect for automation, scripting, and headless operation
+- **Web**: Better for development, debugging, and visual feedback with screenshots
+
+## Legacy CLI Scripts
 - Single run of the weekly template in dry-run mode with sample data:
   - `python scripts/run_plan.py plans/templates/weekly_report.yaml --dry-run --var inbox=./sample_data --var workdir=./data/work --var out_pdf=./data/weekly.pdf`
 - Seed 20 runs (dry-run) to validate stability:
