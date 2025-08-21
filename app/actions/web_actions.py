@@ -457,7 +457,12 @@ def _open_browser_sync(url: str, context: str = "default", wait_for_load: bool =
         }
 
 
-def open_browser(url: str, context: str = "default", wait_for_load: bool = True, visible: Optional[bool] = None) -> Dict[str, Any]:
+def open_browser(
+    url: str,
+    context: str = "default",
+    wait_for_load: bool = True,
+    visible: Optional[bool] = None,
+) -> Dict[str, Any]:
     """
     Open browser and navigate to URL.
 
