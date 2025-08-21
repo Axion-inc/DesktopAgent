@@ -1,4 +1,4 @@
-name: Nightly 50-run Dry-Run
+name: Nightly (Dry-Run + 100 E2E)
 
 on:
   schedule:
@@ -41,3 +41,58 @@ jobs:
               issue = created.data;
             }
             await github.rest.issues.createComment({owner: context.repo.owner, repo: context.repo.repo, issue_number: issue.number, body});
+
+  e2e-100-csv-form:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: nightly
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Install Playwright with browsers (Python)
+        run: |
+          python -m playwright install --with-deps chromium
+      - name: Prepare data and CSV (100 rows)
+        run: |
+          mkdir -p data/screenshots sample_data
+          {
+            echo "name,email,subject,message";
+            for i in $(seq 1 100); do
+              echo "ユーザ${i},user${i}@example.com,自動テスト件名${i},これは自動テスト本文${i}です。";
+            done;
+          } > sample_data/contacts.csv
+      - name: Start server
+        run: |
+          uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+          SERVER_PID=$!
+          echo "Started server with PID: $SERVER_PID"
+          for i in {1..60}; do 
+            if curl -fsS http://127.0.0.1:8000/healthz >/dev/null 2>&1; then 
+              echo "Server is ready"; break; fi; sleep 2; done
+          if ! kill -0 $SERVER_PID 2>/dev/null; then echo "Server died"; exit 1; fi
+        env:
+          DATABASE_URL: "sqlite:///./data/app.db"
+          SCREENSHOT_DIR: "./data/screenshots"
+      - name: Run 100-record CSV→Form with auto-approval
+        run: |
+          export BASE_URL="http://127.0.0.1:8000"
+          export PLAYWRIGHT_HEADLESS="true"
+          export DATABASE_URL="sqlite:///./data/app.db"
+          export SCREENSHOT_DIR="./data/screenshots"
+          export PERMISSIONS_STRICT="0"
+          export CLI_APPROVER="nightly-bot"
+          ./cli.py run-csv-form plans/templates/csv_to_form.yaml --limit 100 --auto-approve
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-100-screenshots
+          path: data/screenshots/
+          retention-days: 7

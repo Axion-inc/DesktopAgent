@@ -29,25 +29,25 @@ steps:
       context: "form_session"
       when: "{{steps[0].found}} > 0"
 
-  # Step 4: フォーム1件目のテストデータ転記（サンプル）
+  # Step 4: CSVの1行を row として使い、値を転記
   - fill_by_label:
       label: "氏名"
-      text: "山田太郎"
+      text: "{{row.name}}"
       when: "{{steps[0].found}} > 0"
 
   - fill_by_label:
       label: "メール"
-      text: "yamada@example.com"
+      text: "{{row.email}}"
       when: "{{steps[0].found}} > 0"
 
   - fill_by_label:
       label: "件名"
-      text: "自動転記テスト"
+      text: "{{row.subject}}"
       when: "{{steps[0].found}} > 0"
 
   - fill_by_label:
       label: "本文"
-      text: "これは自動転記のテストメッセージです。CSVデータから転記されました。"
+      text: "{{row.message}}"
       when: "{{steps[0].found}} > 0"
 
   # Step 5: 送信ボタンクリック（承認ゲートで保護される）
@@ -61,36 +61,9 @@ steps:
       message: "Form submission completed successfully"
       when: "{{steps[0].found}} > 0"
 
-  # Step 7: 2件目のデータ転記（オプション）
-  - fill_by_label:
-      label: "氏名"
-      text: "佐藤花子"
-      when: "{{steps[0].found}} > 0 and {{max_records}} > 1"
-
-  - fill_by_label:
-      label: "メール"
-      text: "sato@example.com"
-      when: "{{steps[0].found}} > 0 and {{max_records}} > 1"
-
-  - fill_by_label:
-      label: "件名"
-      text: "自動転記テスト2"
-      when: "{{steps[0].found}} > 0 and {{max_records}} > 1"
-
-  - fill_by_label:
-      label: "本文"
-      text: "これは2件目の自動転記テストです。"
-      when: "{{steps[0].found}} > 0 and {{max_records}} > 1"
-
-  # Step 8: 2件目送信（承認ゲートで保護される）
-  - click_by_text:
-      text: "送信"
-      role: "button"
-      when: "{{steps[0].found}} > 0 and {{max_records}} > 1"
-
-  # Step 9: 完了ログ
+  # Step 7: 完了ログ
   - log:
-      message: "CSV to form transfer completed. Processed up to {{max_records}} records."
+      message: "CSV to form transfer completed."
       when: "{{steps[0].found}} > 0"
 
 # テンプレート使用例:
@@ -103,5 +76,4 @@ steps:
 # 注意事項:
 # - 送信操作は承認ゲートで保護されます
 # - テスト用に最大処理件数を制限しています
-# - 実際のCSV読み込み機能は今後のフェーズで実装予定
-# - 現在はハードコーディングされたテストデータを使用
+# - CLIの run-csv-form サブコマンドでCSV行ごとに本テンプレのWeb手順を反復実行します

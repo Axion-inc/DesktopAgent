@@ -1,0 +1,6 @@
+name,email,subject,message
+山田太郎,yamada@example.com,お問い合わせ1,これはテストメッセージ1です。
+佐藤花子,sato@example.com,お問い合わせ2,これはテストメッセージ2です。
+田中次郎,tanaka@example.com,お問い合わせ3,これはテストメッセージ3です。
+鈴木一郎,suzuki@example.com,お問い合わせ4,これはテストメッセージ4です。
+高橋舞,takahashi@example.com,お問い合わせ5,これはテストメッセージ5です。
