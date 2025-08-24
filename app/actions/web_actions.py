@@ -1080,3 +1080,199 @@ def is_destructive_action(text: str) -> bool:
 def get_destructive_keywords() -> List[str]:
     """Get list of destructive keywords for risk analysis."""
     return DESTRUCTIVE_KEYWORDS.copy()
+
+
+# Phase 3 Web Extensions
+
+def _upload_file_sync(path: str, selector: Optional[str] = None, label: Optional[str] = None, 
+                     context: str = "default") -> Dict[str, Any]:
+    """Internal sync function for file upload."""
+    session = get_web_session()
+    page = session.get_page(context)
+    
+    try:
+        file_path = Path(path).expanduser()
+        if not file_path.exists():
+            return {
+                "path": path,
+                "selector": selector,
+                "label": label,
+                "status": "error",
+                "error": f"File does not exist: {path}"
+            }
+        
+        # Strategy 1: Use provided CSS selector
+        if selector:
+            try:
+                file_input = page.locator(selector)
+                if file_input.count() > 0:
+                    file_input.set_input_files(str(file_path))
+                    return {
+                        "path": path,
+                        "selector": selector,
+                        "strategy": "by_selector",
+                        "status": "success"
+                    }
+            except Exception:
+                pass
+        
+        # Strategy 2: Use label to find file input
+        if label:
+            try:
+                # Look for label element containing the text
+                label_element = page.locator(f'label:has-text("{label}")').first
+                if label_element.count() > 0:
+                    # Find associated input by for/id relationship
+                    label_for = label_element.get_attribute("for")
+                    if label_for:
+                        file_input = page.locator(f'#{label_for}[type="file"]')
+                        if file_input.count() > 0:
+                            file_input.set_input_files(str(file_path))
+                            return {
+                                "path": path,
+                                "label": label,
+                                "strategy": "by_label_for",
+                                "status": "success"
+                            }
+                    
+                    # Look for file input near the label
+                    container = label_element.locator('xpath=..')
+                    file_input = container.locator('input[type="file"]').first
+                    if file_input.count() > 0:
+                        file_input.set_input_files(str(file_path))
+                        return {
+                            "path": path,
+                            "label": label,
+                            "strategy": "by_label_nearby",
+                            "status": "success"
+                        }
+            except Exception:
+                pass
+        
+        # Strategy 3: Find any file input on the page
+        try:
+            file_inputs = page.locator('input[type="file"]')
+            if file_inputs.count() > 0:
+                file_inputs.first.set_input_files(str(file_path))
+                return {
+                    "path": path,
+                    "strategy": "by_file_input_generic",
+                    "status": "success"
+                }
+        except Exception:
+            pass
+        
+        return {
+            "path": path,
+            "selector": selector,
+            "label": label,
+            "status": "not_found",
+            "error": "Could not find file input element"
+        }
+        
+    except Exception as e:
+        return {
+            "path": path,
+            "selector": selector,
+            "label": label,
+            "status": "error",
+            "error": str(e)
+        }
+
+
+def upload_file(path: str, selector: Optional[str] = None, label: Optional[str] = None, 
+               context: str = "default") -> Dict[str, Any]:
+    """
+    Upload file to input[type=file] element.
+    
+    Args:
+        path: Path to file to upload
+        selector: Optional CSS selector for file input
+        label: Optional label text to find associated file input
+        context: Browser context name
+        
+    Returns:
+        Dict with upload result
+    """
+    if not path:
+        raise ValueError("File path is required")
+    
+    # Ensure session is available
+    get_web_session()
+    return _execute_in_web_thread(_upload_file_sync, path, selector, label, context)
+
+
+def _wait_for_download_sync(to: str, timeout_ms: int = 30000, context: str = "default") -> Dict[str, Any]:
+    """Internal sync function for waiting for download completion."""
+    try:
+        download_path = Path(to).expanduser()
+        download_dir = download_path if download_path.is_dir() else download_path.parent
+        
+        # Ensure download directory exists
+        download_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Get list of files before download
+        initial_files = set()
+        if download_dir.exists():
+            initial_files = {f.name for f in download_dir.iterdir() if f.is_file()}
+        
+        start_time = time.time()
+        timeout_seconds = timeout_ms / 1000.0
+        
+        # Poll for new files in download directory
+        while (time.time() - start_time) < timeout_seconds:
+            if download_dir.exists():
+                current_files = {f.name for f in download_dir.iterdir() if f.is_file()}
+                new_files = current_files - initial_files
+                
+                if new_files:
+                    # Found new file(s), check if download is complete
+                    for file_name in new_files:
+                        file_path = download_dir / file_name
+                        # Check if file is still being written (size changes)
+                        if file_path.exists():
+                            initial_size = file_path.stat().st_size
+                            time.sleep(0.5)  # Brief wait
+                            if file_path.exists() and file_path.stat().st_size == initial_size:
+                                # File size stable, download likely complete
+                                return {
+                                    "to": str(download_dir),
+                                    "file": file_name,
+                                    "path": str(file_path),
+                                    "size": initial_size,
+                                    "status": "success"
+                                }
+            
+            time.sleep(0.5)  # Poll every 500ms
+        
+        return {
+            "to": str(download_dir),
+            "status": "timeout",
+            "error": f"No download detected within {timeout_ms}ms"
+        }
+        
+    except Exception as e:
+        return {
+            "to": to,
+            "status": "error", 
+            "error": str(e)
+        }
+
+
+def wait_for_download(to: str, timeout_ms: int = 30000, context: str = "default") -> Dict[str, Any]:
+    """
+    Wait for file download to complete in specified directory.
+    
+    Args:
+        to: Directory path to monitor for downloads (e.g., "~/Downloads")
+        timeout_ms: Maximum wait time in milliseconds
+        context: Browser context name (for consistency, not used in this implementation)
+        
+    Returns:
+        Dict with download completion result
+    """
+    if not to:
+        raise ValueError("Download directory path is required")
+    
+    # This function doesn't need web session but we use the same pattern for consistency
+    return _execute_in_web_thread(_wait_for_download_sync, to, timeout_ms, context)

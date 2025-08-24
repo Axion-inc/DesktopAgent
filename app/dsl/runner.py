@@ -65,11 +65,24 @@ class Runner:
             diff["page_count"] = after_result.get("page_count")
         elif action == "pdf_extract_pages":
             diff["extracted_pages"] = after_result.get("page_count")
-        elif action in ["open_browser", "fill_by_label", "click_by_text", "download_file"]:
+        elif action in ["open_browser", "fill_by_label", "click_by_text", "download_file", "upload_file", "wait_for_download"]:
             diff["web_action"] = {
                 "status": after_result.get("status"),
                 "strategy": after_result.get("strategy"),
                 "recovery": after_result.get("recovery")
+            }
+        elif action in ["wait_for_element", "assert_element", "assert_text", "assert_file_exists", "assert_pdf_pages"]:
+            diff["verifier_action"] = {
+                "status": after_result.get("status"),
+                "passed": after_result.get("passed"),
+                "retry_attempted": after_result.get("retry_attempted"),
+                "retry_successful": after_result.get("retry_successful")
+            }
+        elif action == "capture_screen_schema":
+            diff["schema_capture"] = {
+                "captured": after_result.get("captured"),
+                "target": after_result.get("target"),
+                "element_count": after_result.get("element_count")
             }
 
         return diff
@@ -377,6 +390,104 @@ class Runner:
             result = web_actions.download_file(
                 params["to"],
                 self.state.get("web_context", "default")
+            )
+            return result
+
+        # Phase 3: Verifier DSL Commands
+        if action == "wait_for_element":
+            if self.dry_run:
+                return {"would_wait_for": {"text": params.get("text"), "role": params.get("role")}}
+            from app.actions import verifier_actions
+            result = verifier_actions.wait_for_element(
+                text=params.get("text"),
+                role=params.get("role"),
+                timeout_ms=params.get("timeout_ms", 15000),
+                where=params.get("where", "screen")
+            )
+            return result
+        
+        if action == "assert_element":
+            if self.dry_run:
+                return {"would_assert": {"text": params.get("text"), "role": params.get("role")}}
+            from app.actions import verifier_actions
+            result = verifier_actions.assert_element(
+                text=params.get("text"),
+                role=params.get("role"),
+                count_gte=params.get("count_gte", 1),
+                where=params.get("where", "screen")
+            )
+            return result
+        
+        if action == "assert_text":
+            if self.dry_run:
+                return {"would_assert_text": params.get("contains")}
+            from app.actions import verifier_actions
+            result = verifier_actions.assert_text(
+                contains=params["contains"],
+                where=params.get("where", "screen")
+            )
+            return result
+        
+        if action == "assert_file_exists":
+            if self.dry_run:
+                return {"would_check_file": params.get("path")}
+            from app.actions import verifier_actions
+            result = verifier_actions.assert_file_exists(path=params["path"])
+            return result
+        
+        if action == "assert_pdf_pages":
+            if self.dry_run:
+                return {"would_check_pdf": {"path": params.get("path"), "pages": params.get("expected_pages")}}
+            from app.actions import verifier_actions
+            result = verifier_actions.assert_pdf_pages(
+                path=params["path"],
+                expected_pages=params["expected_pages"]
+            )
+            return result
+        
+        if action == "capture_screen_schema":
+            if self.dry_run:
+                return {"would_capture_schema": params.get("target", "frontmost")}
+            from app.actions import verifier_actions
+            result = verifier_actions.capture_screen_schema(target=params.get("target", "frontmost"))
+            # Store schema in state for other components to use
+            if result.get("captured"):
+                self.state["last_screen_schema"] = result.get("schema")
+            return result
+        
+        # Phase 3: Web Extensions
+        if action == "upload_file":
+            if self.dry_run:
+                return {"would_upload": {"path": params.get("path"), "selector": params.get("selector")}}
+            from app.actions import web_actions
+            result = web_actions.upload_file(
+                path=params["path"],
+                selector=params.get("selector"),
+                label=params.get("label"),
+                context=self.state.get("web_context", "default")
+            )
+            return result
+        
+        if action == "wait_for_download":
+            if self.dry_run:
+                return {"would_wait_download": params.get("to")}
+            from app.actions import web_actions
+            result = web_actions.wait_for_download(
+                to=params["to"],
+                timeout_ms=params.get("timeout_ms", 30000),
+                context=self.state.get("web_context", "default")
+            )
+            return result
+        
+        # Phase 4: Human-in-the-Loop (HITL)
+        if action == "human_confirm":
+            if self.dry_run:
+                return {"would_confirm": params.get("message")}
+            from app.actions import hitl_actions
+            result = hitl_actions.human_confirm(
+                message=params["message"],
+                timeout_ms=params.get("timeout_ms", 600000),
+                auto_approve=params.get("auto_approve", False)
             )
             return result
 

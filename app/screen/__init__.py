@@ -1,0 +1,1 @@
+# Screen schema module for accessibility hierarchy capture

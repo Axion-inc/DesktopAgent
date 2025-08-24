@@ -1,4 +1,4 @@
-Desktop Agent (Phase 2)
+Desktop Agent (Phase 3)
 
 Demo Site: https://axion-inc.github.io/DesktopAgent/
 
@@ -10,7 +10,41 @@ Badges (after deploying /metrics):
 - Success rate: `![Success](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=success&query=$.success_rate&suffix=%25)`
 - Runs: `![Runs](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=runs&query=$.total_runs)`
 
-Purpose: A comprehensive desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **and web form automation**. Features CLI interface, approval gates for destructive operations, natural language plan generation, and comprehensive testing. Designed for future Windows 11 support with adapter abstractions.
+Purpose: A comprehensive desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **web form automation, and robust verification capabilities**. Features CLI interface, approval gates for destructive operations, natural language plan generation, and comprehensive testing. Designed for Windows 11 support with full OS adapter architecture.
+
+## Phase 3 Features ✨
+
+**Verifier Loop** - Automated verification with intelligent retry
+- `wait_for_element` - Wait for UI elements with configurable timeout
+- `assert_element` - Verify element presence with count validation
+- `assert_text` - Confirm text presence on screen or web
+- `assert_file_exists` - Validate file system operations
+- `assert_pdf_pages` - PDF page count verification
+- Auto-retry logic with PASS/FAIL/RETRY status tracking
+
+**Screen Schema v0** - Accessibility-based screen understanding
+- `capture_screen_schema` - Extract macOS AX API hierarchy as JSON
+- Web accessibility tree capture via Playwright
+- Structured element data for Planner L1 and Verifier use
+- Cross-platform schema format for future Windows UI Automation
+
+**Web Extensions** - Enhanced web automation capabilities
+- `upload_file` - File upload to input[type=file] elements
+- `wait_for_download` - Monitor download completion
+- Intelligent file input discovery by label or selector
+- Compatible with existing web automation workflow
+
+**Windows-Ready OS Adapter** - Cross-platform foundation
+- Unified OSAdapter interface for all platform operations
+- Capability negotiation system with graceful fallbacks
+- Complete Windows implementation stubs with future guidance
+- Contract tests ensuring consistent cross-platform behavior
+
+**Enhanced Metrics** - Comprehensive Phase 3 monitoring
+- `verifier_pass_rate_24h` - Verification success rate including retries
+- `schema_captures_24h` - Screen schema capture frequency
+- `web_upload_success_rate_24h` - File upload operation success rate
+- `os_capability_miss_24h` - Unsupported feature encounter tracking
 
 ## Phase 2 Features ✨
 
@@ -122,6 +156,107 @@ npx playwright install --with-deps chromium
 
 **Mock SaaS Form** - Test web automation with included templates targeting mock forms for E2E testing
 
+## Verifier System (Phase 3)
+
+**DSL Verification Commands**:
+```yaml
+# Wait for element to appear
+- wait_for_element:
+    text: "送信"
+    role: "button"
+    timeout_ms: 15000
+    where: "web"  # or "screen"
+
+# Assert element exists with count validation
+- assert_element:
+    text: "成功"
+    role: "button"
+    count_gte: 1
+    where: "screen"
+
+# Assert text is present
+- assert_text:
+    contains: "送信が完了しました"
+    where: "web"
+
+# Validate file operations
+- assert_file_exists:
+    path: "~/Reports/output.pdf"
+
+# Verify PDF page count
+- assert_pdf_pages:
+    path: "~/Reports/output.pdf"
+    expected_pages: 5
+```
+
+**Auto-Retry Logic** - Intelligent failure recovery:
+- **wait_for_element timeout** → Extended wait + single retry
+- **assert_element failure** → Screen schema capture + broader text search retry
+- **Maximum 1 retry per verification** → Prevents infinite loops
+- **Status tracking** → PASS/FAIL/RETRY recorded in Run artifacts
+
+**Verifier Status Badges** - Visual feedback in dashboard and run details:
+- **PASS** → Verification succeeded on first attempt
+- **RETRY** → Verification succeeded after auto-retry
+- **FAIL** → Verification failed even after retry
+
+## Screen Schema v0 (Phase 3)
+
+**Schema Capture**:
+```yaml
+# Capture accessibility hierarchy
+- capture_screen_schema:
+    target: "frontmost"  # or "screen"
+```
+
+**macOS Implementation** - Using Accessibility API:
+- **AX API Integration** → Role/label/value/bounds extraction
+- **Hierarchical Structure** → Parent-child element relationships
+- **JSON Format** → Standardized cross-platform schema
+- **Future Enhancement** → Full PyObjC integration planned
+
+**Web Implementation** - Using Playwright:
+- **Accessibility Tree** → Complete page element hierarchy
+- **Role Mapping** → ARIA roles and semantic information
+- **Cross-Reference** → Schema data available to Verifier commands
+
+**Schema Usage**:
+- **Verifier Enhancement** → Improved element location accuracy
+- **Planner L1 Context** → UI understanding for better plan generation
+- **Run Artifacts** → Schema JSON stored with screenshots for debugging
+
+## Web Extensions (Phase 3)
+
+**File Upload DSL**:
+```yaml
+# Upload by CSS selector
+- upload_file:
+    path: "~/Documents/attachment.pdf"
+    selector: "input[type=file]"
+    context: "default"
+
+# Upload by label text
+- upload_file:
+    path: "~/Documents/image.png"
+    label: "添付ファイル"
+    context: "default"
+```
+
+**Download Monitoring**:
+```yaml
+# Wait for download completion
+- wait_for_download:
+    to: "~/Downloads"
+    timeout_ms: 30000
+    context: "default"
+```
+
+**Safety Features**:
+- **Input Validation** → File existence verified before upload
+- **Fallback Strategy** → Multiple selector methods for file inputs
+- **No False Positives** → E2E tests verify 0 accidental uploads
+- **Backward Compatible** → Existing web automation unaffected
+
 ## Approval Gates (Phase 2)
 
 **Risk Analysis** - Automatic detection of destructive operations:
@@ -192,6 +327,9 @@ pytest tests/ -v -k "e2e" --maxfail=3
 - Mock form automation (Japanese form testing)
 - Self-recovery mechanisms
 - Dashboard and metrics endpoints
+- **Phase 3**: Verifier commands simulation, Screen schema extraction, Web extensions, OS Adapter contracts
+- **100-Run E2E**: Comprehensive reliability testing with 95% success threshold
+- **Windows Readiness**: Contract tests with xfail markers for future implementation
 
 ## CI
 
@@ -203,7 +341,74 @@ pytest tests/ -v -k "e2e" --maxfail=3
 
 ## Metrics / Badges (Phase 2)
 
-**Enhanced Metrics** - `/metrics` exposes comprehensive JSON with Phase 2 indicators:
+## OS Adapter Architecture (Phase 3)
+
+**Unified Interface** - Cross-platform abstraction:
+```python
+from app.os_adapters.base import OSAdapter
+
+# Get platform-specific adapter
+adapter = get_os_adapter()  # MacOSAdapter or WindowsOSAdapter
+
+# Check capabilities
+caps = adapter.capabilities()
+if caps["screenshot"].available:
+    adapter.take_screenshot("screenshot.png")
+
+# Fallback handling
+if not caps["mail_compose"].available:
+    # Graceful degradation to .eml template generation
+    pass
+```
+
+**Capability Negotiation** - Feature availability management:
+- **Available Features** → Full implementation with expected behavior
+- **Unavailable Features** → Graceful fallback with user notification
+- **Future-Ready** → Windows implementation guidance in stubs
+- **Contract Tests** → Consistent behavior validation across platforms
+
+**macOS Implementation** - Complete feature support:
+- **Screenshots** → Via `screencapture` command
+- **Mail Operations** → AppleScript integration with Mail.app
+- **File Operations** → Native filesystem access
+- **PDF Operations** → PyPDF2 integration
+- **Permissions Check** → TCC database and runtime validation
+
+**Windows Design** - Future implementation foundation:
+- **Complete Stubs** → All methods with detailed implementation guidance
+- **COM Integration** → Outlook automation via win32com.client
+- **UI Automation** → Windows UIA for screen schema capture
+- **Registry/API** → Permission checking via Windows APIs
+- **Contract Compliance** → Tests ready for implementation validation
+
+**Benefits**:
+- **Platform Abstraction** → Single codebase for cross-platform deployment
+- **Incremental Windows Support** → Add features gradually without breaking changes
+- **Test Coverage** → Contract tests prevent regression during Windows implementation
+- **Capability Discovery** → Runtime feature detection prevents unsupported operation attempts
+
+## Windows Implementation Guide (Phase 3)
+
+**Implementation Roadmap**:
+1. **Install Dependencies** → `pip install pywin32 pywinauto`
+2. **COM Integration** → Outlook automation for mail operations
+3. **UI Automation** → Screen schema via Windows UIA API
+4. **API Integration** → Screenshots, file operations, permissions
+5. **Testing** → Contract tests must pass (currently xfail)
+
+**Key Implementation Files**:
+- **`app/os_adapters/windows.py`** → Remove NotImplementedError, add real implementations
+- **Windows UI Automation** → Replace screen schema placeholder
+- **COM Objects** → Outlook.Application for mail operations
+- **Win32 APIs** → Screenshots, permissions, file operations
+
+**Future Implementation Notes** (embedded in stubs):
+- Detailed docstrings with implementation guidance
+- API references and code patterns
+- Error handling strategies
+- Integration points with existing codebase
+
+**Enhanced Metrics** - `/metrics` exposes comprehensive JSON with Phase 3 indicators:
 ```json
 {
   "success_rate_24h": 0.94,
@@ -213,20 +418,31 @@ pytest tests/ -v -k "e2e" --maxfail=3
   "approvals_granted_24h": 10,
   "web_step_success_rate_24h": 0.92,
   "recovery_applied_24h": 5,
+  "verifier_pass_rate_24h": 0.89,
+  "schema_captures_24h": 47,
+  "web_upload_success_rate_24h": 0.96,
+  "os_capability_miss_24h": 2,
   "top_errors_24h": [
     {"cluster": "PDF_PARSE_ERROR", "count": 3},
     {"cluster": "WEB_ELEMENT_NOT_FOUND", "count": 2},
+    {"cluster": "VERIFIER_TIMEOUT", "count": 2},
     {"cluster": "APPROVAL_DENIED", "count": 1}
   ],
   "rolling_7d": {"success_rate": 0.93, "median_duration_ms": 19000}
 }
 ```
 
+**Phase 3 Metrics**:
+- **Verifier Pass Rate**: Verification success rate including auto-retry recovery (24h)
+- **Schema Captures**: Number of successful screen schema captures (24h)
+- **Web Upload Success Rate**: File upload operation success rate (24h)
+- **OS Capability Misses**: Count of unsupported feature encounters (24h)
+
 **Phase 2 Metrics**:
 - **Approval Metrics**: Required vs granted approvals (24h)
 - **Web Success Rate**: Web automation step success rate (24h)
 - **Recovery Applied**: Self-recovery actions triggered (24h)
-- **Enhanced Errors**: Web-specific error clustering
+- **Enhanced Errors**: Web-specific and verifier error clustering
 
 **Dashboard** - Metrics available via API endpoint `/metrics` including:
 - Traditional success rates and run counts

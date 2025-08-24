@@ -1,0 +1,65 @@
+# Phase 4 Orchestrator Configuration
+# Queue management, concurrency control, and execution policies
+
+queues:
+  default:
+    max_concurrent: 2
+    max_queued: 50
+    description: "Default queue for general runs"
+  
+  reports:
+    max_concurrent: 1
+    max_queued: 20
+    description: "Queue for report generation (sequential processing)"
+  
+  web-forms:
+    max_concurrent: 3
+    max_queued: 100
+    description: "Queue for web form automation"
+  
+  maintenance:
+    max_concurrent: 1
+    max_queued: 10
+    description: "Queue for system maintenance tasks"
+
+# Concurrency limits by tag (across all queues)
+concurrency_tags:
+  pdf-processing: 1      # Only one PDF operation at a time
+  web-automation: 3      # Max 3 concurrent web operations
+  email-sending: 2       # Max 2 concurrent email operations
+  file-operations: 2     # Max 2 concurrent file operations
+  dangerous-ops: 1       # Only one dangerous operation at a time
+
+# Global settings
+settings:
+  poll_interval_ms: 1000    # How often to check for new runs
+  cleanup_completed_after_hours: 24  # Clean up completed runs after 24h
+  max_retry_attempts: 3     # Default max retry attempts
+  retry_backoff_ms: 5000   # Default retry backoff
+  
+# Execution policies
+execution_policies:
+  high_priority:
+    priority: 8
+    queue: "default"
+    retry:
+      attempts: 3
+      backoff_ms: 2000
+      only_idempotent: true
+  
+  batch_processing:
+    priority: 3
+    queue: "reports"
+    concurrency_tag: "pdf-processing"
+    retry:
+      attempts: 1
+      backoff_ms: 10000
+  
+  web_automation:
+    priority: 5
+    queue: "web-forms"
+    concurrency_tag: "web-automation"
+    retry:
+      attempts: 2
+      backoff_ms: 3000
+      only_idempotent: false
