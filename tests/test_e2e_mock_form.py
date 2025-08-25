@@ -10,7 +10,7 @@ def base_url():
     return os.environ.get("BASE_URL", "http://localhost:8000")
 
 
-@pytest.fixture(scope="session")  
+@pytest.fixture(scope="session")
 def browser_context():
     """Shared browser context for all tests."""
     headless = os.environ.get("PLAYWRIGHT_HEADLESS", "true").lower() == "true"
