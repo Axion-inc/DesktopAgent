@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from .utils import get_logger
 from .metrics import compute_metrics
@@ -19,7 +19,7 @@ def on_startup() -> None:
     
     # Initialize Phase 4 services
     try:
-        from app.orchestrator.scheduler import start_scheduler
+        from app.orchestrator.scheduler import start_scheduler, start_scheduler_with_config
         from app.orchestrator.watcher import start_watcher
         from app.orchestrator.webhook import setup_webhook_routes
         
@@ -45,7 +45,7 @@ def on_startup() -> None:
 
 # RBAC-protected endpoints
 from app.middleware.auth import get_current_user, require_admin, require_editor, require_runner
-from app.security.rbac import RBACUser
+from app.security.rbac import User as RBACUser
 
 @app.get("/api/runs")
 async def list_runs(current_user: RBACUser = Depends(get_current_user)):
