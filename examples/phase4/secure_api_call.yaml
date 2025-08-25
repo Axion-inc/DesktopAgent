@@ -1,0 +1,79 @@
+# Phase 4 Example: Secure API Call with HITL Approval
+# このテンプレートは Phase 4 の主要機能を実演します:
+# - Secrets管理 ({{secrets://}} 記法)
+# - HITL 承認フロー
+# - Queue/Priority 設定
+# - Retry ポリシー
+
+dsl_version: "1.1"
+name: "Secure Production API Call"
+
+# Phase 4: Execution Policy
+execution:
+  queue: "high-priority"      # 高優先度キューで実行
+  priority: 2                 # 優先度2 (1が最高)
+  concurrency_tag: "api-ops"  # 同種操作の並列制限
+  retry:
+    max_attempts: 3
+    backoff_multiplier: 2.0
+    only_idempotent: true
+
+steps:
+  # Step 1: 実行前の確認
+  - human_confirm:
+      message: "本番環境のAPIを呼び出します。続行しますか？"
+      details:
+        - "対象: Production API"
+        - "影響: データ更新あり"
+        - "実行者: {{user.name}}"
+      timeout_minutes: 30
+      auto_action: "deny"       # タイムアウト時は自動拒否
+      required_role: "Editor"   # Editor権限以上が必要
+
+  # Step 2: API認証用トークン取得
+  - make_request:
+      url: "https://auth.api.example.com/token"
+      method: "POST"
+      headers:
+        Content-Type: "application/json"
+      data:
+        client_id: "{{secrets://client_id}}"
+        client_secret: "{{secrets://client_secret}}"
+        grant_type: "client_credentials"
+      store_result: "auth_response"
+
+  # Step 3: メイン API コール
+  - make_request:
+      url: "https://api.example.com/v1/data"
+      method: "POST"
+      headers:
+        Authorization: "Bearer {{auth_response.access_token}}"
+        Content-Type: "application/json"
+        X-API-Key: "{{secrets://api_key}}"
+      data:
+        action: "update_records"
+        batch_id: "{{variables.batch_id}}"
+        records: "{{variables.records}}"
+      timeout_seconds: 60
+      store_result: "api_response"
+
+  # Step 4: 結果検証
+  - assert_text:
+      contains: "success"
+      source: "{{api_response.status}}"
+      
+  # Step 5: 監査ログ記録
+  - log_event:
+      level: "INFO" 
+      message: "API call completed successfully"
+      details:
+        batch_id: "{{variables.batch_id}}"
+        records_processed: "{{api_response.processed_count}}"
+        execution_time: "{{metrics.duration_ms}}"
+
+# 実行時変数の例:
+# variables:
+#   batch_id: "2024-001"
+#   records: 
+#     - id: 1, name: "Record 1"
+#     - id: 2, name: "Record 2"

@@ -1,4 +1,4 @@
-Desktop Agent (Phase 3)
+Desktop Agent (Phase 4)
 
 Demo Site: https://axion-inc.github.io/DesktopAgent/
 
@@ -10,7 +10,45 @@ Badges (after deploying /metrics):
 - Success rate: `![Success](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=success&query=$.success_rate&suffix=%25)`
 - Runs: `![Runs](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=runs&query=$.total_runs)`
 
-Purpose: A comprehensive desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **web form automation, and robust verification capabilities**. Features CLI interface, approval gates for destructive operations, natural language plan generation, and comprehensive testing. Designed for Windows 11 support with full OS adapter architecture.
+Purpose: A comprehensive enterprise desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **web form automation, robust verification capabilities, and enterprise orchestration**. Features CLI interface, approval gates, natural language plan generation, role-based access control, queue management, and comprehensive testing. Designed for Windows 11 support with full OS adapter architecture.
+
+## Phase 4 Features 🚀
+
+**Enterprise Orchestration** - Advanced execution management
+- **Queue Management** - Priority-based task queuing with concurrency control
+- **Resume/Pause** - Intelligent resumption from interruption points with state persistence
+- **HITL (Human-in-the-Loop)** - Approval workflows for critical operations
+- **Retry Policies** - Configurable retry logic with exponential backoff
+
+**Role-Based Access Control (RBAC)** - Enterprise security
+- **User Roles** - Admin, Editor, Runner, Viewer with hierarchical permissions
+- **FastAPI Middleware** - Endpoint protection with decorator-based authorization
+- **Audit Logging** - Complete access tracking and security monitoring
+- **Session Management** - Secure authentication with request-scoped contexts
+
+**Secrets Management** - Secure credential handling
+- **Multi-Backend Support** - Keychain/Keyring, encrypted files, environment variables
+- **Template Integration** - `{{secrets://key}}` syntax in DSL templates
+- **Auto-Masking** - Secrets never appear in logs or error messages
+- **Reference Validation** - Compile-time verification of secret references
+
+**Automated Triggers** - Event-driven execution
+- **Cron Scheduler** - Time-based automation with YAML configuration
+- **Folder Watcher** - File system change triggers with pattern matching
+- **Webhooks** - HTTP endpoint triggers with HMAC signature verification
+- **Configurable Debouncing** - Prevent duplicate executions
+
+**Advanced Failure Analysis** - Intelligent error handling
+- **Failure Clustering** - Pattern-based error grouping with ML-ready features
+- **Actionable Recommendations** - Context-aware troubleshooting suggestions
+- **Trend Analysis** - Historical failure pattern tracking
+- **Severity Classification** - Automatic criticality assessment
+
+**Enhanced Metrics & Monitoring** - Enterprise visibility
+- **Queue Metrics** - Depth, throughput, and concurrency monitoring
+- **RBAC Analytics** - Permission denials and user activity tracking
+- **Failure Insights** - Top error patterns with recommended actions
+- **Performance Metrics** - P95 latency, success rates, retry statistics
 
 ## Phase 3 Features ✨
 
@@ -115,6 +153,72 @@ Flow
 
 Quick Start
 - `./cli.py run plans/templates/weekly_report.yaml` - Run the default weekly report plan
+
+## Phase 4 Quick Setup 🔧
+
+**1. Start the API Server**
+```bash
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+**2. Initialize RBAC**
+```bash
+# Create admin user
+curl -X POST http://localhost:8000/api/admin/users \
+  -u admin:admin \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "secure_password"}'
+```
+
+**3. Configure Secrets**
+```bash
+# Store API key in keychain (macOS)
+security add-generic-password -s "com.axion.desktop-agent" \
+  -a "api_key" -w "your_secret_value"
+
+# Or use environment variable
+export DESKTOP_AGENT_SECRET_API_KEY="your_secret_value"
+```
+
+**4. Setup Automation**
+```yaml
+# configs/schedules.yaml
+schedules:
+  - id: "daily_report"
+    cron: "0 9 * * *"  # 9 AM daily
+    template: "daily_report.yaml"
+    queue: "default"
+    priority: 5
+```
+
+**5. Access Dashboard**
+- Web Dashboard: http://localhost:8000/public/dashboard
+- Metrics API: http://localhost:8000/metrics
+- HITL Approval: http://localhost:8000/hitl/approve/{run_id}
+
+**6. DSL with Phase 4 Features**
+```yaml
+dsl_version: "1.1"
+name: "Secure API Call"
+execution:
+  queue: "high_priority"
+  priority: 1
+  retry:
+    max_attempts: 3
+steps:
+  - human_confirm:
+      message: "Execute production API call?"
+      timeout_minutes: 30
+      required_role: "Editor"
+      
+  - make_request:
+      url: "https://api.example.com"
+      headers:
+        Authorization: "Bearer {{secrets://api_key}}"
+```
+
+📖 **Full Documentation**: See [docs/operations.md](docs/operations.md) for detailed setup and configuration.
 
 ## Web Automation (Phase 2)
 
