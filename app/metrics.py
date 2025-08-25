@@ -316,11 +316,11 @@ def compute_metrics() -> Dict[str, float]:
         out["secrets_lookups_24h"] = 0
 
     # Phase 5 metrics: Web Engine Usage and Performance
-    
+
     # Web engine usage distribution (24h)
     cur.execute("""
         SELECT COUNT(*) FROM run_steps
-        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'download_file', 
+        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'download_file',
                        'upload_file', 'wait_for_download')
         AND output_json LIKE '%"engine":"extension"%'
         AND finished_at >= datetime('now','-1 day')
@@ -329,20 +329,20 @@ def compute_metrics() -> Dict[str, float]:
 
     cur.execute("""
         SELECT COUNT(*) FROM run_steps
-        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'download_file', 
+        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'download_file',
                        'upload_file', 'wait_for_download')
-        AND (output_json LIKE '%"engine":"playwright"%' OR 
+        AND (output_json LIKE '%"engine":"playwright"%' OR
              output_json NOT LIKE '%"engine":%')
         AND finished_at >= datetime('now','-1 day')
     """)
     playwright_engine_steps = cur.fetchone()[0] or 0
-    
+
     total_engine_steps = extension_engine_steps + playwright_engine_steps
-    
+
     # Extension engine success rate (24h)
     cur.execute("""
         SELECT COUNT(*) FROM run_steps
-        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'download_file', 
+        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'download_file',
                        'upload_file', 'wait_for_download')
         AND output_json LIKE '%"engine":"extension"%'
         AND status = 'success'
@@ -387,22 +387,24 @@ def compute_metrics() -> Dict[str, float]:
     out.update({
         # DoD required metrics
         "webx_steps_24h": total_engine_steps,
-        "webx_failures_24h": total_engine_steps - extension_engine_success - playwright_engine_steps + (playwright_engine_steps - (playwright_engine_steps * out.get('web_step_success_rate_24h', 0.95))),
+        "webx_failures_24h": (total_engine_steps - extension_engine_success - 
+                        playwright_engine_steps + (playwright_engine_steps - 
+                        (playwright_engine_steps * out.get("web_step_success_rate_24h", 0.95)))),
         "webx_engine_share_24h": {
             "extension": round(extension_engine_steps / (total_engine_steps or 1), 2),
             "playwright": round(playwright_engine_steps / (total_engine_steps or 1), 2)
         },
         "webx_upload_success_24h": round(web_upload_success / (web_upload_total or 1), 2),
-        
+
         # Additional Phase 5 metrics
-        "extension_engine_success_rate_24h": round(extension_engine_success / 
+        "extension_engine_success_rate_24h": round(extension_engine_success /
                                                    (extension_engine_steps or 1), 2),
         "dom_schema_captures_24h": dom_schema_captures_24h,
         "native_messaging_calls_24h": native_messaging_calls_24h,
-        "engine_fallback_rate_24h": round(engine_fallback_24h / 
+        "engine_fallback_rate_24h": round(engine_fallback_24h /
                                           (total_engine_steps or 1), 2),
         "extension_connectivity_failures_24h": extension_connectivity_failures_24h,
-        
+
         # Configuration status
         "web_engine_abstraction_enabled": True
     })

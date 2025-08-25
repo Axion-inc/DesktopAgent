@@ -12,7 +12,7 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
     """Get a logger instance with consistent configuration"""
     logger_name = name or __name__
     logger = logging.getLogger(logger_name)
-    
+
     if not logger.handlers:
         # Configure logger if not already configured
         handler = logging.StreamHandler(sys.stdout)
@@ -22,7 +22,7 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
-    
+
     return logger
 
 
