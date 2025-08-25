@@ -38,7 +38,7 @@ def on_startup() -> None:
 
         get_logger().info("Phase 4 services started: scheduler, watcher, webhooks")
     except Exception as e:
-        get_logger().warning(f"Phase 4 services startup warning: {e}")
+        get_logger().warning("Phase 4 services startup warning")
 
     get_logger().info("app.startup")
 
@@ -81,7 +81,7 @@ async def pause_run(run_id: int, current_user: RBACUser = Depends(get_current_us
 
         return {"success": True, "message": f"Run {run_id} paused by {current_user.username}"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/api/runs/{run_id}/resume")
 @require_editor
@@ -97,7 +97,7 @@ async def resume_run(run_id: int, current_user: RBACUser = Depends(get_current_u
         else:
             raise HTTPException(status_code=404, detail="No paused run found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/api/paused-runs")
 @require_runner
@@ -110,7 +110,7 @@ async def list_paused_runs(current_user: RBACUser = Depends(get_current_user)):
         paused_runs = resume_manager.list_paused_runs()
         return {"paused_runs": paused_runs}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/api/admin/users")
 @require_admin
@@ -130,7 +130,7 @@ async def list_users(current_user: RBACUser = Depends(get_current_user)):
             } for u in users
         ]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/api/admin/users")
 @require_admin
@@ -148,7 +148,7 @@ async def create_user(user_data: dict, current_user: RBACUser = Depends(get_curr
 
         return {"success": True, "user_id": user.id, "username": user.username}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/api/admin/audit")
 @require_admin
@@ -161,7 +161,7 @@ async def get_audit_log(limit: int = 100, current_user: RBACUser = Depends(get_c
         audit_entries = rbac.get_audit_log(limit=limit)
         return {"audit_log": audit_entries}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # HITL Approval UI
 from fastapi.templating import Jinja2Templates
@@ -241,7 +241,7 @@ async def hitl_approval_page(run_id: int, request: Request, current_user: RBACUs
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/hitl/approve/{run_id}")
 @require_editor
@@ -295,7 +295,7 @@ async def hitl_approval_action(
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/healthz")
 def healthz():

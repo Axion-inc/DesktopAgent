@@ -287,6 +287,7 @@ class ResumeManager:
         return round(self.metrics["successful_resumes_24h"] / total, 2)
 
 # Enhanced Runner with resume support
+
 class ResumableRunner:
     """Extended Runner class with pause/resume capabilities."""
 
@@ -424,7 +425,7 @@ class ResumableRunner:
             )
             conn.commit()
         except Exception as e:
-            print(f"Failed to update run status: {e}")
+            print("Failed to update run status")
 
 # Global resume manager
 _resume_manager = None

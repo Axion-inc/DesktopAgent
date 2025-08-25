@@ -150,7 +150,8 @@ class Runner:
         if not self._should_run(resolved_params):
             return {"skipped": True}
         if action == "find_files":
-            files = fs_actions.find_files(resolved_params.get("query", ""), resolved_params.get("roots", []), resolved_params.get("limit", 100))
+            files = (
+                fs_actions.find_files(resolved_params.get("query", ""), resolved_params.get("roots", []), resolved_params.get("limit", 100)))
             # Self-healing: widen one level if 0 results
             healed = False
             if len(files) == 0 and resolved_params.get("roots"):
@@ -160,7 +161,8 @@ class Runner:
                     if p.exists() and p.parent != p:
                         parents.append(str(p.parent))
                 if parents:
-                    files = fs_actions.find_files(resolved_params.get("query", ""), parents, resolved_params.get("limit", 100))
+                    files = (
+                        fs_actions.find_files(resolved_params.get("query", ""), parents, resolved_params.get("limit", 100)))
                     healed = True
             self.state["files"] = files
             self.state.pop("newnames", None)
@@ -268,7 +270,8 @@ class Runner:
         if action == "compose_mail":
             if self.dry_run:
                 return {"would_compose": True}
-            draft_id = self.mail.compose(resolved_params.get("to", []), resolved_params.get("subject", ""), resolved_params.get("body", ""))
+            draft_id = (
+                self.mail.compose(resolved_params.get("to", []), resolved_params.get("subject", ""), resolved_params.get("body", "")))
             self.state["draft_id"] = draft_id
             return {"draft_id": draft_id}
         if action == "attach_files":
@@ -418,11 +421,11 @@ class Runner:
                             "effective": False
                         }
 
-                except Exception as e:
+                except Exception as recovery_e:
                     result["recovery"] = {
                         "strategy": "page_reload_retry",
                         "original_error": result.get("error", "not_found"),
-                        "recovery_error": str(e),
+                        "recovery_error": str(recovery_e),
                         "effective": False
                     }
 

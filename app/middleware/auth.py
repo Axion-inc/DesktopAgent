@@ -68,7 +68,7 @@ async def get_current_user(request: Request,
     except Exception as e:
         if isinstance(e, (AuthenticationError, AuthorizationError)):
             raise
-        raise AuthenticationError(f"Authentication error: {str(e)}")
+        raise AuthenticationError("Authentication error")
 
 def get_current_user_from_context() -> Optional[RBACUser]:
     """Get current user from global context (for use outside request cycle)."""
@@ -132,7 +132,7 @@ def require_permission(permission: str):
             except Exception as e:
                 if isinstance(e, AuthorizationError):
                     raise
-                raise AuthorizationError(f"Authorization check failed: {str(e)}")
+                raise AuthorizationError("Authorization check failed")
 
             return await func(*args, **kwargs)
         return wrapper
@@ -187,13 +187,14 @@ def require_role(role: str):
             except Exception as e:
                 if isinstance(e, AuthorizationError):
                     raise
-                raise AuthorizationError(f"Role check failed: {str(e)}")
+                raise AuthorizationError("Role check failed")
 
             return await func(*args, **kwargs)
         return wrapper
     return decorator
 
 # Convenience permission decorators
+
 def require_admin(func):
     """Require Admin role."""
     return require_role("Admin")(func)
@@ -235,7 +236,7 @@ def require_editor(func):
             except Exception as e:
                 if isinstance(e, AuthorizationError):
                     raise
-                raise AuthorizationError(f"Role check failed: {str(e)}")
+                raise AuthorizationError("Role check failed")
 
             return await inner_func(*args, **kwargs)
         return wrapper
@@ -278,7 +279,7 @@ def require_runner(func):
             except Exception as e:
                 if isinstance(e, AuthorizationError):
                     raise
-                raise AuthorizationError(f"Role check failed: {str(e)}")
+                raise AuthorizationError("Role check failed")
 
             return await inner_func(*args, **kwargs)
         return wrapper
@@ -290,6 +291,7 @@ async def cleanup_user_context(request: Request):
     _current_user_context.pop(request_id, None)
 
 # RBAC-protected endpoint helpers
+
 def create_protected_endpoint(app, path: str, methods: List[str], handler,
                             required_permission: Optional[str] = None,
                             required_role: Optional[str] = None):

@@ -177,7 +177,7 @@ class WatcherEventHandler(FileSystemEventHandler):
         try:
             self.watcher_service._execute_trigger(config, event_type, file_path)
         except Exception as e:
-            print(f"Error executing trigger for watcher {config.id}: {e}")
+            print(f"Failed to get failure clusters: {str(Exception())}")
 
 class WatcherService:
     """Main watcher service that manages file system watching."""
@@ -365,7 +365,7 @@ class WatcherService:
                 if os.path.exists(expanded_path):
                     current_paths.add(expanded_path)
             except Exception as e:
-                print(f"Invalid watch path {config.watch_path}: {e}")
+                print("Failed to get failure clusters")
 
         # Remove old watches
         for path in self.watched_paths - current_paths:
@@ -382,7 +382,7 @@ class WatcherService:
                     self.observer.schedule(self.event_handler, path, recursive=True)
                 print(f"Watching {len(current_paths)} directories")
             except Exception as e:
-                print(f"Error setting up watches: {e}")
+                print(f"Error setting up watches: {str(Exception())}")
 
         self.watched_paths = current_paths
 

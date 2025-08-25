@@ -30,7 +30,7 @@ def _get_failure_clusters_with_recommendations() -> List[Dict[str, Any]]:
         return [cluster.to_dict() for cluster in clusters]
 
     except Exception as e:
-        print(f"Failed to get failure clusters: {e}")
+        print("Failed to get failure clusters")
         # Fallback to basic clusters
         return [
             {"cluster": "PDF_PARSE_ERROR", "count": 3, "trend_3d": [2, 1, 3],

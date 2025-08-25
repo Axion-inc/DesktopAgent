@@ -334,7 +334,7 @@ class WebhookService:
                 payload_data = {}
         except Exception as e:
             self.metrics["requests_failed"] += 1
-            self._log_request(config.id, client_ip, user_agent, 0, None, False, f"Invalid payload: {e}", False)
+            self._log_request(config.id, client_ip, user_agent, 0, None, False, "Invalid payload", False)
             raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
         # Verify signature if configured
@@ -357,7 +357,7 @@ class WebhookService:
         except Exception as e:
             self.metrics["requests_failed"] += 1
             self._log_request(config.id, client_ip, user_agent, payload_size, None, False, str(e), signature_valid)
-            raise HTTPException(status_code=500, detail=f"Webhook processing failed: {e}")
+            raise HTTPException(status_code=500, detail="Webhook processing failed")
 
     async def _process_webhook(self, config: WebhookConfig, payload: Dict[str, Any],
                               client_ip: str, user_agent: str, payload_size: int) -> Dict[str, Any]:
@@ -408,7 +408,7 @@ class WebhookService:
             }
 
         except Exception as e:
-            self._log_request(config.id, client_ip, user_agent, payload_size, None, False, str(e), True)
+            self._log_request(config.id, client_ip, user_agent, payload_size, None, False, "Processing failed", True)
             raise
 
     def _log_request(self, webhook_id: str, client_ip: str, user_agent: str, payload_size: int,

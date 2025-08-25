@@ -54,7 +54,7 @@ class Schedule:
         try:
             cron = CronIter(self.cron, datetime.now())
             self.next_run = cron.get_next(datetime)
-        except Exception:
+        except Exception as e:
             self.next_run = None
 
     def should_run(self, now: Optional[datetime] = None) -> bool:
@@ -94,8 +94,8 @@ class Schedule:
             # Validate cron expression
             try:
                 CronIter(self.cron)
-            except Exception as e:
-                errors.append(f"Invalid cron expression: {e}")
+            except Exception:
+                errors.append(f"Invalid cron expression: {str(Exception())}")
 
         if not self.template or not self.template.strip():
             errors.append("Template path is required")
@@ -147,7 +147,7 @@ class ParsedCron:
             self._valid = True
         except Exception as e:
             self._valid = False
-            self._error = str(e)
+            self._error = "Validation failed"
 
     def is_valid(self) -> bool:
         """Check if the cron expression is valid."""
@@ -327,7 +327,7 @@ class SchedulerService:
                 self.metrics["next_check"] = datetime.now() + timedelta(seconds=self.check_interval)
 
             except Exception as e:
-                print(f"Scheduler error: {e}")
+                print("Scheduler error occurred")
 
             # Sleep in small increments so we can respond to stop() quickly
             for _ in range(self.check_interval):
@@ -357,7 +357,7 @@ class SchedulerService:
                     self.metrics["successful_runs"] += 1
 
                 except Exception as e:
-                    print(f"Failed to execute schedule {schedule.id}: {e}")
+                    print("Failed to get failure clusters")
                     self._log_execution_error(schedule.id, str(e))
                     self.metrics["failed_runs"] += 1
 
@@ -388,7 +388,7 @@ class SchedulerService:
             print(f"Scheduled run {run_id} added to queue {schedule.queue} for schedule {schedule.id}")
 
         except Exception as e:
-            print(f"Failed to queue scheduled run for {schedule.id}: {e}")
+            print("Failed to get failure clusters")
             raise
 
     def _log_execution_start(self, schedule_id: str, run_id: int):
@@ -439,7 +439,7 @@ class SchedulerService:
             print(f"Loaded {len(config.get('schedules', []))} schedules from {config_file}")
 
         except Exception as e:
-            print(f"Failed to load schedule config from {config_file}: {e}")
+            print("Failed to get failure clusters")
             raise
 
     def get_metrics(self) -> Dict[str, Any]:

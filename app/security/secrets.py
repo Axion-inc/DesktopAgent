@@ -374,7 +374,7 @@ class SecretsManager:
             except NotImplementedError:
                 continue  # Skip read-only backends
             except Exception as e:
-                # last_error = str(e)  # TODO: Use for error reporting
+                last_error = str(e)
                 continue
 
         if success:
@@ -394,7 +394,7 @@ class SecretsManager:
         self.metrics["lookups"] += 1
         self.metrics["key_access_count"][key] = self.metrics["key_access_count"].get(key, 0) + 1
 
-        last_error = None
+        # last_error = None
 
         # Try each backend until one succeeds
         for backend in self.backends:
@@ -404,7 +404,7 @@ class SecretsManager:
                 return value
             except KeyError:
                 continue  # Try next backend
-            except Exception as e:
+            except Exception:
                 # last_error = str(e)  # TODO: Use for error reporting
                 continue
 
