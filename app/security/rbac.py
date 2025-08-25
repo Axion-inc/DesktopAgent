@@ -16,6 +16,7 @@ from ..utils import get_logger
 
 logger = get_logger()
 
+
 class Role(Enum):
     """System roles in hierarchical order (higher values = more permissions)."""
     VIEWER = 1
@@ -23,12 +24,14 @@ class Role(Enum):
     EDITOR = 3
     ADMIN = 4
 
+
 @dataclass
 class Permission:
     """Represents a system permission."""
     name: str
     description: str
     required_role: Role
+
 
 @dataclass
 class User:
@@ -44,6 +47,7 @@ class User:
         """Check if user has a specific permission."""
         rbac = get_rbac_manager()
         return rbac.check_permission(self.role, permission)
+
 
 class RBACManager:
     """Manages roles, permissions, and users."""
@@ -482,8 +486,10 @@ class RBACManager:
         conn.close()
         return audit_entries
 
+
 # Global RBAC manager instance
 _rbac_manager: Optional[RBACManager] = None
+
 
 def get_rbac_manager() -> RBACManager:
     """Get the global RBAC manager instance."""
@@ -491,6 +497,7 @@ def get_rbac_manager() -> RBACManager:
     if _rbac_manager is None:
         _rbac_manager = RBACManager()
     return _rbac_manager
+
 
 def init_rbac() -> RBACManager:
     """Initialize the global RBAC manager."""

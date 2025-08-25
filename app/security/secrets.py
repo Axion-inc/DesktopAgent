@@ -26,6 +26,7 @@ from cryptography.fernet import Fernet
 # from cryptography.hazmat.primitives import hashes
 # from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+
 class SecretReference:
     """Represents a secrets:// reference."""
 
@@ -58,6 +59,7 @@ class SecretReference:
         if self.service:
             return f"secrets://{self.service}/{self.key}"
         return f"secrets://{self.key}"
+
 
 class KeychainBackend:
     """macOS Keychain backend for secret storage."""
@@ -130,6 +132,7 @@ class KeychainBackend:
             return True
         except KeyError:
             return False
+
 
 class FileBackend:
     """File-based encrypted backend for secret storage."""
@@ -224,6 +227,7 @@ class FileBackend:
         except KeyError:
             return False
 
+
 class EnvironmentBackend:
     """Environment variables backend (read-only)."""
 
@@ -249,6 +253,7 @@ class EnvironmentBackend:
     def delete(self, service: str, key: str) -> None:
         """Environment backend is read-only."""
         raise NotImplementedError("Environment backend is read-only")
+
 
 class SecretsManager:
     """Main secrets management interface."""
