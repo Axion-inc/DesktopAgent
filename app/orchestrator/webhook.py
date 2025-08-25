@@ -13,23 +13,22 @@ Features:
 - Request logging and metrics
 """
 
-import os
+# import os
 import hmac
 import hashlib
 import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from fastapi import HTTPException, Request, Header
 import ipaddress
 
-
 @dataclass
 class WebhookConfig:
     """Configuration for a webhook endpoint."""
-    
+
     id: str
     name: str
     endpoint: str  # URL path (e.g., "/webhooks/deploy")
@@ -45,7 +44,7 @@ class WebhookConfig:
     signature_prefix: str = "sha256="  # Prefix for signature value
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    
+
     def __post_init__(self):
         if self.allowed_ips is None:
             self.allowed_ips = []
@@ -53,34 +52,34 @@ class WebhookConfig:
             self.variables = {}
         if self.extract_variables is None:
             self.extract_variables = []
-    
+
     def validate_signature(self, payload: bytes, signature: str) -> bool:
         """Validate HMAC signature of the payload."""
         if not self.secret:
             return True  # No signature verification if no secret configured
-        
+
         if not signature:
             return False
-        
+
         # Remove prefix if present
         if self.signature_prefix and signature.startswith(self.signature_prefix):
             signature = signature[len(self.signature_prefix):]
-        
+
         # Calculate expected signature
         expected = hmac.new(
             self.secret.encode('utf-8'),
             payload,
             hashlib.sha256
         ).hexdigest()
-        
+
         # Constant-time comparison to prevent timing attacks
         return hmac.compare_digest(expected, signature)
-    
+
     def is_ip_allowed(self, ip_address: str) -> bool:
         """Check if an IP address is allowed to access this webhook."""
         if not self.allowed_ips:
             return True  # No IP restrictions if list is empty
-        
+
         try:
             client_ip = ipaddress.ip_address(ip_address)
             for allowed in self.allowed_ips:
@@ -101,11 +100,11 @@ class WebhookConfig:
         except ValueError:
             # Invalid IP address
             return False
-    
+
     def extract_payload_variables(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Extract variables from webhook payload."""
         extracted = {}
-        
+
         for key in self.extract_variables:
             # Support nested key access with dot notation
             value = payload
@@ -115,36 +114,36 @@ class WebhookConfig:
                 else:
                     value = None
                     break
-            
+
             if value is not None:
                 extracted[key.replace('.', '_')] = value
-        
+
         return extracted
-    
+
     def validate(self) -> List[str]:
         """Validate webhook configuration."""
         errors = []
-        
+
         if not self.id or not self.id.strip():
             errors.append("Webhook ID is required")
-        
+
         if not self.name or not self.name.strip():
             errors.append("Webhook name is required")
-        
+
         if not self.endpoint or not self.endpoint.strip():
             errors.append("Endpoint path is required")
         elif not self.endpoint.startswith('/'):
             errors.append("Endpoint path must start with '/'")
-        
+
         if not self.template or not self.template.strip():
             errors.append("Template path is required")
-        
+
         if not isinstance(self.priority, int) or self.priority < 1 or self.priority > 9:
             errors.append("Priority must be an integer from 1 to 9")
-        
+
         if not self.queue or not self.queue.strip():
             errors.append("Queue name is required")
-        
+
         # Validate IP addresses
         for ip in self.allowed_ips:
             try:
@@ -154,20 +153,19 @@ class WebhookConfig:
                     ipaddress.ip_address(ip)
             except ValueError:
                 errors.append(f"Invalid IP address or network: {ip}")
-        
-        return errors
 
+        return errors
 
 class WebhookService:
     """Main webhook service that manages webhook endpoints."""
-    
+
     def __init__(self, storage_path: Optional[str] = None):
         self.storage_path = storage_path or str(Path.home() / ".desktop-agent" / "webhooks.db")
-        
+
         # Initialize database
         Path(self.storage_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
-        
+
         # Metrics
         self.metrics = {
             "requests_received": 0,
@@ -177,7 +175,7 @@ class WebhookService:
             "ip_blocks": 0,
             "last_request": None
         }
-    
+
     def _init_db(self):
         """Initialize the webhook database."""
         with sqlite3.connect(self.storage_path) as conn:
@@ -200,7 +198,7 @@ class WebhookService:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
-            
+
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS webhook_requests (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -217,18 +215,18 @@ class WebhookService:
                     FOREIGN KEY (webhook_id) REFERENCES webhooks (id)
                 )
             ''')
-    
+
     def add_webhook(self, config: WebhookConfig) -> None:
         """Add a new webhook configuration."""
         # Validate configuration
         errors = config.validate()
         if errors:
             raise ValueError(f"Invalid webhook config: {'; '.join(errors)}")
-        
+
         with sqlite3.connect(self.storage_path) as conn:
             conn.execute('''
-                INSERT OR REPLACE INTO webhooks 
-                (id, name, endpoint, template, secret, allowed_ips, queue, priority, 
+                INSERT OR REPLACE INTO webhooks
+                (id, name, endpoint, template, secret, allowed_ips, queue, priority,
                  enabled, variables, extract_variables, signature_header, signature_prefix, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ''', (
@@ -238,50 +236,50 @@ class WebhookService:
                 json.dumps(config.extract_variables), config.signature_header,
                 config.signature_prefix
             ))
-    
+
     def remove_webhook(self, webhook_id: str) -> bool:
         """Remove a webhook by ID."""
         with sqlite3.connect(self.storage_path) as conn:
             cursor = conn.execute('DELETE FROM webhooks WHERE id = ?', (webhook_id,))
             return cursor.rowcount > 0
-    
+
     def get_webhook(self, webhook_id: str) -> Optional[WebhookConfig]:
         """Get a webhook by ID."""
         with sqlite3.connect(self.storage_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute('SELECT * FROM webhooks WHERE id = ?', (webhook_id,))
             row = cursor.fetchone()
-            
+
             if not row:
                 return None
-            
+
             return self._row_to_config(row)
-    
+
     def get_webhook_by_endpoint(self, endpoint: str) -> Optional[WebhookConfig]:
         """Get a webhook by endpoint path."""
         with sqlite3.connect(self.storage_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute('SELECT * FROM webhooks WHERE endpoint = ? AND enabled = 1', (endpoint,))
             row = cursor.fetchone()
-            
+
             if not row:
                 return None
-            
+
             return self._row_to_config(row)
-    
+
     def list_webhooks(self, enabled_only: bool = False) -> List[WebhookConfig]:
         """List all webhooks."""
         with sqlite3.connect(self.storage_path) as conn:
             conn.row_factory = sqlite3.Row
-            
+
             query = 'SELECT * FROM webhooks'
             if enabled_only:
                 query += ' WHERE enabled = 1'
             query += ' ORDER BY endpoint'
-            
+
             cursor = conn.execute(query)
             return [self._row_to_config(row) for row in cursor.fetchall()]
-    
+
     def _row_to_config(self, row) -> WebhookConfig:
         """Convert database row to WebhookConfig object."""
         return WebhookConfig(
@@ -301,34 +299,34 @@ class WebhookService:
             created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
             updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None
         )
-    
+
     async def handle_webhook_request(self, request: Request, endpoint: str) -> Dict[str, Any]:
         """Handle an incoming webhook request."""
         self.metrics["requests_received"] += 1
         self.metrics["last_request"] = datetime.now()
-        
+
         # Get client IP
         client_ip = request.client.host if request.client else "unknown"
         user_agent = request.headers.get("user-agent", "")
-        
+
         # Find webhook configuration
         config = self.get_webhook_by_endpoint(endpoint)
         if not config:
             self.metrics["requests_failed"] += 1
             raise HTTPException(status_code=404, detail="Webhook endpoint not found")
-        
+
         # Check IP whitelist
         if not config.is_ip_allowed(client_ip):
             self.metrics["requests_failed"] += 1
             self.metrics["ip_blocks"] += 1
             self._log_request(config.id, client_ip, user_agent, 0, None, False, "IP address not allowed", False)
             raise HTTPException(status_code=403, detail="IP address not allowed")
-        
+
         # Read payload
         try:
             payload_bytes = await request.body()
             payload_size = len(payload_bytes)
-            
+
             # Parse JSON payload
             if payload_bytes:
                 payload_data = json.loads(payload_bytes.decode('utf-8'))
@@ -338,19 +336,19 @@ class WebhookService:
             self.metrics["requests_failed"] += 1
             self._log_request(config.id, client_ip, user_agent, 0, None, False, f"Invalid payload: {e}", False)
             raise HTTPException(status_code=400, detail="Invalid JSON payload")
-        
+
         # Verify signature if configured
         signature_valid = True
         if config.secret:
             signature = request.headers.get(config.signature_header, "")
             signature_valid = config.validate_signature(payload_bytes, signature)
-            
+
             if not signature_valid:
                 self.metrics["requests_failed"] += 1
                 self.metrics["signature_failures"] += 1
                 self._log_request(config.id, client_ip, user_agent, payload_size, None, False, "Invalid signature", False)
                 raise HTTPException(status_code=401, detail="Invalid signature")
-        
+
         # Process the webhook
         try:
             result = await self._process_webhook(config, payload_data, client_ip, user_agent, payload_size)
@@ -360,18 +358,18 @@ class WebhookService:
             self.metrics["requests_failed"] += 1
             self._log_request(config.id, client_ip, user_agent, payload_size, None, False, str(e), signature_valid)
             raise HTTPException(status_code=500, detail=f"Webhook processing failed: {e}")
-    
+
     async def _process_webhook(self, config: WebhookConfig, payload: Dict[str, Any],
                               client_ip: str, user_agent: str, payload_size: int) -> Dict[str, Any]:
         """Process a validated webhook request."""
         try:
             from app.orchestrator.queue import get_queue_manager
             queue_manager = get_queue_manager()
-            
+
             # Combine static variables with extracted payload variables
             variables = dict(config.variables)
             variables.update(config.extract_payload_variables(payload))
-            
+
             # Add webhook metadata
             variables.update({
                 "webhook_id": config.id,
@@ -381,7 +379,7 @@ class WebhookService:
                 "webhook_received_at": datetime.now().isoformat(),
                 "webhook_payload": payload
             })
-            
+
             # Create run request for the queue
             run_request = {
                 "template": config.template,
@@ -391,13 +389,13 @@ class WebhookService:
                 "source": f"webhook:{config.id}",
                 "concurrency_tag": f"webhook_{config.id}"
             }
-            
+
             # Add to queue
             run_id = queue_manager.enqueue_run(run_request)
-            
+
             # Log successful request
             self._log_request(config.id, client_ip, user_agent, payload_size, run_id, True, None, True)
-            
+
             return {
                 "success": True,
                 "run_id": run_id,
@@ -408,22 +406,22 @@ class WebhookService:
                     "endpoint": config.endpoint
                 }
             }
-            
+
         except Exception as e:
             self._log_request(config.id, client_ip, user_agent, payload_size, None, False, str(e), True)
             raise
-    
+
     def _log_request(self, webhook_id: str, client_ip: str, user_agent: str, payload_size: int,
                      run_id: Optional[int], success: bool, error_message: Optional[str], signature_valid: bool):
         """Log a webhook request."""
         with sqlite3.connect(self.storage_path) as conn:
             conn.execute('''
-                INSERT INTO webhook_requests 
-                (webhook_id, client_ip, user_agent, payload_size, run_id, 
+                INSERT INTO webhook_requests
+                (webhook_id, client_ip, user_agent, payload_size, run_id,
                  processed_at, success, error_message, signature_valid)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
             ''', (webhook_id, client_ip, user_agent, payload_size, run_id, success, error_message, signature_valid))
-    
+
     def get_metrics(self) -> Dict[str, Any]:
         """Get webhook metrics."""
         return {
@@ -432,29 +430,28 @@ class WebhookService:
             "enabled_webhooks": len(self.list_webhooks(enabled_only=True)),
             "endpoints": [w.endpoint for w in self.list_webhooks(enabled_only=True)]
         }
-    
+
     def get_request_history(self, webhook_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
         """Get webhook request history."""
         with sqlite3.connect(self.storage_path) as conn:
             conn.row_factory = sqlite3.Row
-            
+
             query = '''
-                SELECT r.*, w.name as webhook_name, w.endpoint 
-                FROM webhook_requests r 
+                SELECT r.*, w.name as webhook_name, w.endpoint
+                FROM webhook_requests r
                 JOIN webhooks w ON r.webhook_id = w.id
             '''
             params = []
-            
+
             if webhook_id:
                 query += ' WHERE r.webhook_id = ?'
                 params.append(webhook_id)
-            
+
             query += ' ORDER BY r.received_at DESC LIMIT ?'
             params.append(limit)
-            
+
             cursor = conn.execute(query, params)
             return [dict(row) for row in cursor.fetchall()]
-
 
 # Global webhook service
 _webhook_service = None
@@ -466,16 +463,15 @@ def get_webhook_service() -> WebhookService:
         _webhook_service = WebhookService()
     return _webhook_service
 
-
 def setup_webhook_routes(app):
     """Setup webhook routes in the FastAPI app."""
     webhook_service = get_webhook_service()
-    
+
     @app.post("/webhooks/{endpoint:path}")
     async def webhook_handler(endpoint: str, request: Request):
         """Generic webhook handler for all configured endpoints."""
         return await webhook_service.handle_webhook_request(request, f"/{endpoint}")
-    
+
     @app.get("/webhooks")
     async def list_webhooks():
         """List all configured webhooks."""
@@ -491,12 +487,12 @@ def setup_webhook_routes(app):
             }
             for w in webhook_service.list_webhooks()
         ]}
-    
+
     @app.get("/webhooks/metrics")
     async def webhook_metrics():
         """Get webhook metrics."""
         return webhook_service.get_metrics()
-    
+
     @app.get("/webhooks/history")
     async def webhook_history(webhook_id: Optional[str] = None, limit: int = 100):
         """Get webhook request history."""

@@ -7,11 +7,9 @@ Provides intelligent grouping of failures and actionable recommendations.
 import re
 import sqlite3
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 from pathlib import Path
-from collections import defaultdict
 from dataclasses import dataclass
-
 
 @dataclass
 class FailureCluster:
@@ -26,7 +24,7 @@ class FailureCluster:
     affected_templates: List[str]
     first_seen: datetime
     last_seen: datetime
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "cluster": self.cluster_key,
@@ -41,10 +39,9 @@ class FailureCluster:
             "last_seen": self.last_seen.isoformat()
         }
 
-
 class FailureClusterAnalyzer:
     """Advanced failure clustering with actionable insights."""
-    
+
     # Enhanced clustering rules with recommended actions
     CLUSTER_RULES = {
         "NO_FILES_FOUND": {
@@ -63,11 +60,11 @@ class FailureClusterAnalyzer:
                 "Consider using broader search patterns"
             ]
         },
-        
+
         "PERMISSION_BLOCKED": {
             "patterns": [
                 r"permission denied",
-                r"access denied", 
+                r"access denied",
                 r"not authorized",
                 r"forbidden",
                 r"authentication failed"
@@ -81,7 +78,7 @@ class FailureClusterAnalyzer:
                 "Verify RBAC user roles and permissions"
             ]
         },
-        
+
         "WEB_ELEMENT_NOT_FOUND": {
             "patterns": [
                 r"element not found",
@@ -91,7 +88,7 @@ class FailureClusterAnalyzer:
                 r"click.*failed"
             ],
             "display_name": "Web Element Not Found",
-            "severity": "HIGH", 
+            "severity": "HIGH",
             "actions": [
                 "Check if website layout has changed",
                 "Verify CSS selectors and text labels",
@@ -100,7 +97,7 @@ class FailureClusterAnalyzer:
                 "Enable browser debugging to inspect elements"
             ]
         },
-        
+
         "PDF_PARSE_ERROR": {
             "patterns": [
                 r"pdf.*corrupt",
@@ -108,7 +105,7 @@ class FailureClusterAnalyzer:
                 r"pypdf.*error",
                 r"pdf.*invalid"
             ],
-            "display_name": "PDF Processing Error", 
+            "display_name": "PDF Processing Error",
             "severity": "MEDIUM",
             "actions": [
                 "Verify PDF files are not corrupted",
@@ -117,7 +114,7 @@ class FailureClusterAnalyzer:
                 "Try alternative PDF processing tools"
             ]
         },
-        
+
         "NETWORK_ERROR": {
             "patterns": [
                 r"connection.*refused",
@@ -130,13 +127,13 @@ class FailureClusterAnalyzer:
             "severity": "MEDIUM",
             "actions": [
                 "Check internet connection",
-                "Verify target website is accessible", 
+                "Verify target website is accessible",
                 "Check proxy settings if applicable",
                 "Retry with exponential backoff",
                 "Consider network firewall restrictions"
             ]
         },
-        
+
         "MAIL_COMPOSITION_ERROR": {
             "patterns": [
                 r"mail.*compose.*failed",
@@ -147,12 +144,12 @@ class FailureClusterAnalyzer:
             "severity": "HIGH",
             "actions": [
                 "Launch Mail.app manually first",
-                "Check Mail.app automation permissions", 
+                "Check Mail.app automation permissions",
                 "Verify email account is configured",
                 "Check AppleScript automation settings"
             ]
         },
-        
+
         "HITL_TIMEOUT": {
             "patterns": [
                 r"human.*confirm.*timeout",
@@ -160,7 +157,7 @@ class FailureClusterAnalyzer:
                 r"hitl.*timeout"
             ],
             "display_name": "Human Approval Timeout",
-            "severity": "MEDIUM", 
+            "severity": "MEDIUM",
             "actions": [
                 "Increase HITL timeout values",
                 "Set up approval notifications",
@@ -168,7 +165,7 @@ class FailureClusterAnalyzer:
                 "Review approval workflow efficiency"
             ]
         },
-        
+
         "RESOURCE_EXHAUSTED": {
             "patterns": [
                 r"out of memory",
@@ -186,12 +183,12 @@ class FailureClusterAnalyzer:
             ]
         }
     }
-    
+
     def __init__(self, storage_path: Optional[str] = None):
         self.storage_path = storage_path or str(Path.home() / ".desktop-agent" / "failure_analysis.db")
         Path(self.storage_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
-    
+
     def _init_db(self):
         """Initialize failure analysis database."""
         with sqlite3.connect(self.storage_path) as conn:
@@ -207,17 +204,17 @@ class FailureClusterAnalyzer:
                     resolved BOOLEAN DEFAULT 0
                 )
             ''')
-            
+
             conn.execute('''
-                CREATE INDEX IF NOT EXISTS idx_cluster_occurred 
+                CREATE INDEX IF NOT EXISTS idx_cluster_occurred
                 ON failure_clusters(cluster_key, occurred_at)
             ''')
-    
-    def analyze_error(self, error_message: str, run_id: Optional[int] = None, 
+
+    def analyze_error(self, error_message: str, run_id: Optional[int] = None,
                      template: Optional[str] = None, step_name: Optional[str] = None) -> str:
         """Analyze an error and return its cluster key."""
         error_lower = error_message.lower()
-        
+
         # Find matching cluster
         for cluster_key, rule in self.CLUSTER_RULES.items():
             for pattern in rule["patterns"]:
@@ -225,32 +222,32 @@ class FailureClusterAnalyzer:
                     # Store in database
                     self._record_error(cluster_key, error_message, run_id, template, step_name)
                     return cluster_key
-        
+
         # Generic cluster for unclassified errors
         generic_key = "UNKNOWN_ERROR"
         self._record_error(generic_key, error_message, run_id, template, step_name)
         return generic_key
-    
+
     def _record_error(self, cluster_key: str, error_message: str, run_id: Optional[int],
                      template: Optional[str], step_name: Optional[str]):
         """Record error in database for analysis."""
         with sqlite3.connect(self.storage_path) as conn:
             conn.execute('''
-                INSERT INTO failure_clusters 
+                INSERT INTO failure_clusters
                 (cluster_key, error_message, run_id, template, step_name)
                 VALUES (?, ?, ?, ?, ?)
             ''', (cluster_key, error_message, run_id, template, step_name))
-    
+
     def get_top_failure_clusters(self, limit: int = 10, days: int = 7) -> List[FailureCluster]:
         """Get top failure clusters with recommendations."""
         cutoff = datetime.now() - timedelta(days=days)
-        
+
         with sqlite3.connect(self.storage_path) as conn:
             conn.row_factory = sqlite3.Row
-            
+
             # Get cluster counts and samples
             cursor = conn.execute('''
-                SELECT 
+                SELECT
                     cluster_key,
                     COUNT(*) as count,
                     GROUP_CONCAT(DISTINCT template) as templates,
@@ -263,11 +260,11 @@ class FailureClusterAnalyzer:
                 ORDER BY count DESC
                 LIMIT ?
             ''', (cutoff.isoformat(), limit))
-            
+
             clusters = []
             for row in cursor:
                 cluster_key = row['cluster_key']
-                
+
                 # Get sample errors
                 sample_cursor = conn.execute('''
                     SELECT DISTINCT error_message FROM failure_clusters
@@ -275,17 +272,17 @@ class FailureClusterAnalyzer:
                     LIMIT 3
                 ''', (cluster_key, cutoff.isoformat()))
                 sample_errors = [r[0] for r in sample_cursor.fetchall()]
-                
+
                 # Get 3-day trend
                 trend_3d = self._get_trend_data(conn, cluster_key, 3)
-                
+
                 # Get cluster rule or create default
                 rule = self.CLUSTER_RULES.get(cluster_key, {
                     "display_name": cluster_key.replace("_", " ").title(),
                     "severity": "MEDIUM",
                     "actions": ["Review error details and logs", "Check recent system changes"]
                 })
-                
+
                 cluster = FailureCluster(
                     cluster_key=cluster_key,
                     display_name=rule["display_name"],
@@ -299,45 +296,45 @@ class FailureClusterAnalyzer:
                     last_seen=datetime.fromisoformat(row['last_seen'])
                 )
                 clusters.append(cluster)
-            
+
             return clusters
-    
+
     def _get_trend_data(self, conn, cluster_key: str, days: int) -> List[int]:
         """Get daily counts for trend analysis."""
         trend = []
-        
+
         for i in range(days):
             day_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=i)
             day_end = day_start + timedelta(days=1)
-            
+
             cursor = conn.execute('''
                 SELECT COUNT(*) FROM failure_clusters
                 WHERE cluster_key = ? AND occurred_at >= ? AND occurred_at < ?
             ''', (cluster_key, day_start.isoformat(), day_end.isoformat()))
-            
+
             count = cursor.fetchone()[0]
             trend.append(count)
-        
+
         return trend[::-1]  # Reverse to get chronological order
-    
+
     def mark_cluster_resolved(self, cluster_key: str, days_lookback: int = 7) -> int:
         """Mark a cluster as resolved (for tracking fix effectiveness)."""
         cutoff = datetime.now() - timedelta(days=days_lookback)
-        
+
         with sqlite3.connect(self.storage_path) as conn:
             cursor = conn.execute('''
-                UPDATE failure_clusters 
+                UPDATE failure_clusters
                 SET resolved = 1
                 WHERE cluster_key = ? AND occurred_at >= ?
             ''', (cluster_key, cutoff.isoformat()))
-            
+
             return cursor.rowcount
-    
+
     def get_cluster_details(self, cluster_key: str, limit: int = 50) -> Dict[str, Any]:
         """Get detailed information about a specific cluster."""
         with sqlite3.connect(self.storage_path) as conn:
             conn.row_factory = sqlite3.Row
-            
+
             # Get recent occurrences
             cursor = conn.execute('''
                 SELECT * FROM failure_clusters
@@ -345,12 +342,12 @@ class FailureClusterAnalyzer:
                 ORDER BY occurred_at DESC
                 LIMIT ?
             ''', (cluster_key, limit))
-            
+
             occurrences = [dict(row) for row in cursor.fetchall()]
-            
+
             # Get statistics
             cursor = conn.execute('''
-                SELECT 
+                SELECT
                     COUNT(*) as total_count,
                     COUNT(DISTINCT template) as affected_templates,
                     COUNT(DISTINCT run_id) as affected_runs,
@@ -359,11 +356,11 @@ class FailureClusterAnalyzer:
                 FROM failure_clusters
                 WHERE cluster_key = ?
             ''', (cluster_key,))
-            
+
             stats = dict(cursor.fetchone())
-            
+
             rule = self.CLUSTER_RULES.get(cluster_key, {})
-            
+
             return {
                 "cluster_key": cluster_key,
                 "display_name": rule.get("display_name", cluster_key),
@@ -373,30 +370,28 @@ class FailureClusterAnalyzer:
                 "recent_occurrences": occurrences[:10],  # Last 10 for display
                 "all_occurrences": occurrences
             }
-    
+
     def cleanup_old_records(self, days: int = 90) -> int:
         """Clean up old failure records."""
         cutoff = datetime.now() - timedelta(days=days)
-        
+
         with sqlite3.connect(self.storage_path) as conn:
             cursor = conn.execute('''
-                DELETE FROM failure_clusters 
+                DELETE FROM failure_clusters
                 WHERE occurred_at < ?
             ''', (cutoff.isoformat(),))
-            
-            return cursor.rowcount
 
+            return cursor.rowcount
 
 # Global analyzer instance
 _failure_analyzer = None
 
 def get_failure_analyzer() -> FailureClusterAnalyzer:
-    """Get the global failure analyzer instance.""" 
+    """Get the global failure analyzer instance."""
     global _failure_analyzer
     if _failure_analyzer is None:
         _failure_analyzer = FailureClusterAnalyzer()
     return _failure_analyzer
-
 
 def analyze_error(error_message: str, **kwargs) -> str:
     """Convenience function to analyze an error."""

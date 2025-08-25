@@ -5,7 +5,6 @@ import re
 
 REQUIRED_DSL_VERSION = "1.1"
 
-
 ALLOWED_STEPS = {
     "find_files",
     "rename",
@@ -36,7 +35,6 @@ ALLOWED_STEPS = {
     # Phase 4: HITL Commands
     "human_confirm",
 }
-
 
 def validate_plan(plan: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
@@ -84,7 +82,7 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
             if action == "human_confirm":
                 confirm_errors = _validate_human_confirm(params, i)
                 errors.extend(confirm_errors)
-            
+
             # Validate secrets references in step parameters
             secrets_errors = _validate_secrets_references(params, i)
             errors.extend(secrets_errors)
@@ -94,7 +92,7 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
 def _validate_secrets_references(obj: Any, step_idx: int = None) -> List[str]:
     """Validate secrets:// references in an object (recursive)."""
     errors = []
-    
+
     if isinstance(obj, str):
         # Find all secrets references
         import re
@@ -105,7 +103,7 @@ def _validate_secrets_references(obj: Any, step_idx: int = None) -> List[str]:
                 location = f"step {step_idx}: " if step_idx is not None else ""
                 errors.append(f"{location}empty secret reference in '{obj}'")
                 continue
-                
+
             # Validate reference format
             if "/" in reference:
                 parts = reference.split("/")
@@ -117,16 +115,15 @@ def _validate_secrets_references(obj: Any, step_idx: int = None) -> List[str]:
                 if not re.match(r'^[A-Z0-9_]+$', reference):
                     location = f"step {step_idx}: " if step_idx is not None else ""
                     errors.append(f"{location}invalid secret key '{reference}' (use uppercase letters, numbers, underscores only)")
-                    
+
     elif isinstance(obj, dict):
         for key, value in obj.items():
             errors.extend(_validate_secrets_references(value, step_idx))
     elif isinstance(obj, list):
         for item in obj:
             errors.extend(_validate_secrets_references(item, step_idx))
-            
-    return errors
 
+    return errors
 
 def _validate_execution_policy(execution: Any) -> List[str]:
     """Validate execution policy configuration."""
@@ -158,7 +155,6 @@ def _validate_execution_policy(execution: Any) -> List[str]:
         errors.extend(["execution.retry." + e for e in retry_errors])
 
     return errors
-
 
 def _validate_retry_config(retry: Any) -> List[str]:
     """Validate retry configuration."""
@@ -192,7 +188,6 @@ def _validate_retry_config(retry: Any) -> List[str]:
             errors.append("only_idempotent must be a boolean")
 
     return errors
-
 
 def _validate_human_confirm(params: Any, step_index: int) -> List[str]:
     """Validate human_confirm step parameters."""

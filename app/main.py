@@ -12,20 +12,19 @@ DATA_DIR.mkdir(exist_ok=True, parents=True)
 
 app = FastAPI(title="Desktop Agent API", description="Minimal API for CLI operations")
 
-
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
-    
+
     # Initialize Phase 4 services
     try:
         from app.orchestrator.scheduler import start_scheduler, start_scheduler_with_config
         from app.orchestrator.watcher import start_watcher
         from app.orchestrator.webhook import setup_webhook_routes
-        
+
         # Setup webhook routes
         setup_webhook_routes(app)
-        
+
         # Start scheduler service with config
         from pathlib import Path
         config_path = Path("configs/schedules.yaml")
@@ -33,14 +32,14 @@ def on_startup() -> None:
             start_scheduler_with_config(str(config_path))
         else:
             start_scheduler()
-        
-        # Start watcher service  
+
+        # Start watcher service
         start_watcher()
-        
+
         get_logger().info("Phase 4 services started: scheduler, watcher, webhooks")
     except Exception as e:
         get_logger().warning(f"Phase 4 services startup warning: {e}")
-    
+
     get_logger().info("app.startup")
 
 # RBAC-protected endpoints
@@ -52,7 +51,7 @@ async def list_runs(current_user: RBACUser = Depends(get_current_user)):
     """List runs - requires authentication."""
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
-    
+
     # Basic run listing (viewers can see runs)
     from app.models import get_conn
     conn = get_conn()
@@ -69,7 +68,7 @@ async def pause_run(run_id: int, current_user: RBACUser = Depends(get_current_us
     try:
         from app.orchestrator.resume import get_resume_manager
         resume_manager = get_resume_manager()
-        
+
         # Create manual pause
         resume_manager.create_resume_point(
             run_id=run_id,
@@ -79,7 +78,7 @@ async def pause_run(run_id: int, current_user: RBACUser = Depends(get_current_us
             reason="manual",
             user_id=current_user.id
         )
-        
+
         return {"success": True, "message": f"Run {run_id} paused by {current_user.username}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -91,7 +90,7 @@ async def resume_run(run_id: int, current_user: RBACUser = Depends(get_current_u
     try:
         from app.orchestrator.resume import get_resume_manager
         resume_manager = get_resume_manager()
-        
+
         success = resume_manager.resume_run(run_id, current_user.id)
         if success:
             return {"success": True, "message": f"Run {run_id} resumed by {current_user.username}"}
@@ -101,13 +100,13 @@ async def resume_run(run_id: int, current_user: RBACUser = Depends(get_current_u
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/paused-runs")
-@require_runner  
+@require_runner
 async def list_paused_runs(current_user: RBACUser = Depends(get_current_user)):
     """List paused runs waiting for resume - requires Runner role."""
     try:
         from app.orchestrator.resume import get_resume_manager
         resume_manager = get_resume_manager()
-        
+
         paused_runs = resume_manager.list_paused_runs()
         return {"paused_runs": paused_runs}
     except Exception as e:
@@ -120,7 +119,7 @@ async def list_users(current_user: RBACUser = Depends(get_current_user)):
     try:
         from app.security.rbac import get_rbac_manager
         rbac = get_rbac_manager()
-        
+
         users = rbac.list_users()
         return {"users": [
             {
@@ -134,19 +133,19 @@ async def list_users(current_user: RBACUser = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/admin/users")
-@require_admin 
+@require_admin
 async def create_user(user_data: dict, current_user: RBACUser = Depends(get_current_user)):
     """Create a new user - Admin only."""
     try:
         from app.security.rbac import get_rbac_manager
         rbac = get_rbac_manager()
-        
+
         user = rbac.create_user(
             username=user_data["username"],
             password=user_data["password"],
             active=user_data.get("active", True)
         )
-        
+
         return {"success": True, "user_id": user.id, "username": user.username}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -158,7 +157,7 @@ async def get_audit_log(limit: int = 100, current_user: RBACUser = Depends(get_c
     try:
         from app.security.rbac import get_rbac_manager
         rbac = get_rbac_manager()
-        
+
         audit_entries = rbac.get_audit_log(limit=limit)
         return {"audit_log": audit_entries}
     except Exception as e:
@@ -166,7 +165,6 @@ async def get_audit_log(limit: int = 100, current_user: RBACUser = Depends(get_c
 
 # HITL Approval UI
 from fastapi.templating import Jinja2Templates
-from fastapi import Form
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -176,34 +174,34 @@ async def hitl_approval_page(run_id: int, request: Request, current_user: RBACUs
     try:
         from app.orchestrator.resume import get_resume_manager
         from app.models import get_conn
-        
+
         # Check if user has permission to approve
         if not current_user:
             raise HTTPException(status_code=401, detail="Authentication required")
-        
+
         # Get resume point
         resume_manager = get_resume_manager()
         resume_point = resume_manager.get_resume_point(run_id)
-        
+
         if not resume_point or resume_point.reason != "hitl":
             raise HTTPException(status_code=404, detail="No HITL approval pending for this run")
-        
+
         # Get run details
         conn = get_conn()
         cursor = conn.execute(
             "SELECT * FROM runs WHERE id = ?", (run_id,)
         )
         run_data = cursor.fetchone()
-        
+
         if not run_data:
             raise HTTPException(status_code=404, detail="Run not found")
-        
+
         # Get run steps for preview
         cursor = conn.execute(
             "SELECT * FROM run_steps WHERE run_id = ? ORDER BY step_index", (run_id,)
         )
         steps = cursor.fetchall()
-        
+
         # Calculate next steps
         next_steps = []
         if resume_point.step_index < len(steps):
@@ -212,7 +210,7 @@ async def hitl_approval_page(run_id: int, request: Request, current_user: RBACUs
                     "action": step["name"],
                     "summary": f"{step['name']}: {step.get('input_json', '')[:100]}..."
                 })
-        
+
         # Risk analysis (basic)
         risk_analysis = []
         for step in steps[resume_point.step_index:]:
@@ -221,7 +219,7 @@ async def hitl_approval_page(run_id: int, request: Request, current_user: RBACUs
                     "level": "MEDIUM",
                     "description": f"Will execute {step['name']} operation"
                 })
-        
+
         return templates.TemplateResponse("hitl_approval.html", {
             "request": request,
             "run_id": run_id,
@@ -239,7 +237,7 @@ async def hitl_approval_page(run_id: int, request: Request, current_user: RBACUs
                 "auto_action": "deny"
             }
         })
-        
+
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
@@ -248,7 +246,7 @@ async def hitl_approval_page(run_id: int, request: Request, current_user: RBACUs
 @app.post("/hitl/approve/{run_id}")
 @require_editor
 async def hitl_approval_action(
-    run_id: int, 
+    run_id: int,
     request: Request,
     action: str = Form(...),
     user_id: str = Form(None),
@@ -257,58 +255,55 @@ async def hitl_approval_action(
     """Handle HITL approval action."""
     try:
         from app.orchestrator.resume import get_resume_manager
-        from app.orchestrator.queue import get_queue_manager
-        
+        # from app.orchestrator.queue import get_queue_manager
+
         resume_manager = get_resume_manager()
-        
+
         if action == "approve":
             # Resume the run
             success = resume_manager.resume_run(run_id, current_user.id)
             if success:
                 # Re-queue the run for continuation
-                queue_manager = get_queue_manager()
+                # queue_manager = get_queue_manager()
                 # This would need integration with actual run re-queuing logic
-                
+
                 return {
-                    "success": True, 
+                    "success": True,
                     "message": f"Run {run_id} approved and resumed",
                     "action": "approved",
                     "approved_by": current_user.username
                 }
             else:
                 raise HTTPException(status_code=404, detail="No pending approval found")
-                
+
         elif action == "deny":
             # Cancel the run
             success = resume_manager.cancel_resume(run_id, current_user.id)
             if success:
                 return {
                     "success": True,
-                    "message": f"Run {run_id} denied and cancelled", 
+                    "message": f"Run {run_id} denied and cancelled",
                     "action": "denied",
                     "denied_by": current_user.username
                 }
             else:
                 raise HTTPException(status_code=404, detail="No pending approval found")
-        
+
         else:
             raise HTTPException(status_code=400, detail="Invalid action")
-            
+
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
 
-
 @app.get("/metrics")
 def metrics():
     return compute_metrics()
-
 
 # ------------------------
 # Mock Form (for E2E tests)
@@ -348,7 +343,6 @@ def mock_form():
     </html>
     """
     return HTMLResponse(content=html)
-
 
 @app.post("/mock/form", response_class=HTMLResponse)
 def mock_form_post(
@@ -425,7 +419,6 @@ def mock_form_post(
     """
     return HTMLResponse(content=ok_html)
 
-
 # ------------------------
 # Simple Pages for E2E
 # ------------------------
@@ -441,7 +434,6 @@ def plans_intent():
         </html>
         """
     )
-
 
 @app.get("/public/dashboard", response_class=HTMLResponse)
 def public_dashboard():

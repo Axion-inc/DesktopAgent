@@ -11,13 +11,11 @@ from app.os_adapters.windows import WindowsMailAdapter, WindowsPreviewAdapter
 from app.utils import take_screenshot
 from .parser import safe_eval
 
-
 def get_adapters() -> Tuple[MailAdapter, PreviewAdapter]:
     if platform.system() == "Darwin":
         return MacMailAdapter(), MacPreviewAdapter()
     else:
         return WindowsMailAdapter(), WindowsPreviewAdapter()
-
 
 class Runner:
     def __init__(self, plan: Dict[str, Any], variables: Dict[str, Any], dry_run: bool = False):
@@ -37,13 +35,13 @@ class Runner:
         try:
             from app.security.secrets import get_secrets_manager
             secrets_manager = get_secrets_manager()
-            
+
             # Convert params to JSON string, resolve secrets, then parse back
             import json
             params_str = json.dumps(params)
             resolved_str = secrets_manager.resolve_template(params_str)
             return json.loads(resolved_str)
-            
+
         except ImportError:
             # Secrets not available, return params as-is
             return params
@@ -52,19 +50,18 @@ class Runner:
             print(f"Warning: Failed to resolve secrets in parameters: {e}")
             return params
 
-    
     def _mask_secrets_in_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Mask secrets:// references in step parameters for safe logging."""
         try:
             from app.security.secrets import get_secrets_manager
             secrets_manager = get_secrets_manager()
-            
+
             # Convert params to JSON string, mask secrets, then parse back
             import json
             params_str = json.dumps(params)
             masked_str = secrets_manager.resolve_for_logging(params_str)
             return json.loads(masked_str)
-            
+
         except ImportError:
             # Secrets not available, return params as-is
             return params
@@ -130,7 +127,7 @@ class Runner:
         return diff
 
     def _should_run(self, params: Dict[str, Any]) -> bool:
-        expr = resolved_params.get("when")
+        expr = params.get("when")
         if not expr:
             return True
         # Use enhanced template rendering with full context
@@ -146,24 +143,24 @@ class Runner:
     def execute_step(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
         # Resolve secrets in parameters before execution
         resolved_params = self._resolve_secrets_in_params(params)
-        
+
         # Store masked version for logging
-        masked_params = self._mask_secrets_in_params(params)
-        
+        # masked_params = self._mask_secrets_in_params(params)  # TODO: Use for logging
+
         if not self._should_run(resolved_params):
             return {"skipped": True}
         if action == "find_files":
-            files = fs_actions.find_files(resolved_resolved_params.get("query", ""), resolved_resolved_params.get("roots", []), resolved_resolved_params.get("limit", 100))
+            files = fs_actions.find_files(resolved_params.get("query", ""), resolved_params.get("roots", []), resolved_params.get("limit", 100))
             # Self-healing: widen one level if 0 results
             healed = False
-            if len(files) == 0 and resolved_resolved_params.get("roots"):
+            if len(files) == 0 and resolved_params.get("roots"):
                 parents = []
-                for r in resolved_resolved_params.get("roots", []):
+                for r in resolved_params.get("roots", []):
                     p = Path(r).expanduser()
                     if p.exists() and p.parent != p:
                         parents.append(str(p.parent))
                 if parents:
-                    files = fs_actions.find_files(resolved_resolved_params.get("query", ""), parents, resolved_resolved_params.get("limit", 100))
+                    files = fs_actions.find_files(resolved_params.get("query", ""), parents, resolved_params.get("limit", 100))
                     healed = True
             self.state["files"] = files
             self.state.pop("newnames", None)
