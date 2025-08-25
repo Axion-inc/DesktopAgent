@@ -1,36 +1,36 @@
 # Phase 4 Example: Secure API Call with HITL Approval
-# このテンプレートは Phase 4 の主要機能を実演します:
-# - Secrets管理 ({{secrets://}} 記法)
-# - HITL 承認フロー
-# - Queue/Priority 設定
-# - Retry ポリシー
+# This template demonstrates Phase 4 key features:
+# - Secrets management ({{secrets://}} syntax)
+# - HITL approval workflow
+# - Queue/Priority configuration
+# - Retry policies
 
 dsl_version: "1.1"
 name: "Secure Production API Call"
 
 # Phase 4: Execution Policy
 execution:
-  queue: "high-priority"      # 高優先度キューで実行
-  priority: 2                 # 優先度2 (1が最高)
-  concurrency_tag: "api-ops"  # 同種操作の並列制限
+  queue: "high-priority"      # Execute in high priority queue
+  priority: 2                 # Priority 2 (1 is highest)
+  concurrency_tag: "api-ops"  # Concurrency limit for similar operations
   retry:
     max_attempts: 3
     backoff_multiplier: 2.0
     only_idempotent: true
 
 steps:
-  # Step 1: 実行前の確認
+  # Step 1: Pre-execution confirmation
   - human_confirm:
-      message: "本番環境のAPIを呼び出します。続行しますか？"
+      message: "Execute production API call. Continue?"
       details:
-        - "対象: Production API"
-        - "影響: データ更新あり"
-        - "実行者: {{user.name}}"
+        - "Target: Production API"
+        - "Impact: Data updates included"
+        - "Executor: {{user.name}}"
       timeout_minutes: 30
-      auto_action: "deny"       # タイムアウト時は自動拒否
-      required_role: "Editor"   # Editor権限以上が必要
+      auto_action: "deny"       # Auto-deny on timeout
+      required_role: "Editor"   # Requires Editor permissions or higher
 
-  # Step 2: API認証用トークン取得
+  # Step 2: Obtain API authentication token
   - make_request:
       url: "https://auth.api.example.com/token"
       method: "POST"
@@ -42,7 +42,7 @@ steps:
         grant_type: "client_credentials"
       store_result: "auth_response"
 
-  # Step 3: メイン API コール
+  # Step 3: Main API call
   - make_request:
       url: "https://api.example.com/v1/data"
       method: "POST"
@@ -57,12 +57,12 @@ steps:
       timeout_seconds: 60
       store_result: "api_response"
 
-  # Step 4: 結果検証
+  # Step 4: Result verification
   - assert_text:
       contains: "success"
       source: "{{api_response.status}}"
       
-  # Step 5: 監査ログ記録
+  # Step 5: Audit log recording
   - log_event:
       level: "INFO" 
       message: "API call completed successfully"
@@ -71,7 +71,7 @@ steps:
         records_processed: "{{api_response.processed_count}}"
         execution_time: "{{metrics.duration_ms}}"
 
-# 実行時変数の例:
+# Example runtime variables:
 # variables:
 #   batch_id: "2024-001"
 #   records: 
