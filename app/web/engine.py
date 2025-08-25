@@ -430,7 +430,8 @@ def get_web_engine(engine_type: Optional[str] = None) -> WebEngine:
             engine_type = web_config.get('engine', 'playwright')  # Default to playwright
 
         # Create engine if needed or type changed
-        if _current_engine is None or _current_engine.name.lower() != f"{engine_type}engine":
+        if (_current_engine is None or
+                _current_engine.name.lower() != f"{engine_type}engine"):
             # Close existing engine
             if _current_engine is not None:
                 try:
@@ -493,7 +494,8 @@ def open_browser(url: str, context: str = "default", engine: Optional[str] = Non
     return web_engine.open_browser(url, context, **kwargs)
 
 
-def fill_by_label(label: str, text: str, context: str = "default", engine: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+def fill_by_label(label: str, text: str, context: str = "default",
+                  engine: Optional[str] = None, **kwargs) -> Dict[str, Any]:
     """Fill by label using current or specified engine"""
     web_engine = get_web_engine(engine)
     return web_engine.fill_by_label(label, text, context, **kwargs)

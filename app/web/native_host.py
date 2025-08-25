@@ -352,7 +352,6 @@ class NativeMessagingHost:
         # Validate file exists
         path = Path(file_path).expanduser()
         if not path.exists():
-            error_code = self.ERROR_CODES['ELEMENT_NOT_FOUND']  # File treated as element
             raise Exception(f"File not found: {file_path}")
 
         logger.info(f"File upload request: {file_path} to {selector or label} in tab {tab_id}")
@@ -413,8 +412,6 @@ class NativeMessagingHost:
     def _handle_capture_dom_schema(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Capture DOM schema (webx.capture_dom_schema)"""
         tab_id = params.get('tabId')
-        include_styles = params.get('include_styles', False)
-        max_depth = params.get('max_depth', 5)
 
         logger.info(f"Capture DOM schema in tab {tab_id}")
 
@@ -458,7 +455,6 @@ class NativeMessagingHost:
             'tabId': tab_id,
             'elapsed_ms': min(timeout_ms // 5, 2000)
         }
-
 
     def _is_sensitive_field(self, selector: Optional[str], label: Optional[str]) -> bool:
         """Check if field contains sensitive data"""

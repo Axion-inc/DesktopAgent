@@ -387,9 +387,11 @@ def compute_metrics() -> Dict[str, float]:
     out.update({
         # DoD required metrics
         "webx_steps_24h": total_engine_steps,
-        "webx_failures_24h": (total_engine_steps - extension_engine_success - 
-                        playwright_engine_steps + (playwright_engine_steps - 
-                        (playwright_engine_steps * out.get("web_step_success_rate_24h", 0.95)))),
+        "webx_failures_24h": (
+            total_engine_steps - extension_engine_success - playwright_engine_steps +
+            (playwright_engine_steps -
+             (playwright_engine_steps * out.get("web_step_success_rate_24h", 0.95)))
+        ),
         "webx_engine_share_24h": {
             "extension": round(extension_engine_steps / (total_engine_steps or 1), 2),
             "playwright": round(playwright_engine_steps / (total_engine_steps or 1), 2)
