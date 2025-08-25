@@ -1,0 +1,101 @@
+# Web Engine Configuration
+# Controls which web automation engine to use and its settings
+
+# Engine selection: "playwright" or "extension"
+engine: "playwright"  # Default to playwright for backward compatibility
+
+# Playwright Engine Settings (existing)
+playwright:
+  headless: true
+  timeout_ms: 30000
+  slow_mo_ms: 0
+  user_agent: null
+  locale: null
+  timezone: null
+  
+  # Browser launch arguments
+  chromium_args:
+    - "--disable-features=Autofill,AutofillAddressEnabled,AutofillServerCommunication"
+    - "--no-default-browser-check"
+    - "--no-first-run"
+    - "--disable-popup-blocking"
+
+# Chrome Extension Engine Settings (Phase 5 - DoD Compliant)
+extension:
+  # Extension ID (generated during installation)
+  # Replace with actual extension ID after installing the extension
+  id: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  
+  # Native messaging host configuration  
+  native_host: "com.desktopagent.webx"
+  
+  # Security token for handshake authentication
+  # Change this value for production deployments
+  handshake_token: "change-me"
+  
+  # Communication timeout (milliseconds)
+  timeout_ms: 15000
+  
+  # File upload debugger permission (DoD requirement: default OFF)
+  enable_debugger_upload: false
+  
+  # Extension permissions and security
+  security:
+    # Allowed origins for extension communication
+    allowed_origins:
+      - "http://localhost:*"
+      - "https://localhost:*"
+    
+    # Log sensitive operations (masked in production)
+    log_sensitive_ops: false
+    
+  # Feature toggles
+  features:
+    # Enable DOM schema capture (web version of screen schema)
+    dom_schema: true
+    
+    # Enable file upload via debugger API
+    file_upload: true
+    
+    # Enable screenshot capture
+    screenshots: true
+    
+    # Enable download monitoring
+    downloads: true
+
+# Engine selection priority
+# Used when engine is set to "auto"
+auto_selection:
+  # Try extension engine first if available
+  prefer_extension: false
+  
+  # Fallback to playwright if extension fails
+  fallback_to_playwright: true
+  
+  # Check extension availability before using
+  check_extension_health: true
+
+# Development and testing settings
+development:
+  # Enable engine switching at runtime
+  allow_runtime_switching: true
+  
+  # Log engine selection decisions
+  log_engine_selection: true
+  
+  # Mock extension responses for testing
+  mock_extension_responses: false
+  
+  # Force specific engine for testing
+  force_engine: null  # null, "playwright", or "extension"
+
+# Performance monitoring
+monitoring:
+  # Track engine performance metrics
+  track_performance: true
+  
+  # Compare engine performance when both available
+  performance_comparison: false
+  
+  # Metrics retention (days)
+  metrics_retention_days: 7

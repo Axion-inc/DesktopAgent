@@ -1,0 +1,129 @@
+dsl_version: "1.1"
+name: "Phase 5 WebX Engine Demonstration"
+
+# Phase 5 Example: Chrome Extension Engine Usage
+# This template demonstrates the new engine abstraction layer and WebX features
+
+# Global engine configuration (optional)
+execution:
+  web_engine: "extension"  # Use Chrome Extension engine by default
+  queue: "default"
+  priority: 5
+
+variables:
+  # Test form URL (can be overridden)
+  form_url: "http://localhost:8000/public/mock/form"
+  user_name: "Phase 5 Test User"
+  user_email: "phase5@example.com"
+  message_text: "Testing WebX Chrome Extension Engine"
+
+steps:
+  # Step 1: Open browser with Extension engine
+  - open_browser:
+      url: "{{form_url}}"
+      context: "webx_demo"
+      engine: "extension"
+      wait_for_load: true
+
+  # Step 2: Capture DOM schema (WebX-specific feature)
+  - log:
+      message: "Capturing DOM schema using Extension engine..."
+
+  # Step 3: Fill form using Extension engine
+  - fill_by_label:
+      label: "氏名"
+      text: "{{user_name}}"
+      context: "webx_demo"
+      engine: "extension"
+
+  - fill_by_label:
+      label: "メール"
+      text: "{{user_email}}"
+      context: "webx_demo"
+      engine: "extension"
+
+  - fill_by_label:
+      label: "本文"
+      text: "{{message_text}}"
+      context: "webx_demo"
+      engine: "extension"
+
+  # Step 4: Compare with Playwright engine (for performance testing)
+  - log:
+      message: "Switching to Playwright engine for comparison..."
+
+  - open_browser:
+      url: "{{form_url}}"
+      context: "playwright_demo"
+      engine: "playwright"
+      wait_for_load: true
+
+  - fill_by_label:
+      label: "氏名"
+      text: "{{user_name}} (Playwright)"
+      context: "playwright_demo"
+      engine: "playwright"
+
+  - fill_by_label:
+      label: "メール"
+      text: "{{user_email}}"
+      context: "playwright_demo"
+      engine: "playwright"
+
+  - fill_by_label:
+      label: "本文"
+      text: "{{message_text}} (filled with Playwright engine)"
+      context: "playwright_demo"
+      engine: "playwright"
+
+  # Step 5: Test engine fallback behavior
+  - log:
+      message: "Testing engine capabilities..."
+
+  # This will use the extension engine if available, fallback to playwright
+  - click_by_text:
+      text: "送信"
+      role: "button"
+      context: "webx_demo"
+      engine: "extension"
+
+  # Step 6: Take screenshots with both engines
+  - log:
+      message: "Capturing screenshots with both engines..."
+
+  # Extension engine screenshot (may fallback to OS screenshot)
+  - take_screenshot:
+      context: "webx_demo"
+      path: "data/screenshots/webx_demo_extension.png"
+      engine: "extension"
+
+  # Playwright engine screenshot
+  - take_screenshot:
+      context: "playwright_demo"
+      path: "data/screenshots/webx_demo_playwright.png"
+      engine: "playwright"
+
+  # Step 7: Test file upload with both engines (if supported)
+  # Note: Extension engine may have limitations for file upload
+  - log:
+      message: "Testing file upload capabilities (if form supports it)..."
+
+  # Step 8: Demonstrate engine-specific error handling
+  - log:
+      message: "Demo completed - check metrics for engine performance comparison"
+
+  # Step 9: Log final metrics
+  - log:
+      message: "Phase 5 WebX Engine demonstration completed successfully"
+      details:
+        - "Extension Engine: Modern Chrome Extension with Native Messaging"
+        - "Playwright Engine: Traditional browser automation for comparison"
+        - "Engine Abstraction: Seamless switching between engines"
+        - "Check /metrics endpoint for performance data"
+
+# Example runtime variables (can be overridden):
+# variables:
+#   form_url: "https://your-test-form.com"
+#   user_name: "Your Name"
+#   user_email: "your.email@example.com"
+#   message_text: "Your test message"

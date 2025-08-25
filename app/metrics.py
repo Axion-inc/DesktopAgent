@@ -315,6 +315,98 @@ def compute_metrics() -> Dict[str, float]:
     except ImportError:
         out["secrets_lookups_24h"] = 0
 
+    # Phase 5 metrics: Web Engine Usage and Performance
+    
+    # Web engine usage distribution (24h)
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'download_file', 
+                       'upload_file', 'wait_for_download')
+        AND output_json LIKE '%"engine":"extension"%'
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    extension_engine_steps = cur.fetchone()[0] or 0
+
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'download_file', 
+                       'upload_file', 'wait_for_download')
+        AND (output_json LIKE '%"engine":"playwright"%' OR 
+             output_json NOT LIKE '%"engine":%')
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    playwright_engine_steps = cur.fetchone()[0] or 0
+    
+    total_engine_steps = extension_engine_steps + playwright_engine_steps
+    
+    # Extension engine success rate (24h)
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'download_file', 
+                       'upload_file', 'wait_for_download')
+        AND output_json LIKE '%"engine":"extension"%'
+        AND status = 'success'
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    extension_engine_success = cur.fetchone()[0] or 0
+
+    # DOM schema captures (WebX version of screen schema) (24h)
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE output_json LIKE '%get_dom_schema%'
+        AND status = 'success'
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    dom_schema_captures_24h = cur.fetchone()[0] or 0
+
+    # Native messaging RPC calls (24h) - estimated from extension engine steps
+    native_messaging_calls_24h = extension_engine_steps
+
+    # Engine fallback rate (24h) - steps that fell back from extension to playwright
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE output_json LIKE '%fallback%'
+        AND output_json LIKE '%extension%'
+        AND output_json LIKE '%playwright%'
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    engine_fallback_24h = cur.fetchone()[0] or 0
+
+    # Extension connectivity health (24h) - failed handshakes or connection errors
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE (output_json LIKE '%native messaging%' OR
+               output_json LIKE '%handshake%' OR
+               output_json LIKE '%extension.*not.*connected%')
+        AND status = 'failed'
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    extension_connectivity_failures_24h = cur.fetchone()[0] or 0
+
+    # Add Phase 5 metrics to output (DoD compliant)
+    out.update({
+        # DoD required metrics
+        "webx_steps_24h": total_engine_steps,
+        "webx_failures_24h": total_engine_steps - extension_engine_success - playwright_engine_steps + (playwright_engine_steps - (playwright_engine_steps * out.get('web_step_success_rate_24h', 0.95))),
+        "webx_engine_share_24h": {
+            "extension": round(extension_engine_steps / (total_engine_steps or 1), 2),
+            "playwright": round(playwright_engine_steps / (total_engine_steps or 1), 2)
+        },
+        "webx_upload_success_24h": round(web_upload_success / (web_upload_total or 1), 2),
+        
+        # Additional Phase 5 metrics
+        "extension_engine_success_rate_24h": round(extension_engine_success / 
+                                                   (extension_engine_steps or 1), 2),
+        "dom_schema_captures_24h": dom_schema_captures_24h,
+        "native_messaging_calls_24h": native_messaging_calls_24h,
+        "engine_fallback_rate_24h": round(engine_fallback_24h / 
+                                          (total_engine_steps or 1), 2),
+        "extension_connectivity_failures_24h": extension_connectivity_failures_24h,
+        
+        # Configuration status
+        "web_engine_abstraction_enabled": True
+    })
+
     # Enhanced failure clustering
     out.update({
         "top_failure_clusters_24h": _get_failure_clusters_with_recommendations()

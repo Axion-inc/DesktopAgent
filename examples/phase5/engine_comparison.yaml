@@ -1,0 +1,177 @@
+dsl_version: "1.1"
+name: "Engine Performance Comparison"
+
+# Phase 5 Example: Side-by-side comparison of Playwright vs Extension engines
+# This template helps measure and compare the performance of both engines
+
+variables:
+  test_url: "http://localhost:8000/public/mock/form"
+  iterations: 3
+
+steps:
+  # Performance Test: Extension Engine
+  - log:
+      message: "🚀 Starting Extension Engine performance test ({{iterations}} iterations)"
+
+  # Extension Engine Test Loop
+  - repeat:
+      count: "{{iterations}}"
+      steps:
+        - log:
+            message: "Extension Engine - Iteration {{loop_index + 1}}"
+
+        - open_browser:
+            url: "{{test_url}}"
+            context: "ext_perf_{{loop_index}}"
+            engine: "extension"
+
+        - fill_by_label:
+            label: "氏名"
+            text: "Extension Test {{loop_index + 1}}"
+            context: "ext_perf_{{loop_index}}"
+            engine: "extension"
+
+        - fill_by_label:
+            label: "メール"
+            text: "ext{{loop_index}}@test.com"
+            context: "ext_perf_{{loop_index}}"
+            engine: "extension"
+
+        - fill_by_label:
+            label: "本文"
+            text: "Extension engine performance test iteration {{loop_index + 1}}"
+            context: "ext_perf_{{loop_index}}"
+            engine: "extension"
+
+        - click_by_text:
+            text: "送信"
+            role: "button"
+            context: "ext_perf_{{loop_index}}"
+            engine: "extension"
+
+        - wait_for_selector:
+            selector: ".success, .error, #result"
+            timeout_ms: 5000
+            context: "ext_perf_{{loop_index}}"
+            engine: "extension"
+
+  - log:
+      message: "✅ Extension Engine test completed"
+
+  # Performance Test: Playwright Engine  
+  - log:
+      message: "🎭 Starting Playwright Engine performance test ({{iterations}} iterations)"
+
+  # Playwright Engine Test Loop
+  - repeat:
+      count: "{{iterations}}"
+      steps:
+        - log:
+            message: "Playwright Engine - Iteration {{loop_index + 1}}"
+
+        - open_browser:
+            url: "{{test_url}}"
+            context: "pw_perf_{{loop_index}}"
+            engine: "playwright"
+
+        - fill_by_label:
+            label: "氏名"
+            text: "Playwright Test {{loop_index + 1}}"
+            context: "pw_perf_{{loop_index}}"
+            engine: "playwright"
+
+        - fill_by_label:
+            label: "メール"
+            text: "pw{{loop_index}}@test.com"
+            context: "pw_perf_{{loop_index}}"
+            engine: "playwright"
+
+        - fill_by_label:
+            label: "本文"
+            text: "Playwright engine performance test iteration {{loop_index + 1}}"
+            context: "pw_perf_{{loop_index}}"
+            engine: "playwright"
+
+        - click_by_text:
+            text: "送信"
+            role: "button"
+            context: "pw_perf_{{loop_index}}"
+            engine: "playwright"
+
+        - wait_for_selector:
+            selector: ".success, .error, #result"
+            timeout_ms: 5000
+            context: "pw_perf_{{loop_index}}"
+            engine: "playwright"
+
+  - log:
+      message: "✅ Playwright Engine test completed"
+
+  # Feature Comparison Tests
+  - log:
+      message: "🔍 Testing feature compatibility between engines"
+
+  # Test 1: Screenshot capabilities
+  - log:
+      message: "Testing screenshot capabilities..."
+
+  - take_screenshot:
+      context: "ext_perf_1"
+      path: "data/screenshots/ext_screenshot_test.png"
+      engine: "extension"
+
+  - take_screenshot:
+      context: "pw_perf_1"
+      path: "data/screenshots/pw_screenshot_test.png"
+      engine: "playwright"
+
+  # Test 2: File upload (if supported)
+  - log:
+      message: "Testing file upload capabilities (may have different support levels)..."
+
+  # Test 3: Element waiting and assertions
+  - log:
+      message: "Testing element waiting performance..."
+
+  # Extension Engine Wait Test
+  - open_browser:
+      url: "{{test_url}}"
+      context: "wait_test_ext"
+      engine: "extension"
+
+  - wait_for_selector:
+      selector: "#name"
+      timeout_ms: 10000
+      context: "wait_test_ext"
+      engine: "extension"
+
+  # Playwright Engine Wait Test
+  - open_browser:
+      url: "{{test_url}}"
+      context: "wait_test_pw"
+      engine: "playwright"
+
+  - wait_for_selector:
+      selector: "#name"
+      timeout_ms: 10000
+      context: "wait_test_pw"
+      engine: "playwright"
+
+  # Summary
+  - log:
+      message: "🏁 Performance comparison completed"
+      details:
+        - "Extension Engine: {{iterations}} iterations completed"
+        - "Playwright Engine: {{iterations}} iterations completed"
+        - "Check metrics endpoint for detailed performance data:"
+        - "  • Extension success rate: /metrics → extension_engine_success_rate_24h"
+        - "  • Playwright success rate: /metrics → web_step_success_rate_24h"
+        - "  • Engine usage distribution: /metrics → *_engine_usage_rate_24h"
+        - "  • Performance timings: /metrics → median_duration_ms_24h"
+
+# Usage Instructions:
+# 1. Ensure both engines are properly configured
+# 2. Start the API server: uvicorn app.main:app --reload
+# 3. Run this template: ./cli.py run examples/phase5/engine_comparison.yaml
+# 4. Check metrics: curl localhost:8000/metrics | jq
+# 5. Compare results in dashboard: http://localhost:8000/public/dashboard

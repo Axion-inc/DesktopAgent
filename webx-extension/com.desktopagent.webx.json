@@ -1,0 +1,9 @@
+{
+  "name": "com.desktopagent.webx",
+  "description": "DesktopAgent WebX Native Host",
+  "path": "/usr/local/bin/desktopagent-webx-host",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/"
+  ]
+}

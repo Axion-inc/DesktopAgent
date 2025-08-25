@@ -78,9 +78,9 @@ class Runner:
         # Also take web screenshot if web context is active
         if self.state.get("web_context"):
             try:
-                from app.actions import web_actions
+                from app.web import engine
                 web_screenshot_path = f"data/screenshots/{run_id}_{idx}_web.png"
-                web_actions.take_screenshot(
+                engine.take_screenshot(
                     self.state["web_context"], web_screenshot_path)
             except Exception:
                 pass  # Continue if web screenshot fails
@@ -307,17 +307,19 @@ class Runner:
         if action == "log":
             return {"message": resolved_params.get("message", "")}
 
-        # Web Actions (Phase 2)
+        # Web Actions (Phase 2 + Phase 5 Engine Abstraction)
         if action == "open_browser":
             if self.dry_run:
                 return {"would_open": resolved_params.get("url")}
-            from app.actions import web_actions
+            from app.web import engine
             ctx = resolved_params.get("context", "default")
-            result = web_actions.open_browser(
+            engine_type = resolved_params.get("engine")
+            result = engine.open_browser(
                 resolved_params["url"],
                 ctx,
-                True,
-                resolved_params.get("visible")
+                engine=engine_type,
+                wait_for_load=True,
+                visible=resolved_params.get("visible")
             )
             # Remember active web context for subsequent steps and screenshots
             self.state["web_context"] = ctx
@@ -325,26 +327,30 @@ class Runner:
         if action == "wait_for_selector":
             if self.dry_run:
                 return {"would_wait_for": resolved_params.get("selector")}
-            from app.actions import web_actions
+            from app.web import engine
             selector = resolved_params.get("selector")
             timeout_ms = resolved_params.get("timeout_ms")
-            result = web_actions.wait_for_selector(
+            engine_type = resolved_params.get("engine")
+            result = engine.wait_for_selector(
                 selector,
                 timeout_ms,
-                self.state.get("web_context", "default")
+                self.state.get("web_context", "default"),
+                engine=engine_type
             )
             return result
 
         if action == "fill_by_label":
             if self.dry_run:
                 return {"would_fill": resolved_params.get("label")}
-            from app.actions import web_actions
-
+            from app.web import engine
+            
+            engine_type = resolved_params.get("engine")
             # First attempt
-            result = web_actions.fill_by_label(
+            result = engine.fill_by_label(
                 resolved_params["label"],
                 resolved_params["text"],
-                self.state.get("web_context", "default")
+                self.state.get("web_context", "default"),
+                engine=engine_type
             )
 
             # Self-recovery for fill_by_label
@@ -365,10 +371,11 @@ class Runner:
                 recovery_attempted = False
                 for synonym in synonyms:
                     try:
-                        recovery_result = web_actions.fill_by_label(
+                        recovery_result = engine.fill_by_label(
                             synonym,
                             resolved_params["text"],
-                            self.state.get("web_context", "default")
+                            self.state.get("web_context", "default"),
+                            engine=engine_type
                         )
                         if recovery_result.get("status") == "success":
                             result = recovery_result
@@ -396,26 +403,30 @@ class Runner:
         if action == "click_by_text":
             if self.dry_run:
                 return {"would_click": resolved_params.get("text")}
-            from app.actions import web_actions
+            from app.web import engine
 
+            engine_type = resolved_params.get("engine")
             # First attempt
-            result = web_actions.click_by_text(
+            result = engine.click_by_text(
                 resolved_params["text"],
                 resolved_params.get("role"),
-                self.state.get("web_context", "default")
+                self.state.get("web_context", "default"),
+                engine=engine_type
             )
 
             # Self-recovery for click_by_text
             if result.get("status") in ["not_found", "error"]:
                 try:
-                    # Strategy: Page reload and retry (via worker thread helper)
+                    # Strategy: Page reload and retry (for Playwright engine compatibility)
+                    from app.actions import web_actions
                     web_actions.reload_page(self.state.get("web_context", "default"))
 
                     # Retry the click
-                    recovery_result = web_actions.click_by_text(
+                    recovery_result = engine.click_by_text(
                         resolved_params["text"],
                         resolved_params.get("role"),
-                        self.state.get("web_context", "default")
+                        self.state.get("web_context", "default"),
+                        engine=engine_type
                     )
 
                     if recovery_result.get("status") == "success":
@@ -445,10 +456,12 @@ class Runner:
         if action == "download_file":
             if self.dry_run:
                 return {"would_download": resolved_params.get("to")}
-            from app.actions import web_actions
-            result = web_actions.download_file(
+            from app.web import engine
+            engine_type = resolved_params.get("engine")
+            result = engine.download_file(
                 resolved_params["to"],
-                self.state.get("web_context", "default")
+                self.state.get("web_context", "default"),
+                engine=engine_type
             )
             return result
 
@@ -528,23 +541,27 @@ class Runner:
                         "selector": resolved_params.get("selector"),
                     }
                 }
-            from app.actions import web_actions
-            result = web_actions.upload_file(
+            from app.web import engine
+            engine_type = resolved_params.get("engine")
+            result = engine.upload_file(
                 path=resolved_params["path"],
                 selector=resolved_params.get("selector"),
                 label=resolved_params.get("label"),
-                context=self.state.get("web_context", "default")
+                context=self.state.get("web_context", "default"),
+                engine=engine_type
             )
             return result
 
         if action == "wait_for_download":
             if self.dry_run:
                 return {"would_wait_download": resolved_params.get("to")}
-            from app.actions import web_actions
-            result = web_actions.wait_for_download(
+            from app.web import engine
+            engine_type = resolved_params.get("engine")
+            result = engine.wait_for_download(
                 to=resolved_params["to"],
                 timeout_ms=resolved_params.get("timeout_ms", 30000),
-                context=self.state.get("web_context", "default")
+                context=self.state.get("web_context", "default"),
+                engine=engine_type
             )
             return result
 
