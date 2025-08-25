@@ -6,8 +6,8 @@ the Scheduler system is implemented.
 """
 
 import pytest
-from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
+from datetime import datetime
+from unittest.mock import Mock, patch
 import time
 
 # These imports will fail initially - expected for TDD red phase

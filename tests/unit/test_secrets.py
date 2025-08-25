@@ -7,7 +7,7 @@ the Secrets system is implemented.
 
 import pytest
 import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 # These imports will fail initially - expected for TDD red phase
 try:
