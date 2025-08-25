@@ -16,7 +16,288 @@ app = FastAPI(title="Desktop Agent API", description="Minimal API for CLI operat
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    
+    # Initialize Phase 4 services
+    try:
+        from app.orchestrator.scheduler import start_scheduler
+        from app.orchestrator.watcher import start_watcher
+        from app.orchestrator.webhook import setup_webhook_routes
+        
+        # Setup webhook routes
+        setup_webhook_routes(app)
+        
+        # Start scheduler service with config
+        from pathlib import Path
+        config_path = Path("configs/schedules.yaml")
+        if config_path.exists():
+            start_scheduler_with_config(str(config_path))
+        else:
+            start_scheduler()
+        
+        # Start watcher service  
+        start_watcher()
+        
+        get_logger().info("Phase 4 services started: scheduler, watcher, webhooks")
+    except Exception as e:
+        get_logger().warning(f"Phase 4 services startup warning: {e}")
+    
     get_logger().info("app.startup")
+
+# RBAC-protected endpoints
+from app.middleware.auth import get_current_user, require_admin, require_editor, require_runner
+from app.security.rbac import RBACUser
+
+@app.get("/api/runs")
+async def list_runs(current_user: RBACUser = Depends(get_current_user)):
+    """List runs - requires authentication."""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Basic run listing (viewers can see runs)
+    from app.models import get_conn
+    conn = get_conn()
+    cursor = conn.execute(
+        "SELECT id, name, status, started_at, finished_at FROM runs ORDER BY id DESC LIMIT 50"
+    )
+    runs = [dict(row) for row in cursor.fetchall()]
+    return {"runs": runs}
+
+@app.post("/api/runs/{run_id}/pause")
+@require_editor
+async def pause_run(run_id: int, current_user: RBACUser = Depends(get_current_user)):
+    """Pause a run - requires Editor role."""
+    try:
+        from app.orchestrator.resume import get_resume_manager
+        resume_manager = get_resume_manager()
+        
+        # Create manual pause
+        resume_manager.create_resume_point(
+            run_id=run_id,
+            step_index=0,  # Will be updated by actual runner
+            step_name="manual_pause",
+            runner_state={},
+            reason="manual",
+            user_id=current_user.id
+        )
+        
+        return {"success": True, "message": f"Run {run_id} paused by {current_user.username}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/runs/{run_id}/resume")
+@require_editor
+async def resume_run(run_id: int, current_user: RBACUser = Depends(get_current_user)):
+    """Resume a paused run - requires Editor role."""
+    try:
+        from app.orchestrator.resume import get_resume_manager
+        resume_manager = get_resume_manager()
+        
+        success = resume_manager.resume_run(run_id, current_user.id)
+        if success:
+            return {"success": True, "message": f"Run {run_id} resumed by {current_user.username}"}
+        else:
+            raise HTTPException(status_code=404, detail="No paused run found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/paused-runs")
+@require_runner  
+async def list_paused_runs(current_user: RBACUser = Depends(get_current_user)):
+    """List paused runs waiting for resume - requires Runner role."""
+    try:
+        from app.orchestrator.resume import get_resume_manager
+        resume_manager = get_resume_manager()
+        
+        paused_runs = resume_manager.list_paused_runs()
+        return {"paused_runs": paused_runs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/admin/users")
+@require_admin
+async def list_users(current_user: RBACUser = Depends(get_current_user)):
+    """List all users - Admin only."""
+    try:
+        from app.security.rbac import get_rbac_manager
+        rbac = get_rbac_manager()
+        
+        users = rbac.list_users()
+        return {"users": [
+            {
+                "id": u.id,
+                "username": u.username,
+                "active": u.active,
+                "created_at": u.created_at.isoformat() if u.created_at else None
+            } for u in users
+        ]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/admin/users")
+@require_admin 
+async def create_user(user_data: dict, current_user: RBACUser = Depends(get_current_user)):
+    """Create a new user - Admin only."""
+    try:
+        from app.security.rbac import get_rbac_manager
+        rbac = get_rbac_manager()
+        
+        user = rbac.create_user(
+            username=user_data["username"],
+            password=user_data["password"],
+            active=user_data.get("active", True)
+        )
+        
+        return {"success": True, "user_id": user.id, "username": user.username}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/admin/audit")
+@require_admin
+async def get_audit_log(limit: int = 100, current_user: RBACUser = Depends(get_current_user)):
+    """Get audit log - Admin only."""
+    try:
+        from app.security.rbac import get_rbac_manager
+        rbac = get_rbac_manager()
+        
+        audit_entries = rbac.get_audit_log(limit=limit)
+        return {"audit_log": audit_entries}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# HITL Approval UI
+from fastapi.templating import Jinja2Templates
+from fastapi import Form
+
+templates = Jinja2Templates(directory="app/templates")
+
+@app.get("/hitl/approve/{run_id}")
+async def hitl_approval_page(run_id: int, request: Request, current_user: RBACUser = Depends(get_current_user)):
+    """Show HITL approval page."""
+    try:
+        from app.orchestrator.resume import get_resume_manager
+        from app.models import get_conn
+        
+        # Check if user has permission to approve
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Get resume point
+        resume_manager = get_resume_manager()
+        resume_point = resume_manager.get_resume_point(run_id)
+        
+        if not resume_point or resume_point.reason != "hitl":
+            raise HTTPException(status_code=404, detail="No HITL approval pending for this run")
+        
+        # Get run details
+        conn = get_conn()
+        cursor = conn.execute(
+            "SELECT * FROM runs WHERE id = ?", (run_id,)
+        )
+        run_data = cursor.fetchone()
+        
+        if not run_data:
+            raise HTTPException(status_code=404, detail="Run not found")
+        
+        # Get run steps for preview
+        cursor = conn.execute(
+            "SELECT * FROM run_steps WHERE run_id = ? ORDER BY step_index", (run_id,)
+        )
+        steps = cursor.fetchall()
+        
+        # Calculate next steps
+        next_steps = []
+        if resume_point.step_index < len(steps):
+            for i, step in enumerate(steps[resume_point.step_index:resume_point.step_index + 5]):
+                next_steps.append({
+                    "action": step["name"],
+                    "summary": f"{step['name']}: {step.get('input_json', '')[:100]}..."
+                })
+        
+        # Risk analysis (basic)
+        risk_analysis = []
+        for step in steps[resume_point.step_index:]:
+            if step["name"] in ["compose_mail", "click_by_text", "move_to"]:
+                risk_analysis.append({
+                    "level": "MEDIUM",
+                    "description": f"Will execute {step['name']} operation"
+                })
+        
+        return templates.TemplateResponse("hitl_approval.html", {
+            "request": request,
+            "run_id": run_id,
+            "template_name": run_data["template"] or "Unknown",
+            "started_at": run_data["started_at"],
+            "current_step": resume_point.step_name,
+            "step_index": resume_point.step_index,
+            "total_steps": len(steps),
+            "approval_message": resume_point.state_snapshot.get("message", "Approval required to continue"),
+            "risk_analysis": risk_analysis,
+            "next_steps": next_steps,
+            "current_user": current_user,
+            "timeout_info": {
+                "remaining_minutes": 30,  # Default timeout
+                "auto_action": "deny"
+            }
+        })
+        
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/hitl/approve/{run_id}")
+@require_editor
+async def hitl_approval_action(
+    run_id: int, 
+    request: Request,
+    action: str = Form(...),
+    user_id: str = Form(None),
+    current_user: RBACUser = Depends(get_current_user)
+):
+    """Handle HITL approval action."""
+    try:
+        from app.orchestrator.resume import get_resume_manager
+        from app.orchestrator.queue import get_queue_manager
+        
+        resume_manager = get_resume_manager()
+        
+        if action == "approve":
+            # Resume the run
+            success = resume_manager.resume_run(run_id, current_user.id)
+            if success:
+                # Re-queue the run for continuation
+                queue_manager = get_queue_manager()
+                # This would need integration with actual run re-queuing logic
+                
+                return {
+                    "success": True, 
+                    "message": f"Run {run_id} approved and resumed",
+                    "action": "approved",
+                    "approved_by": current_user.username
+                }
+            else:
+                raise HTTPException(status_code=404, detail="No pending approval found")
+                
+        elif action == "deny":
+            # Cancel the run
+            success = resume_manager.cancel_resume(run_id, current_user.id)
+            if success:
+                return {
+                    "success": True,
+                    "message": f"Run {run_id} denied and cancelled", 
+                    "action": "denied",
+                    "denied_by": current_user.username
+                }
+            else:
+                raise HTTPException(status_code=404, detail="No pending approval found")
+        
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action")
+            
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/healthz")

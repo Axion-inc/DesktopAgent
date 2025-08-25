@@ -1,65 +1,85 @@
-# Phase 4 Orchestrator Configuration
-# Queue management, concurrency control, and execution policies
+# Desktop Agent Orchestrator Configuration
+# Controls queue behavior, concurrency, and execution policies
 
+# Queue Configuration
 queues:
   default:
     max_concurrent: 2
     max_queued: 50
-    description: "Default queue for general runs"
-  
-  reports:
-    max_concurrent: 1
-    max_queued: 20
-    description: "Queue for report generation (sequential processing)"
-  
-  web-forms:
+    enabled: true
+    
+  high-priority:
     max_concurrent: 3
+    max_queued: 20
+    enabled: true
+    
+  web-automation:
+    max_concurrent: 1  # Avoid browser conflicts
+    max_queued: 30
+    enabled: true
+    
+  reports:
+    max_concurrent: 2
     max_queued: 100
-    description: "Queue for web form automation"
-  
-  maintenance:
-    max_concurrent: 1
-    max_queued: 10
-    description: "Queue for system maintenance tasks"
+    enabled: true
 
-# Concurrency limits by tag (across all queues)
+# Concurrency Tag Limits
+# Controls maximum concurrent runs per tag across all queues
 concurrency_tags:
-  pdf-processing: 1      # Only one PDF operation at a time
-  web-automation: 3      # Max 3 concurrent web operations
-  email-sending: 2       # Max 2 concurrent email operations
-  file-operations: 2     # Max 2 concurrent file operations
-  dangerous-ops: 1       # Only one dangerous operation at a time
-
-# Global settings
-settings:
-  poll_interval_ms: 1000    # How often to check for new runs
-  cleanup_completed_after_hours: 24  # Clean up completed runs after 24h
-  max_retry_attempts: 3     # Default max retry attempts
-  retry_backoff_ms: 5000   # Default retry backoff
+  web-form: 1          # Only one web form automation at a time
+  file-operations: 3   # Maximum 3 file operations concurrent
+  email-send: 2        # Limit email sending operations
+  pdf-processing: 2    # PDF operations can be resource intensive
   
-# Execution policies
-execution_policies:
-  high_priority:
-    priority: 8
-    queue: "default"
-    retry:
-      attempts: 3
-      backoff_ms: 2000
-      only_idempotent: true
+# Global Settings
+global:
+  max_total_concurrent: 10      # Hard limit across all queues
+  queue_depth_warning: 20       # Log warning when queue depth exceeds this
+  metrics_retention_hours: 168  # Keep metrics for 7 days (24*7)
   
-  batch_processing:
-    priority: 3
-    queue: "reports"
-    concurrency_tag: "pdf-processing"
-    retry:
-      attempts: 1
-      backoff_ms: 10000
+# Retry Configuration (defaults for all runs)
+retry:
+  default_attempts: 2
+  default_backoff_ms: 5000
+  backoff_multiplier: 2.0
+  max_backoff_ms: 60000
+  only_idempotent: true    # Only retry idempotent steps by default
   
-  web_automation:
-    priority: 5
-    queue: "web-forms"
-    concurrency_tag: "web-automation"
-    retry:
-      attempts: 2
-      backoff_ms: 3000
-      only_idempotent: false
+# HITL (Human-in-the-Loop) Configuration  
+hitl:
+  default_timeout_ms: 600000    # 10 minutes default timeout
+  auto_approve: false           # Require manual approval by default
+  notification_channels:        # Future: notification integrations
+    - email
+    - webhook
+    
+# Resume/Recovery Configuration
+resume:
+  cleanup_completed_after_days: 30
+  max_resume_attempts: 3
+  resume_timeout_ms: 300000     # 5 minutes to resume or fail
+  
+# Security Settings
+security:
+  require_authentication: true
+  audit_all_operations: true
+  mask_sensitive_data: true
+  
+# Performance Settings
+performance:
+  step_timeout_ms: 300000      # 5 minutes per step default
+  run_timeout_ms: 3600000      # 1 hour per run default
+  memory_limit_mb: 512         # Memory limit per run
+  
+# Logging
+logging:
+  level: INFO
+  retain_logs_days: 30
+  log_step_details: true
+  log_sensitive_data: false    # Never log secrets/passwords
+  
+# Development/Testing
+development:
+  enable_debug_endpoints: false
+  mock_external_services: false
+  skip_permission_checks: false

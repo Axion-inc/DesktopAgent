@@ -1,0 +1,118 @@
+# Desktop Agent Scheduled Tasks Configuration
+# Defines cron-based automatic execution of templates
+
+schedules:
+  # Weekly Reports
+  - id: weekly_report_monday
+    name: "Weekly Report - Monday Morning"
+    template: "plans/templates/weekly_report.yaml"
+    cron: "0 9 * * MON"          # Every Monday at 9 AM
+    queue: "reports"
+    priority: 6
+    enabled: true
+    variables:
+      output_dir: "~/Reports/Weekly"
+      email_recipients: 
+        - "manager@company.com"
+        - "team@company.com"
+    user_id: "scheduler"
+    tags: ["automated", "weekly", "reports"]
+    
+  # Monthly Cleanup
+  - id: monthly_cleanup
+    name: "Monthly File Cleanup"
+    template: "plans/templates/downloads_tidy.yaml"
+    cron: "0 2 1 * *"            # First day of month at 2 AM
+    queue: "default"
+    priority: 3
+    enabled: true
+    variables:
+      cleanup_older_than_days: 90
+      dry_run: false
+    user_id: "scheduler"
+    tags: ["automated", "monthly", "cleanup"]
+    
+  # Daily Health Check
+  - id: daily_health_check
+    name: "Daily System Health Check"
+    template: "plans/templates/health_check.yaml"
+    cron: "0 8 * * *"            # Every day at 8 AM
+    queue: "high-priority"
+    priority: 7
+    enabled: true
+    variables:
+      check_permissions: true
+      check_disk_space: true
+      check_services: true
+      notify_on_issues: true
+    user_id: "scheduler"
+    tags: ["automated", "daily", "health"]
+    
+  # Weekend Backup
+  - id: weekend_backup
+    name: "Weekend Document Backup"
+    template: "plans/templates/document_backup.yaml" 
+    cron: "0 22 * * SAT"         # Saturday at 10 PM
+    queue: "default"
+    priority: 4
+    enabled: false               # Disabled by default
+    variables:
+      source_dirs:
+        - "~/Documents/Important"
+        - "~/Desktop/Projects"
+      backup_location: "~/Backup/Weekly"
+      compress: true
+    user_id: "scheduler"
+    tags: ["automated", "weekly", "backup"]
+    
+  # Frequent Processing
+  - id: frequent_email_check
+    name: "Email Processing Every 15 Minutes"
+    template: "plans/templates/email_processor.yaml"
+    cron: "*/15 * * * *"          # Every 15 minutes
+    queue: "default"
+    priority: 5
+    enabled: false                # High frequency - enable with caution
+    variables:
+      process_unread_only: true
+      auto_file_attachments: true
+      max_emails_per_run: 10
+    user_id: "scheduler"
+    tags: ["automated", "frequent", "email"]
+    timeout_ms: 300000           # 5 minute timeout for frequent runs
+
+# Global Schedule Settings
+settings:
+  max_concurrent_scheduled: 3    # Max scheduled runs at once
+  retry_failed_schedules: true
+  retry_delay_minutes: 30
+  max_retry_attempts: 2
+  
+  # Notifications
+  notifications:
+    on_failure: true
+    on_success: false             # Don't spam on success
+    channels:
+      - webhook: "https://hooks.company.com/desktop-agent"
+      
+  # Logging  
+  logging:
+    log_all_executions: true
+    log_schedule_changes: true
+    retention_days: 90
+    
+  # Security
+  security:
+    require_approval_for_changes: true   # Admin approval for schedule changes
+    audit_schedule_modifications: true
+    default_user_id: "scheduler"
+
+# Time Zone Settings
+timezone: "America/New_York"      # Default timezone for cron expressions
+
+# Special Cron Aliases (in addition to standard @daily, @weekly, etc.)
+aliases:
+  "@business_hours": "0 9-17 * * MON-FRI"
+  "@end_of_day": "0 17 * * MON-FRI"  
+  "@weekend": "0 10 * * SAT,SUN"
+  "@monthly_report": "0 9 1 * *"

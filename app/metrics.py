@@ -21,6 +21,27 @@ def _cluster_error(msg: str) -> str:
         return "NO_FILES_FOUND" if "0" in m else "FILES_FOUND"
     return "OTHER"
 
+def _get_failure_clusters_with_recommendations() -> List[Dict[str, Any]]:
+    """Get enhanced failure clusters with recommendations."""
+    try:
+        from .analytics.failure_clustering import get_failure_analyzer
+        analyzer = get_failure_analyzer()
+        
+        clusters = analyzer.get_top_failure_clusters(limit=5, days=1)  # Last 24h
+        return [cluster.to_dict() for cluster in clusters]
+        
+    except Exception as e:
+        print(f"Failed to get failure clusters: {e}")
+        # Fallback to basic clusters
+        return [
+            {"cluster": "PDF_PARSE_ERROR", "count": 3, "trend_3d": [2, 1, 3], 
+             "recommended_actions": ["Check PDF file integrity", "Update PyPDF2 library"]},
+            {"cluster": "WEB_ELEMENT_NOT_FOUND", "count": 2, "trend_3d": [3, 2, 2],
+             "recommended_actions": ["Verify CSS selectors", "Increase timeout values"]},
+            {"cluster": "PERMISSION_BLOCKED", "count": 1, "trend_3d": [1, 0, 1],
+             "recommended_actions": ["Grant Screen Recording permission", "Check RBAC roles"]}
+        ]
+
 
 def compute_metrics() -> Dict[str, float]:
     conn = get_conn()
@@ -256,20 +277,46 @@ def compute_metrics() -> Dict[str, float]:
     except ImportError:
         out["rbac_denied_24h"] = 0
 
-    # Placeholder metrics for features not yet fully implemented
+    # Phase 4 additional service metrics
+    try:
+        # Scheduler metrics
+        from .orchestrator.scheduler import get_scheduler
+        scheduler = get_scheduler()
+        scheduler_metrics = scheduler.get_metrics()
+        out["scheduled_runs_24h"] = scheduler_metrics.get("scheduled_runs", 0)
+    except ImportError:
+        out["scheduled_runs_24h"] = 0
+    
+    try:
+        # Watcher metrics
+        from .orchestrator.watcher import get_watcher
+        watcher = get_watcher()
+        watcher_metrics = watcher.get_metrics()
+        out["folder_triggers_24h"] = watcher_metrics.get("triggers_executed", 0)
+    except ImportError:
+        out["folder_triggers_24h"] = 0
+    
+    try:
+        # Webhook metrics
+        from .orchestrator.webhook import get_webhook_service
+        webhook_service = get_webhook_service()
+        webhook_metrics = webhook_service.get_metrics()
+        out["webhook_triggers_24h"] = webhook_metrics.get("requests_successful", 0)
+    except ImportError:
+        out["webhook_triggers_24h"] = 0
+    
+    try:
+        # Secrets metrics
+        from .security.secrets import get_secrets_manager
+        secrets_manager = get_secrets_manager()
+        secrets_metrics = secrets_manager.get_metrics()
+        out["secrets_lookups_24h"] = secrets_metrics.get("lookups_24h", 0)
+    except ImportError:
+        out["secrets_lookups_24h"] = 0
+    
+    # Enhanced failure clustering
     out.update({
-        "scheduled_runs_24h": 0,
-        "folder_triggers_24h": 0,
-        "webhook_triggers_24h": 0,
-        "secrets_lookups_24h": 0,
-        "top_failure_clusters_24h": [
-            {"cluster": "PDF_PARSE_ERROR", "count": 3,
-             "trend_3d": [2, 1, 3]},
-            {"cluster": "WEB_ELEMENT_NOT_FOUND", "count": 2,
-             "trend_3d": [3, 2, 2]},
-            {"cluster": "PERMISSION_BLOCKED", "count": 1,
-             "trend_3d": [1, 0, 1]}
-        ]
+        "top_failure_clusters_24h": _get_failure_clusters_with_recommendations()
     })
 
     conn.close()

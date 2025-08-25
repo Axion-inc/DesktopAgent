@@ -84,7 +84,47 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
             if action == "human_confirm":
                 confirm_errors = _validate_human_confirm(params, i)
                 errors.extend(confirm_errors)
+            
+            # Validate secrets references in step parameters
+            secrets_errors = _validate_secrets_references(params, i)
+            errors.extend(secrets_errors)
 
+    return errors
+
+def _validate_secrets_references(obj: Any, step_idx: int = None) -> List[str]:
+    """Validate secrets:// references in an object (recursive)."""
+    errors = []
+    
+    if isinstance(obj, str):
+        # Find all secrets references
+        import re
+        pattern = r'\{\{secrets://([^}]+)\}\}'
+        for match in re.finditer(pattern, obj):
+            reference = match.group(1)
+            if not reference:
+                location = f"step {step_idx}: " if step_idx is not None else ""
+                errors.append(f"{location}empty secret reference in '{obj}'")
+                continue
+                
+            # Validate reference format
+            if "/" in reference:
+                parts = reference.split("/")
+                if len(parts) != 2 or not parts[0] or not parts[1]:
+                    location = f"step {step_idx}: " if step_idx is not None else ""
+                    errors.append(f"{location}invalid secret reference format 'secrets://{reference}' (expected service/key)")
+            else:
+                # Just key, validate key format
+                if not re.match(r'^[A-Z0-9_]+$', reference):
+                    location = f"step {step_idx}: " if step_idx is not None else ""
+                    errors.append(f"{location}invalid secret key '{reference}' (use uppercase letters, numbers, underscores only)")
+                    
+    elif isinstance(obj, dict):
+        for key, value in obj.items():
+            errors.extend(_validate_secrets_references(value, step_idx))
+    elif isinstance(obj, list):
+        for item in obj:
+            errors.extend(_validate_secrets_references(item, step_idx))
+            
     return errors
 
 

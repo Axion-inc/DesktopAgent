@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Human-in-the-Loop Approval</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .approval-card {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status-paused {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .message {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .run-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        .run-info dt {
+            font-weight: bold;
+            color: #495057;
+            margin-top: 10px;
+        }
+        .run-info dd {
+            margin-left: 0;
+            color: #6c757d;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            transition: background-color 0.2s;
+        }
+        .btn-approve {
+            background: #28a745;
+            color: white;
+        }
+        .btn-approve:hover {
+            background: #218838;
+        }
+        .btn-deny {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-deny:hover {
+            background: #c82333;
+        }
+        .btn-cancel {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-cancel:hover {
+            background: #5a6268;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .warning strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .progress-info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        .step-preview {
+            font-family: monospace;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="approval-card">
+        <h1>🤝 Human-in-the-Loop Approval</h1>
+        
+        <div class="status-badge status-paused">⏸️ PAUSED FOR APPROVAL</div>
+        
+        <div class="run-info">
+            <dl>
+                <dt>Run ID:</dt>
+                <dd>{{ run_id }}</dd>
+                <dt>Template:</dt>
+                <dd>{{ template_name }}</dd>
+                <dt>Started:</dt>
+                <dd>{{ started_at }}</dd>
+                <dt>Current Step:</dt>
+                <dd>{{ current_step }} ({{ step_index + 1 }}/{{ total_steps }})</dd>
+            </dl>
+        </div>
+
+        <div class="progress-info">
+            📊 Progress: {{ step_index }}/{{ total_steps }} steps completed
+        </div>
+        
+        <div class="message">
+            <h3>📋 Approval Required</h3>
+            <p>{{ approval_message }}</p>
+        </div>
+
+        {% if risk_analysis %}
+        <div class="warning">
+            <strong>⚠️ Risk Analysis:</strong>
+            <ul>
+            {% for risk in risk_analysis %}
+                <li><strong>{{ risk.level }}:</strong> {{ risk.description }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if next_steps %}
+        <div class="step-preview">
+            <strong>Next steps to execute:</strong><br>
+            {% for step in next_steps[:3] %}
+                {{ loop.index }}. {{ step.action }}: {{ step.summary }}<br>
+            {% endfor %}
+            {% if next_steps|length > 3 %}
+                ... and {{ next_steps|length - 3 }} more steps
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="action-buttons">
+            <form method="post" style="display: inline;">
+                <input type="hidden" name="action" value="approve">
+                <input type="hidden" name="run_id" value="{{ run_id }}">
+                <input type="hidden" name="user_id" value="{{ current_user.id if current_user else 'anonymous' }}">
+                <button type="submit" class="btn btn-approve">
+                    ✅ Approve & Continue
+                </button>
+            </form>
+            
+            <form method="post" style="display: inline;">
+                <input type="hidden" name="action" value="deny">
+                <input type="hidden" name="run_id" value="{{ run_id }}">
+                <input type="hidden" name="user_id" value="{{ current_user.id if current_user else 'anonymous' }}">
+                <button type="submit" class="btn btn-deny">
+                    ❌ Deny & Stop
+                </button>
+            </form>
+            
+            <a href="/api/runs" class="btn btn-cancel">
+                🔙 Back to Runs
+            </a>
+        </div>
+        
+        {% if timeout_info %}
+        <div class="progress-info">
+            ⏰ This approval will timeout in {{ timeout_info.remaining_minutes }} minutes
+            {% if timeout_info.auto_action %}
+                and will automatically {{ timeout_info.auto_action }}.
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Auto-refresh every 30 seconds to check for timeout updates
+        setTimeout(() => {
+            window.location.reload();
+        }, 30000);
+        
+        // Confirmation for destructive actions
+        document.querySelector('.btn-deny').addEventListener('click', function(e) {
+            if (!confirm('Are you sure you want to deny this operation? The run will be stopped.')) {
+                e.preventDefault();
+            }
+        });
+    </script>
+</body>
+</html>

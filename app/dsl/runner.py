@@ -32,6 +32,47 @@ class Runner:
         self.step_results: List[Dict[str, Any]] = []
         self.step_diffs: List[Dict[str, Any]] = []  # Track before/after state for replay UI
 
+    def _resolve_secrets_in_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Resolve secrets:// references in step parameters."""
+        try:
+            from app.security.secrets import get_secrets_manager
+            secrets_manager = get_secrets_manager()
+            
+            # Convert params to JSON string, resolve secrets, then parse back
+            import json
+            params_str = json.dumps(params)
+            resolved_str = secrets_manager.resolve_template(params_str)
+            return json.loads(resolved_str)
+            
+        except ImportError:
+            # Secrets not available, return params as-is
+            return params
+        except Exception as e:
+            # Log error but don't break execution
+            print(f"Warning: Failed to resolve secrets in parameters: {e}")
+            return params
+
+    
+    def _mask_secrets_in_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Mask secrets:// references in step parameters for safe logging."""
+        try:
+            from app.security.secrets import get_secrets_manager
+            secrets_manager = get_secrets_manager()
+            
+            # Convert params to JSON string, mask secrets, then parse back
+            import json
+            params_str = json.dumps(params)
+            masked_str = secrets_manager.resolve_for_logging(params_str)
+            return json.loads(masked_str)
+            
+        except ImportError:
+            # Secrets not available, return params as-is
+            return params
+        except Exception as e:
+            # Log error but don't break execution
+            print(f"Warning: Failed to mask secrets in parameters: {e}")
+            return params
+
     def _screenshot(self, run_id: int, idx: int) -> str:
         screenshot_path = take_screenshot(f"{run_id}_{idx}.png")
 
@@ -89,7 +130,7 @@ class Runner:
         return diff
 
     def _should_run(self, params: Dict[str, Any]) -> bool:
-        expr = params.get("when")
+        expr = resolved_params.get("when")
         if not expr:
             return True
         # Use enhanced template rendering with full context
@@ -103,20 +144,26 @@ class Runner:
             return False
 
     def execute_step(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        if not self._should_run(params):
+        # Resolve secrets in parameters before execution
+        resolved_params = self._resolve_secrets_in_params(params)
+        
+        # Store masked version for logging
+        masked_params = self._mask_secrets_in_params(params)
+        
+        if not self._should_run(resolved_params):
             return {"skipped": True}
         if action == "find_files":
-            files = fs_actions.find_files(params.get("query", ""), params.get("roots", []), params.get("limit", 100))
+            files = fs_actions.find_files(resolved_resolved_params.get("query", ""), resolved_resolved_params.get("roots", []), resolved_resolved_params.get("limit", 100))
             # Self-healing: widen one level if 0 results
             healed = False
-            if len(files) == 0 and params.get("roots"):
+            if len(files) == 0 and resolved_resolved_params.get("roots"):
                 parents = []
-                for r in params.get("roots", []):
+                for r in resolved_resolved_params.get("roots", []):
                     p = Path(r).expanduser()
                     if p.exists() and p.parent != p:
                         parents.append(str(p.parent))
                 if parents:
-                    files = fs_actions.find_files(params.get("query", ""), parents, params.get("limit", 100))
+                    files = fs_actions.find_files(resolved_resolved_params.get("query", ""), parents, resolved_resolved_params.get("limit", 100))
                     healed = True
             self.state["files"] = files
             self.state.pop("newnames", None)
@@ -125,7 +172,7 @@ class Runner:
                 out["self_heal"] = {"strategy": "widen_one_level", "effective": True}
             return out
         if action == "rename":
-            rule = params.get("rule", "{basename}")
+            rule = resolved_params.get("rule", "{basename}")
             # No destructive rename here: store target basenames alongside sources
             newnames = []
             for i, f in enumerate(self.state.get("files", []), start=1):
@@ -147,7 +194,7 @@ class Runner:
         if action == "move_to":
             if self.dry_run:
                 return {"would_move": len(self.state.get("files", []))}
-            dest = params["dest"]
+            dest = resolved_params["dest"]
 
             # Self-healing: auto-create output directory if it doesn't exist
             dest_path = Path(dest).expanduser()
@@ -173,21 +220,21 @@ class Runner:
             return result
         if action == "zip_folder":
             if self.dry_run:
-                return {"would_zip": params.get("folder")}
-            out = fs_actions.zip_folder(params["folder"], params["out"])  # type: ignore
+                return {"would_zip": resolved_params.get("folder")}
+            out = fs_actions.zip_folder(resolved_params["folder"], resolved_params["out"])  # type: ignore
             return {"zip": out}
         if action == "pdf_merge":
             inputs = []
             if "inputs" in params:
-                inputs = params["inputs"]
+                inputs = resolved_params["inputs"]
             elif "inputs_from" in params:
-                root = Path(params["inputs_from"]).expanduser()
+                root = Path(resolved_params["inputs_from"]).expanduser()
                 inputs = [str(p) for p in sorted(root.glob("*.pdf"))]
             if self.dry_run:
                 return {"would_merge": len(inputs)}
             from app.actions import pdf_actions  # local import to avoid dependency when dry-run
 
-            out = pdf_actions.pdf_merge(inputs, params["out"])  # type: ignore
+            out = pdf_actions.pdf_merge(inputs, resolved_params["out"])  # type: ignore
             self.state["last_pdf"] = out
             # Count pages
             try:
@@ -199,13 +246,13 @@ class Runner:
             return {"merged": out, "out_path": out, "page_count": pc}
         if action == "pdf_extract_pages":
             if self.dry_run:
-                return {"would_extract": params.get("pages")}
+                return {"would_extract": resolved_params.get("pages")}
             from app.actions import pdf_actions  # local import
 
             out = pdf_actions.pdf_extract_pages(
-                params["input"],
-                params["pages"],
-                params["out"],  # type: ignore
+                resolved_params["input"],
+                resolved_params["pages"],
+                resolved_params["out"],  # type: ignore
             )
             self.state["last_pdf_extract"] = out
             # Count pages
@@ -218,27 +265,27 @@ class Runner:
             return {"extracted": out, "out_path": out, "page_count": pc}
         if action == "open_preview":
             if self.dry_run:
-                return {"would_open": params.get("path")}
-            self.preview.open(params["path"])  # type: ignore
-            return {"opened": params.get("path")}
+                return {"would_open": resolved_params.get("path")}
+            self.preview.open(resolved_params["path"])  # type: ignore
+            return {"opened": resolved_params.get("path")}
         if action == "compose_mail":
             if self.dry_run:
                 return {"would_compose": True}
-            draft_id = self.mail.compose(params.get("to", []), params.get("subject", ""), params.get("body", ""))
+            draft_id = self.mail.compose(resolved_params.get("to", []), resolved_params.get("subject", ""), resolved_params.get("body", ""))
             self.state["draft_id"] = draft_id
             return {"draft_id": draft_id}
         if action == "attach_files":
             if self.dry_run:
-                return {"would_attach": len(params.get("paths", []))}
+                return {"would_attach": len(resolved_params.get("paths", []))}
             did = self.state.get("draft_id")
             # Validate file existence before attempting Mail attach
-            paths = list(params.get("paths", []))
+            paths = list(resolved_params.get("paths", []))
             missing = [str(p) for p in paths if not Path(str(p)).expanduser().exists()]
             if missing:
                 raise FileNotFoundError(f"attach_files: missing paths: {', '.join(missing)}")
             if did:
                 self.mail.attach(did, paths)
-            return {"attached": params.get("paths", [])}
+            return {"attached": resolved_params.get("paths", [])}
         if action == "save_draft":
             if self.dry_run:
                 return {"would_save": True}
@@ -247,29 +294,29 @@ class Runner:
                 self.mail.save_draft(did)
             return {"saved": True}
         if action == "log":
-            return {"message": params.get("message", "")}
+            return {"message": resolved_params.get("message", "")}
 
         # Web Actions (Phase 2)
         if action == "open_browser":
             if self.dry_run:
-                return {"would_open": params.get("url")}
+                return {"would_open": resolved_params.get("url")}
             from app.actions import web_actions
-            ctx = params.get("context", "default")
+            ctx = resolved_params.get("context", "default")
             result = web_actions.open_browser(
-                params["url"],
+                resolved_params["url"],
                 ctx,
                 True,
-                params.get("visible")
+                resolved_params.get("visible")
             )
             # Remember active web context for subsequent steps and screenshots
             self.state["web_context"] = ctx
             return result
         if action == "wait_for_selector":
             if self.dry_run:
-                return {"would_wait_for": params.get("selector")}
+                return {"would_wait_for": resolved_params.get("selector")}
             from app.actions import web_actions
-            selector = params.get("selector")
-            timeout_ms = params.get("timeout_ms")
+            selector = resolved_params.get("selector")
+            timeout_ms = resolved_params.get("timeout_ms")
             result = web_actions.wait_for_selector(
                 selector,
                 timeout_ms,
@@ -279,13 +326,13 @@ class Runner:
 
         if action == "fill_by_label":
             if self.dry_run:
-                return {"would_fill": params.get("label")}
+                return {"would_fill": resolved_params.get("label")}
             from app.actions import web_actions
 
             # First attempt
             result = web_actions.fill_by_label(
-                params["label"],
-                params["text"],
+                resolved_params["label"],
+                resolved_params["text"],
                 self.state.get("web_context", "default")
             )
 
@@ -301,7 +348,7 @@ class Runner:
                     "本文": ["Message", "メッセージ", "Content", "内容"]
                 }
 
-                original_label = params["label"]
+                original_label = resolved_params["label"]
                 synonyms = label_synonyms.get(original_label, [])
 
                 recovery_attempted = False
@@ -309,7 +356,7 @@ class Runner:
                     try:
                         recovery_result = web_actions.fill_by_label(
                             synonym,
-                            params["text"],
+                            resolved_params["text"],
                             self.state.get("web_context", "default")
                         )
                         if recovery_result.get("status") == "success":
@@ -337,13 +384,13 @@ class Runner:
 
         if action == "click_by_text":
             if self.dry_run:
-                return {"would_click": params.get("text")}
+                return {"would_click": resolved_params.get("text")}
             from app.actions import web_actions
 
             # First attempt
             result = web_actions.click_by_text(
-                params["text"],
-                params.get("role"),
+                resolved_params["text"],
+                resolved_params.get("role"),
                 self.state.get("web_context", "default")
             )
 
@@ -355,8 +402,8 @@ class Runner:
 
                     # Retry the click
                     recovery_result = web_actions.click_by_text(
-                        params["text"],
-                        params.get("role"),
+                        resolved_params["text"],
+                        resolved_params.get("role"),
                         self.state.get("web_context", "default")
                     )
 
@@ -386,10 +433,10 @@ class Runner:
 
         if action == "download_file":
             if self.dry_run:
-                return {"would_download": params.get("to")}
+                return {"would_download": resolved_params.get("to")}
             from app.actions import web_actions
             result = web_actions.download_file(
-                params["to"],
+                resolved_params["to"],
                 self.state.get("web_context", "default")
             )
             return result
@@ -397,60 +444,60 @@ class Runner:
         # Phase 3: Verifier DSL Commands
         if action == "wait_for_element":
             if self.dry_run:
-                return {"would_wait_for": {"text": params.get("text"), "role": params.get("role")}}
+                return {"would_wait_for": {"text": resolved_params.get("text"), "role": resolved_params.get("role")}}
             from app.actions import verifier_actions
             result = verifier_actions.wait_for_element(
-                text=params.get("text"),
-                role=params.get("role"),
-                timeout_ms=params.get("timeout_ms", 15000),
-                where=params.get("where", "screen")
+                text=resolved_params.get("text"),
+                role=resolved_params.get("role"),
+                timeout_ms=resolved_params.get("timeout_ms", 15000),
+                where=resolved_params.get("where", "screen")
             )
             return result
 
         if action == "assert_element":
             if self.dry_run:
-                return {"would_assert": {"text": params.get("text"), "role": params.get("role")}}
+                return {"would_assert": {"text": resolved_params.get("text"), "role": resolved_params.get("role")}}
             from app.actions import verifier_actions
             result = verifier_actions.assert_element(
-                text=params.get("text"),
-                role=params.get("role"),
-                count_gte=params.get("count_gte", 1),
-                where=params.get("where", "screen")
+                text=resolved_params.get("text"),
+                role=resolved_params.get("role"),
+                count_gte=resolved_params.get("count_gte", 1),
+                where=resolved_params.get("where", "screen")
             )
             return result
 
         if action == "assert_text":
             if self.dry_run:
-                return {"would_assert_text": params.get("contains")}
+                return {"would_assert_text": resolved_params.get("contains")}
             from app.actions import verifier_actions
             result = verifier_actions.assert_text(
-                contains=params["contains"],
-                where=params.get("where", "screen")
+                contains=resolved_params["contains"],
+                where=resolved_params.get("where", "screen")
             )
             return result
 
         if action == "assert_file_exists":
             if self.dry_run:
-                return {"would_check_file": params.get("path")}
+                return {"would_check_file": resolved_params.get("path")}
             from app.actions import verifier_actions
-            result = verifier_actions.assert_file_exists(path=params["path"])
+            result = verifier_actions.assert_file_exists(path=resolved_params["path"])
             return result
 
         if action == "assert_pdf_pages":
             if self.dry_run:
-                return {"would_check_pdf": {"path": params.get("path"), "pages": params.get("expected_pages")}}
+                return {"would_check_pdf": {"path": resolved_params.get("path"), "pages": resolved_params.get("expected_pages")}}
             from app.actions import verifier_actions
             result = verifier_actions.assert_pdf_pages(
-                path=params["path"],
-                expected_pages=params["expected_pages"]
+                path=resolved_params["path"],
+                expected_pages=resolved_params["expected_pages"]
             )
             return result
 
         if action == "capture_screen_schema":
             if self.dry_run:
-                return {"would_capture_schema": params.get("target", "frontmost")}
+                return {"would_capture_schema": resolved_params.get("target", "frontmost")}
             from app.actions import verifier_actions
-            result = verifier_actions.capture_screen_schema(target=params.get("target", "frontmost"))
+            result = verifier_actions.capture_screen_schema(target=resolved_params.get("target", "frontmost"))
             # Store schema in state for other components to use
             if result.get("captured"):
                 self.state["last_screen_schema"] = result.get("schema")
@@ -459,23 +506,23 @@ class Runner:
         # Phase 3: Web Extensions
         if action == "upload_file":
             if self.dry_run:
-                return {"would_upload": {"path": params.get("path"), "selector": params.get("selector")}}
+                return {"would_upload": {"path": resolved_params.get("path"), "selector": resolved_params.get("selector")}}
             from app.actions import web_actions
             result = web_actions.upload_file(
-                path=params["path"],
-                selector=params.get("selector"),
-                label=params.get("label"),
+                path=resolved_params["path"],
+                selector=resolved_params.get("selector"),
+                label=resolved_params.get("label"),
                 context=self.state.get("web_context", "default")
             )
             return result
 
         if action == "wait_for_download":
             if self.dry_run:
-                return {"would_wait_download": params.get("to")}
+                return {"would_wait_download": resolved_params.get("to")}
             from app.actions import web_actions
             result = web_actions.wait_for_download(
-                to=params["to"],
-                timeout_ms=params.get("timeout_ms", 30000),
+                to=resolved_params["to"],
+                timeout_ms=resolved_params.get("timeout_ms", 30000),
                 context=self.state.get("web_context", "default")
             )
             return result
@@ -483,12 +530,12 @@ class Runner:
         # Phase 4: Human-in-the-Loop (HITL)
         if action == "human_confirm":
             if self.dry_run:
-                return {"would_confirm": params.get("message")}
+                return {"would_confirm": resolved_params.get("message")}
             from app.actions import hitl_actions
             result = hitl_actions.human_confirm(
-                message=params["message"],
-                timeout_ms=params.get("timeout_ms", 600000),
-                auto_approve=params.get("auto_approve", False)
+                message=resolved_params["message"],
+                timeout_ms=resolved_params.get("timeout_ms", 600000),
+                auto_approve=resolved_params.get("auto_approve", False)
             )
             return result
 
