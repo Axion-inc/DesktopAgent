@@ -22,8 +22,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
-from fastapi import HTTPException, Request, Header
+from fastapi import HTTPException, Request
 import ipaddress
+
 
 @dataclass
 class WebhookConfig:
@@ -155,6 +156,7 @@ class WebhookConfig:
                 errors.append(f"Invalid IP address or network: {ip}")
 
         return errors
+
 
 class WebhookService:
     """Main webhook service that manages webhook endpoints."""
@@ -332,7 +334,7 @@ class WebhookService:
                 payload_data = json.loads(payload_bytes.decode('utf-8'))
             else:
                 payload_data = {}
-        except Exception as e:
+        except Exception:
             self.metrics["requests_failed"] += 1
             self._log_request(config.id, client_ip, user_agent, 0, None, False, "Invalid payload", False)
             raise HTTPException(status_code=400, detail="Invalid JSON payload")
@@ -346,8 +348,17 @@ class WebhookService:
             if not signature_valid:
                 self.metrics["requests_failed"] += 1
                 self.metrics["signature_failures"] += 1
-                self._log_request(config.id, client_ip, user_agent, payload_size, None, False, "Invalid signature", False)
-                raise HTTPException(status_code=401, detail="Invalid signature")
+                self._log_request(
+                    config.id,
+                    client_ip,
+                    user_agent,
+                    payload_size,
+                    None,
+                    False,
+                    "Invalid signature",
+                    False,
+                )
+            raise HTTPException(status_code=401, detail="Invalid signature")
 
         # Process the webhook
         try:
@@ -359,8 +370,14 @@ class WebhookService:
             self._log_request(config.id, client_ip, user_agent, payload_size, None, False, str(e), signature_valid)
             raise HTTPException(status_code=500, detail="Webhook processing failed")
 
-    async def _process_webhook(self, config: WebhookConfig, payload: Dict[str, Any],
-                              client_ip: str, user_agent: str, payload_size: int) -> Dict[str, Any]:
+    async def _process_webhook(
+        self,
+        config: WebhookConfig,
+        payload: Dict[str, Any],
+        client_ip: str,
+        user_agent: str,
+        payload_size: int,
+    ) -> Dict[str, Any]:
         """Process a validated webhook request."""
         try:
             from app.orchestrator.queue import get_queue_manager
@@ -407,7 +424,7 @@ class WebhookService:
                 }
             }
 
-        except Exception as e:
+        except Exception:
             self._log_request(config.id, client_ip, user_agent, payload_size, None, False, "Processing failed", True)
             raise
 
@@ -453,8 +470,10 @@ class WebhookService:
             cursor = conn.execute(query, params)
             return [dict(row) for row in cursor.fetchall()]
 
+
 # Global webhook service
 _webhook_service = None
+
 
 def get_webhook_service() -> WebhookService:
     """Get the global webhook service instance."""
@@ -462,6 +481,7 @@ def get_webhook_service() -> WebhookService:
     if _webhook_service is None:
         _webhook_service = WebhookService()
     return _webhook_service
+
 
 def setup_webhook_routes(app):
     """Setup webhook routes in the FastAPI app."""

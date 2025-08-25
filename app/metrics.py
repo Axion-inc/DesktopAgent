@@ -5,6 +5,7 @@ from typing import Dict, List, Any
 from .models import get_conn
 import math
 
+
 def _cluster_error(msg: str) -> str:
     if not msg:
         return "UNKNOWN"
@@ -20,6 +21,7 @@ def _cluster_error(msg: str) -> str:
         return "NO_FILES_FOUND" if "0" in m else "FILES_FOUND"
     return "OTHER"
 
+
 def _get_failure_clusters_with_recommendations() -> List[Dict[str, Any]]:
     """Get enhanced failure clusters with recommendations."""
     try:
@@ -30,7 +32,7 @@ def _get_failure_clusters_with_recommendations() -> List[Dict[str, Any]]:
         return [cluster.to_dict() for cluster in clusters]
 
     except Exception as e:
-        print("Failed to get failure clusters")
+        print(f"Failed to get failure clusters: {e}")
         # Fallback to basic clusters
         return [
             {"cluster": "PDF_PARSE_ERROR", "count": 3, "trend_3d": [2, 1, 3],
@@ -40,6 +42,7 @@ def _get_failure_clusters_with_recommendations() -> List[Dict[str, Any]]:
             {"cluster": "PERMISSION_BLOCKED", "count": 1, "trend_3d": [1, 0, 1],
              "recommended_actions": ["Grant Screen Recording permission", "Check RBAC roles"]}
         ]
+
 
 def compute_metrics() -> Dict[str, float]:
     conn = get_conn()

@@ -22,8 +22,9 @@ from typing import Dict, List, Optional, Any, Set
 from dataclasses import dataclass
 import json
 from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler, FileCreatedEvent, FileModifiedEvent
+from watchdog.events import FileSystemEventHandler
 import fnmatch
+
 
 @dataclass
 class WatchConfig:
@@ -110,6 +111,7 @@ class WatchConfig:
 
         return errors
 
+
 class WatcherEventHandler(FileSystemEventHandler):
     """Event handler for file system changes."""
 
@@ -141,9 +143,11 @@ class WatcherEventHandler(FileSystemEventHandler):
         # Find matching watchers
         matching_watchers = []
         for watcher_config in self.watcher_service.list_watchers(enabled_only=True):
-            if (event_type in watcher_config.events and
-                self._path_is_in_watch_dir(file_path, watcher_config.watch_path) and
-                watcher_config.matches_file(file_path)):
+            if (
+                event_type in watcher_config.events
+                and self._path_is_in_watch_dir(file_path, watcher_config.watch_path)
+                and watcher_config.matches_file(file_path)
+            ):
                 matching_watchers.append(watcher_config)
 
         # Process each matching watcher
@@ -177,7 +181,8 @@ class WatcherEventHandler(FileSystemEventHandler):
         try:
             self.watcher_service._execute_trigger(config, event_type, file_path)
         except Exception as e:
-            print(f"Failed to get failure clusters: {str(Exception())}")
+            print(f"Failed to execute watcher trigger: {e}")
+
 
 class WatcherService:
     """Main watcher service that manages file system watching."""
@@ -365,7 +370,7 @@ class WatcherService:
                 if os.path.exists(expanded_path):
                     current_paths.add(expanded_path)
             except Exception as e:
-                print("Failed to get failure clusters")
+                print(f"Failed to expand watch path: {e}")
 
         # Remove old watches
         for path in self.watched_paths - current_paths:
@@ -382,7 +387,7 @@ class WatcherService:
                     self.observer.schedule(self.event_handler, path, recursive=True)
                 print(f"Watching {len(current_paths)} directories")
             except Exception as e:
-                print(f"Error setting up watches: {str(Exception())}")
+                print(f"Error setting up watches: {e}")
 
         self.watched_paths = current_paths
 
@@ -473,8 +478,10 @@ class WatcherService:
             cursor = conn.execute(query, params)
             return [dict(row) for row in cursor.fetchall()]
 
+
 # Global watcher service
 _watcher_service = None
+
 
 def get_watcher() -> WatcherService:
     """Get the global watcher service instance."""
@@ -483,13 +490,16 @@ def get_watcher() -> WatcherService:
         _watcher_service = WatcherService()
     return _watcher_service
 
+
 def start_watcher():
     """Start the watcher service."""
     get_watcher().start()
 
+
 def stop_watcher():
     """Stop the watcher service."""
     get_watcher().stop()
+
 
 def is_watcher_running() -> bool:
     """Check if the watcher is running."""

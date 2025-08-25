@@ -25,6 +25,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from croniter import croniter as CronIter
 
+
 @dataclass
 class Schedule:
     """Represents a scheduled task."""
@@ -54,7 +55,7 @@ class Schedule:
         try:
             cron = CronIter(self.cron, datetime.now())
             self.next_run = cron.get_next(datetime)
-        except Exception as e:
+        except Exception:
             self.next_run = None
 
     def should_run(self, now: Optional[datetime] = None) -> bool:
@@ -108,6 +109,7 @@ class Schedule:
 
         return errors
 
+
 class CronParser:
     """Parser for cron expressions with validation."""
 
@@ -133,6 +135,7 @@ class CronParser:
 
         return ParsedCron(expression)
 
+
 class ParsedCron:
     """Represents a parsed cron expression."""
 
@@ -145,7 +148,7 @@ class ParsedCron:
         try:
             CronIter(self.expression)
             self._valid = True
-        except Exception as e:
+        except Exception:
             self._valid = False
             self._error = "Validation failed"
 
@@ -164,6 +167,7 @@ class ParsedCron:
     def get_error(self) -> Optional[str]:
         """Get validation error message if any."""
         return getattr(self, '_error', None)
+
 
 class SchedulerService:
     """Main scheduler service that manages scheduled executions."""
@@ -326,7 +330,7 @@ class SchedulerService:
                 self.metrics["last_check"] = datetime.now()
                 self.metrics["next_check"] = datetime.now() + timedelta(seconds=self.check_interval)
 
-            except Exception as e:
+            except Exception:
                 print("Scheduler error occurred")
 
             # Sleep in small increments so we can respond to stop() quickly
@@ -357,7 +361,7 @@ class SchedulerService:
                     self.metrics["successful_runs"] += 1
 
                 except Exception as e:
-                    print("Failed to get failure clusters")
+                    print(f"Schedule execution failed: {e}")
                     self._log_execution_error(schedule.id, str(e))
                     self.metrics["failed_runs"] += 1
 
@@ -388,7 +392,7 @@ class SchedulerService:
             print(f"Scheduled run {run_id} added to queue {schedule.queue} for schedule {schedule.id}")
 
         except Exception as e:
-            print("Failed to get failure clusters")
+            print(f"Failed to enqueue scheduled run: {e}")
             raise
 
     def _log_execution_start(self, schedule_id: str, run_id: int):
@@ -439,7 +443,7 @@ class SchedulerService:
             print(f"Loaded {len(config.get('schedules', []))} schedules from {config_file}")
 
         except Exception as e:
-            print("Failed to get failure clusters")
+            print(f"Failed to load config file: {e}")
             raise
 
     def get_metrics(self) -> Dict[str, Any]:
@@ -473,8 +477,10 @@ class SchedulerService:
             cursor = conn.execute(query, params)
             return [dict(row) for row in cursor.fetchall()]
 
+
 # Global scheduler service
 _scheduler_service = None
+
 
 def get_scheduler() -> SchedulerService:
     """Get the global scheduler service instance."""
@@ -483,9 +489,11 @@ def get_scheduler() -> SchedulerService:
         _scheduler_service = SchedulerService()
     return _scheduler_service
 
+
 def start_scheduler():
     """Start the scheduler service."""
     get_scheduler().start()
+
 
 def start_scheduler_with_config(config_file: str):
     """Start the scheduler service with configuration file."""
@@ -494,13 +502,16 @@ def start_scheduler_with_config(config_file: str):
         _scheduler_service = SchedulerService(config_file=config_file)
     _scheduler_service.start()
 
+
 def stop_scheduler():
     """Stop the scheduler service."""
     get_scheduler().stop()
 
+
 def is_scheduler_running() -> bool:
     """Check if the scheduler is running."""
     return get_scheduler().is_running()
+
 
 # Convenience classes for backward compatibility
 CronScheduler = SchedulerService

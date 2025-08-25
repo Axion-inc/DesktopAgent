@@ -13,6 +13,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
 
+
 class RunStatus(Enum):
     """Enhanced run status with pause/resume support."""
     QUEUED = "queued"
@@ -24,6 +25,7 @@ class RunStatus(Enum):
     SUCCESS = "success"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
 
 @dataclass
 class ResumePoint:
@@ -58,6 +60,7 @@ class ResumePoint:
             reason=data["reason"],
             user_id=data.get("user_id")
         )
+
 
 class ResumeManager:
     """Manages run pause/resume functionality."""
@@ -108,9 +111,15 @@ class ResumeManager:
                 )
             ''')
 
-    def create_resume_point(self, run_id: int, step_index: int, step_name: str,
-                           runner_state: Dict[str, Any], reason: str,
-                           user_id: Optional[str] = None) -> ResumePoint:
+    def create_resume_point(
+        self,
+        run_id: int,
+        step_index: int,
+        step_name: str,
+        runner_state: Dict[str, Any],
+        reason: str,
+        user_id: Optional[str] = None,
+    ) -> ResumePoint:
         """Create a resume point for a run."""
         resume_point = ResumePoint(
             run_id=run_id,
@@ -288,6 +297,7 @@ class ResumeManager:
 
 # Enhanced Runner with resume support
 
+
 class ResumableRunner:
     """Extended Runner class with pause/resume capabilities."""
 
@@ -424,11 +434,13 @@ class ResumableRunner:
                 (status.value, self.run_id)
             )
             conn.commit()
-        except Exception as e:
+        except Exception:
             print("Failed to update run status")
+
 
 # Global resume manager
 _resume_manager = None
+
 
 def get_resume_manager() -> ResumeManager:
     """Get the global resume manager instance."""

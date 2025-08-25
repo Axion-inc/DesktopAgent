@@ -24,18 +24,23 @@ bearer_security = HTTPBearer(auto_error=False)
 # Global user context (for request-scoped user tracking)
 _current_user_context: Dict[str, RBACUser] = {}
 
+
 class AuthenticationError(HTTPException):
     """Authentication failed."""
     def __init__(self, detail: str = "Authentication failed"):
         super().__init__(status_code=401, detail=detail)
+
 
 class AuthorizationError(HTTPException):
     """Authorization failed (insufficient permissions)."""
     def __init__(self, detail: str = "Insufficient permissions"):
         super().__init__(status_code=403, detail=detail)
 
-async def get_current_user(request: Request,
-                          credentials: Optional[HTTPBasicCredentials] = Depends(security)) -> Optional[RBACUser]:
+
+async def get_current_user(
+    request: Request,
+    credentials: Optional[HTTPBasicCredentials] = Depends(security),
+) -> Optional[RBACUser]:
     """Get the current authenticated user."""
     if not credentials:
         return None
@@ -70,12 +75,14 @@ async def get_current_user(request: Request,
             raise
         raise AuthenticationError("Authentication error")
 
+
 def get_current_user_from_context() -> Optional[RBACUser]:
     """Get current user from global context (for use outside request cycle)."""
     # This is a simplified version - in production you'd want proper request context
     if _current_user_context:
         return list(_current_user_context.values())[-1]  # Get most recent
     return None
+
 
 def require_permission(permission: str):
     """Decorator to require specific permission for endpoint access."""
@@ -100,7 +107,7 @@ def require_permission(permission: str):
             if not user and request:
                 try:
                     user = await get_current_user(request)
-                except:
+                except Exception:
                     user = None
 
             if not user:
@@ -138,6 +145,7 @@ def require_permission(permission: str):
         return wrapper
     return decorator
 
+
 def require_role(role: str):
     """Decorator to require specific role for endpoint access."""
     def decorator(func):
@@ -160,7 +168,7 @@ def require_role(role: str):
             if not user and request:
                 try:
                     user = await get_current_user(request)
-                except:
+                except Exception:
                     user = None
 
             if not user:
@@ -193,11 +201,14 @@ def require_role(role: str):
         return wrapper
     return decorator
 
+
 # Convenience permission decorators
+
 
 def require_admin(func):
     """Require Admin role."""
     return require_role("Admin")(func)
+
 
 def require_editor(func):
     """Require Editor role or higher."""
@@ -218,7 +229,7 @@ def require_editor(func):
             if not user and request:
                 try:
                     user = await get_current_user(request)
-                except:
+                except Exception:
                     user = None
 
             if not user:
@@ -242,6 +253,7 @@ def require_editor(func):
         return wrapper
     return decorator(func)
 
+
 def require_runner(func):
     """Require Runner role or higher."""
     def decorator(inner_func):
@@ -261,7 +273,7 @@ def require_runner(func):
             if not user and request:
                 try:
                     user = await get_current_user(request)
-                except:
+                except Exception:
                     user = None
 
             if not user:
@@ -285,16 +297,24 @@ def require_runner(func):
         return wrapper
     return decorator(func)
 
+
 async def cleanup_user_context(request: Request):
     """Cleanup user context after request."""
     request_id = id(request)
     _current_user_context.pop(request_id, None)
 
+
 # RBAC-protected endpoint helpers
 
-def create_protected_endpoint(app, path: str, methods: List[str], handler,
-                            required_permission: Optional[str] = None,
-                            required_role: Optional[str] = None):
+
+def create_protected_endpoint(
+    app,
+    path: str,
+    methods: List[str],
+    handler,
+    required_permission: Optional[str] = None,
+    required_role: Optional[str] = None,
+):
     """Helper to create RBAC-protected endpoints."""
 
     if required_permission:

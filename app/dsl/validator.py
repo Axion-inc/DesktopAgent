@@ -36,6 +36,7 @@ ALLOWED_STEPS = {
     "human_confirm",
 }
 
+
 def validate_plan(plan: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
     # dsl_version
@@ -89,6 +90,7 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
 
     return errors
 
+
 def _validate_secrets_references(obj: Any, step_idx: int = None) -> List[str]:
     """Validate secrets:// references in an object (recursive)."""
     errors = []
@@ -109,12 +111,18 @@ def _validate_secrets_references(obj: Any, step_idx: int = None) -> List[str]:
                 parts = reference.split("/")
                 if len(parts) != 2 or not parts[0] or not parts[1]:
                     location = f"step {step_idx}: " if step_idx is not None else ""
-                    errors.append(f"{location}invalid secret reference format 'secrets://{reference}' (expected service/key)")
+                    errors.append(
+                        f"{location}invalid secret reference format 'secrets://{reference}' "
+                        f"(expected service/key)"
+                    )
             else:
                 # Just key, validate key format
                 if not re.match(r'^[A-Z0-9_]+$', reference):
                     location = f"step {step_idx}: " if step_idx is not None else ""
-                    errors.append(f"{location}invalid secret key '{reference}' (use uppercase letters, numbers, underscores only)")
+                    errors.append(
+                        f"{location}invalid secret key '{reference}' "
+                        f"(use uppercase letters, numbers, underscores only)"
+                    )
 
     elif isinstance(obj, dict):
         for key, value in obj.items():
@@ -124,6 +132,7 @@ def _validate_secrets_references(obj: Any, step_idx: int = None) -> List[str]:
             errors.extend(_validate_secrets_references(item, step_idx))
 
     return errors
+
 
 def _validate_execution_policy(execution: Any) -> List[str]:
     """Validate execution policy configuration."""
@@ -155,6 +164,7 @@ def _validate_execution_policy(execution: Any) -> List[str]:
         errors.extend(["execution.retry." + e for e in retry_errors])
 
     return errors
+
 
 def _validate_retry_config(retry: Any) -> List[str]:
     """Validate retry configuration."""
@@ -188,6 +198,7 @@ def _validate_retry_config(retry: Any) -> List[str]:
             errors.append("only_idempotent must be a boolean")
 
     return errors
+
 
 def _validate_human_confirm(params: Any, step_index: int) -> List[str]:
     """Validate human_confirm step parameters."""

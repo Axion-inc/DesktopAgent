@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Any
 from pathlib import Path
 from dataclasses import dataclass
 
+
 @dataclass
 class FailureCluster:
     """Represents a cluster of similar failures."""
@@ -38,6 +39,7 @@ class FailureCluster:
             "first_seen": self.first_seen.isoformat(),
             "last_seen": self.last_seen.isoformat()
         }
+
 
 class FailureClusterAnalyzer:
     """Advanced failure clustering with actionable insights."""
@@ -210,8 +212,13 @@ class FailureClusterAnalyzer:
                 ON failure_clusters(cluster_key, occurred_at)
             ''')
 
-    def analyze_error(self, error_message: str, run_id: Optional[int] = None,
-                     template: Optional[str] = None, step_name: Optional[str] = None) -> str:
+    def analyze_error(
+        self,
+        error_message: str,
+        run_id: Optional[int] = None,
+        template: Optional[str] = None,
+        step_name: Optional[str] = None,
+    ) -> str:
         """Analyze an error and return its cluster key."""
         error_lower = error_message.lower()
 
@@ -228,8 +235,14 @@ class FailureClusterAnalyzer:
         self._record_error(generic_key, error_message, run_id, template, step_name)
         return generic_key
 
-    def _record_error(self, cluster_key: str, error_message: str, run_id: Optional[int],
-                     template: Optional[str], step_name: Optional[str]):
+    def _record_error(
+        self,
+        cluster_key: str,
+        error_message: str,
+        run_id: Optional[int],
+        template: Optional[str],
+        step_name: Optional[str],
+    ):
         """Record error in database for analysis."""
         with sqlite3.connect(self.storage_path) as conn:
             conn.execute('''
@@ -383,8 +396,10 @@ class FailureClusterAnalyzer:
 
             return cursor.rowcount
 
+
 # Global analyzer instance
 _failure_analyzer = None
+
 
 def get_failure_analyzer() -> FailureClusterAnalyzer:
     """Get the global failure analyzer instance."""
@@ -392,6 +407,7 @@ def get_failure_analyzer() -> FailureClusterAnalyzer:
     if _failure_analyzer is None:
         _failure_analyzer = FailureClusterAnalyzer()
     return _failure_analyzer
+
 
 def analyze_error(error_message: str, **kwargs) -> str:
     """Convenience function to analyze an error."""

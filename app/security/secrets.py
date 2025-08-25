@@ -20,7 +20,7 @@ import re
 import subprocess
 import sqlite3
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from pathlib import Path
 from cryptography.fernet import Fernet
 # from cryptography.hazmat.primitives import hashes
@@ -318,7 +318,7 @@ class SecretsManager:
                     from app.middleware.auth import get_current_user
                     user = get_current_user()
                     user_id = getattr(user, 'id', 'unknown') if user else 'system'
-                except:
+                except Exception:
                     user_id = 'system'
 
             with sqlite3.connect(self._audit_db) as conn:
@@ -499,8 +499,10 @@ class SecretsManager:
 
             return [dict(row) for row in cursor.fetchall()]
 
+
 # Global secrets manager instance
 _secrets_manager = None
+
 
 def get_secrets_manager() -> SecretsManager:
     """Get the global secrets manager instance."""
@@ -509,17 +511,21 @@ def get_secrets_manager() -> SecretsManager:
         _secrets_manager = SecretsManager()
     return _secrets_manager
 
+
 def store_secret(key: str, value: str, service: Optional[str] = None) -> None:
     """Convenience function to store a secret."""
     get_secrets_manager().store(key, value, service)
+
 
 def get_secret(key: str, service: Optional[str] = None) -> str:
     """Convenience function to get a secret."""
     return get_secrets_manager().get(key, service)
 
+
 def secret_exists(key: str, service: Optional[str] = None) -> bool:
     """Convenience function to check if a secret exists."""
     return get_secrets_manager().exists(key, service)
+
 
 def delete_secret(key: str, service: Optional[str] = None) -> None:
     """Convenience function to delete a secret."""

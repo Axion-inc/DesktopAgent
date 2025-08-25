@@ -11,11 +11,13 @@ from app.os_adapters.windows import WindowsMailAdapter, WindowsPreviewAdapter
 from app.utils import take_screenshot
 from .parser import safe_eval
 
+
 def get_adapters() -> Tuple[MailAdapter, PreviewAdapter]:
     if platform.system() == "Darwin":
         return MacMailAdapter(), MacPreviewAdapter()
     else:
         return WindowsMailAdapter(), WindowsPreviewAdapter()
+
 
 class Runner:
     def __init__(self, plan: Dict[str, Any], variables: Dict[str, Any], dry_run: bool = False):
@@ -150,8 +152,11 @@ class Runner:
         if not self._should_run(resolved_params):
             return {"skipped": True}
         if action == "find_files":
-            files = (
-                fs_actions.find_files(resolved_params.get("query", ""), resolved_params.get("roots", []), resolved_params.get("limit", 100)))
+            files = fs_actions.find_files(
+                resolved_params.get("query", ""),
+                resolved_params.get("roots", []),
+                resolved_params.get("limit", 100),
+            )
             # Self-healing: widen one level if 0 results
             healed = False
             if len(files) == 0 and resolved_params.get("roots"):
@@ -161,8 +166,11 @@ class Runner:
                     if p.exists() and p.parent != p:
                         parents.append(str(p.parent))
                 if parents:
-                    files = (
-                        fs_actions.find_files(resolved_params.get("query", ""), parents, resolved_params.get("limit", 100)))
+                    files = fs_actions.find_files(
+                        resolved_params.get("query", ""),
+                        parents,
+                        resolved_params.get("limit", 100),
+                    )
                     healed = True
             self.state["files"] = files
             self.state.pop("newnames", None)
@@ -270,8 +278,11 @@ class Runner:
         if action == "compose_mail":
             if self.dry_run:
                 return {"would_compose": True}
-            draft_id = (
-                self.mail.compose(resolved_params.get("to", []), resolved_params.get("subject", ""), resolved_params.get("body", "")))
+            draft_id = self.mail.compose(
+                resolved_params.get("to", []),
+                resolved_params.get("subject", ""),
+                resolved_params.get("body", ""),
+            )
             self.state["draft_id"] = draft_id
             return {"draft_id": draft_id}
         if action == "attach_files":
@@ -485,7 +496,12 @@ class Runner:
 
         if action == "assert_pdf_pages":
             if self.dry_run:
-                return {"would_check_pdf": {"path": resolved_params.get("path"), "pages": resolved_params.get("expected_pages")}}
+                return {
+                    "would_check_pdf": {
+                        "path": resolved_params.get("path"),
+                        "pages": resolved_params.get("expected_pages"),
+                    }
+                }
             from app.actions import verifier_actions
             result = verifier_actions.assert_pdf_pages(
                 path=resolved_params["path"],
@@ -506,7 +522,12 @@ class Runner:
         # Phase 3: Web Extensions
         if action == "upload_file":
             if self.dry_run:
-                return {"would_upload": {"path": resolved_params.get("path"), "selector": resolved_params.get("selector")}}
+                return {
+                    "would_upload": {
+                        "path": resolved_params.get("path"),
+                        "selector": resolved_params.get("selector"),
+                    }
+                }
             from app.actions import web_actions
             result = web_actions.upload_file(
                 path=resolved_params["path"],

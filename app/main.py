@@ -12,6 +12,7 @@ DATA_DIR.mkdir(exist_ok=True, parents=True)
 
 app = FastAPI(title="Desktop Agent API", description="Minimal API for CLI operations")
 
+
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
@@ -37,14 +38,16 @@ def on_startup() -> None:
         start_watcher()
 
         get_logger().info("Phase 4 services started: scheduler, watcher, webhooks")
-    except Exception as e:
+    except Exception:
         get_logger().warning("Phase 4 services startup warning")
 
     get_logger().info("app.startup")
 
+
 # RBAC-protected endpoints
 from app.middleware.auth import get_current_user, require_admin, require_editor, require_runner
 from app.security.rbac import User as RBACUser
+
 
 @app.get("/api/runs")
 async def list_runs(current_user: RBACUser = Depends(get_current_user)):
@@ -60,6 +63,7 @@ async def list_runs(current_user: RBACUser = Depends(get_current_user)):
     )
     runs = [dict(row) for row in cursor.fetchall()]
     return {"runs": runs}
+
 
 @app.post("/api/runs/{run_id}/pause")
 @require_editor
@@ -80,8 +84,9 @@ async def pause_run(run_id: int, current_user: RBACUser = Depends(get_current_us
         )
 
         return {"success": True, "message": f"Run {run_id} paused by {current_user.username}"}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.post("/api/runs/{run_id}/resume")
 @require_editor
@@ -96,8 +101,9 @@ async def resume_run(run_id: int, current_user: RBACUser = Depends(get_current_u
             return {"success": True, "message": f"Run {run_id} resumed by {current_user.username}"}
         else:
             raise HTTPException(status_code=404, detail="No paused run found")
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.get("/api/paused-runs")
 @require_runner
@@ -109,8 +115,9 @@ async def list_paused_runs(current_user: RBACUser = Depends(get_current_user)):
 
         paused_runs = resume_manager.list_paused_runs()
         return {"paused_runs": paused_runs}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.get("/api/admin/users")
 @require_admin
@@ -129,8 +136,9 @@ async def list_users(current_user: RBACUser = Depends(get_current_user)):
                 "created_at": u.created_at.isoformat() if u.created_at else None
             } for u in users
         ]}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.post("/api/admin/users")
 @require_admin
@@ -147,8 +155,9 @@ async def create_user(user_data: dict, current_user: RBACUser = Depends(get_curr
         )
 
         return {"success": True, "user_id": user.id, "username": user.username}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.get("/api/admin/audit")
 @require_admin
@@ -160,13 +169,14 @@ async def get_audit_log(limit: int = 100, current_user: RBACUser = Depends(get_c
 
         audit_entries = rbac.get_audit_log(limit=limit)
         return {"audit_log": audit_entries}
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 # HITL Approval UI
 from fastapi.templating import Jinja2Templates
 
 templates = Jinja2Templates(directory="app/templates")
+
 
 @app.get("/hitl/approve/{run_id}")
 async def hitl_approval_page(run_id: int, request: Request, current_user: RBACUser = Depends(get_current_user)):
@@ -238,10 +248,11 @@ async def hitl_approval_page(run_id: int, request: Request, current_user: RBACUs
             }
         })
 
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.post("/hitl/approve/{run_id}")
 @require_editor
@@ -292,14 +303,16 @@ async def hitl_approval_action(
         else:
             raise HTTPException(status_code=400, detail="Invalid action")
 
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
+
 
 @app.get("/metrics")
 def metrics():
@@ -308,6 +321,7 @@ def metrics():
 # ------------------------
 # Mock Form (for E2E tests)
 # ------------------------
+
 
 @app.get("/mock/form", response_class=HTMLResponse)
 def mock_form():
@@ -343,6 +357,7 @@ def mock_form():
     </html>
     """
     return HTMLResponse(content=html)
+
 
 @app.post("/mock/form", response_class=HTMLResponse)
 def mock_form_post(
@@ -423,6 +438,7 @@ def mock_form_post(
 # Simple Pages for E2E
 # ------------------------
 
+
 @app.get("/plans/intent", response_class=HTMLResponse)
 def plans_intent():
     return HTMLResponse(
@@ -434,6 +450,7 @@ def plans_intent():
         </html>
         """
     )
+
 
 @app.get("/public/dashboard", response_class=HTMLResponse)
 def public_dashboard():
