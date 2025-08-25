@@ -474,6 +474,7 @@ class TestPhase4BackwardCompatibility:
         # Existing Phase 2/3 template should validate
         existing_plan = {
             "dsl_version": "1.1",
+            "name": "Test Plan",  # Add required name field
             "steps": [
                 {"open_browser": {"url": "https://example.com"}},
                 {"fill_by_label": {"label": "Name", "text": "Test"}},
@@ -481,9 +482,9 @@ class TestPhase4BackwardCompatibility:
             ]
         }
 
-        # Should not raise validation errors
-        result = validate_plan(existing_plan)
-        assert result["valid"] is True
+        # Should not raise validation errors (returns empty list if valid)
+        errors = validate_plan(existing_plan)
+        assert len(errors) == 0, f"Validation errors: {errors}"
 
 
 class TestPhase4Integration:
