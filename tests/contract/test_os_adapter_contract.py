@@ -9,6 +9,7 @@ across platforms and serve as implementation guides for future development.
 import pytest
 import tempfile
 import os
+import platform
 from pathlib import Path
 from app.os_adapters.base import Capability
 from app.os_adapters.macos import MacOSAdapter
@@ -51,6 +52,7 @@ class TestOSAdapterContract:
 
     # Screenshot Tests
 
+    @pytest.mark.skipif(platform.system() != "Darwin", reason="Screenshot requires macOS")
     def test_take_screenshot_creates_file(self, macos_adapter):
         """Test that take_screenshot creates a file at the specified path."""
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
@@ -264,6 +266,7 @@ class TestOSAdapterContract:
 
     # Integration Tests
 
+    @pytest.mark.skipif(platform.system() != "Darwin", reason="Screenshot requires macOS")
     def test_capability_negotiation_pattern(self, macos_adapter):
         """Test the capability negotiation pattern works correctly."""
         caps = macos_adapter.capabilities()
