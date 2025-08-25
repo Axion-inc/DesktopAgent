@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 # These imports will fail initially - expected for TDD red phase
 try:
-    from app.security.rbac import RBACManager, Role, Permission
+    from app.security.rbac import RBACManager
     from app.middleware.auth import require_role, check_permission
 except ImportError:
     # Expected during red phase

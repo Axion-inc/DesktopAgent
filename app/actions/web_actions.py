@@ -1084,12 +1084,12 @@ def get_destructive_keywords() -> List[str]:
 
 # Phase 3 Web Extensions
 
-def _upload_file_sync(path: str, selector: Optional[str] = None, label: Optional[str] = None, 
-                     context: str = "default") -> Dict[str, Any]:
+def _upload_file_sync(path: str, selector: Optional[str] = None, label: Optional[str] = None,
+                      context: str = "default") -> Dict[str, Any]:
     """Internal sync function for file upload."""
     session = get_web_session()
     page = session.get_page(context)
-    
+
     try:
         file_path = Path(path).expanduser()
         if not file_path.exists():
@@ -1100,7 +1100,7 @@ def _upload_file_sync(path: str, selector: Optional[str] = None, label: Optional
                 "status": "error",
                 "error": f"File does not exist: {path}"
             }
-        
+
         # Strategy 1: Use provided CSS selector
         if selector:
             try:
@@ -1115,7 +1115,7 @@ def _upload_file_sync(path: str, selector: Optional[str] = None, label: Optional
                     }
             except Exception:
                 pass
-        
+
         # Strategy 2: Use label to find file input
         if label:
             try:
@@ -1134,7 +1134,7 @@ def _upload_file_sync(path: str, selector: Optional[str] = None, label: Optional
                                 "strategy": "by_label_for",
                                 "status": "success"
                             }
-                    
+
                     # Look for file input near the label
                     container = label_element.locator('xpath=..')
                     file_input = container.locator('input[type="file"]').first
@@ -1148,7 +1148,7 @@ def _upload_file_sync(path: str, selector: Optional[str] = None, label: Optional
                         }
             except Exception:
                 pass
-        
+
         # Strategy 3: Find any file input on the page
         try:
             file_inputs = page.locator('input[type="file"]')
@@ -1161,7 +1161,7 @@ def _upload_file_sync(path: str, selector: Optional[str] = None, label: Optional
                 }
         except Exception:
             pass
-        
+
         return {
             "path": path,
             "selector": selector,
@@ -1169,7 +1169,7 @@ def _upload_file_sync(path: str, selector: Optional[str] = None, label: Optional
             "status": "not_found",
             "error": "Could not find file input element"
         }
-        
+
     except Exception as e:
         return {
             "path": path,
@@ -1180,23 +1180,23 @@ def _upload_file_sync(path: str, selector: Optional[str] = None, label: Optional
         }
 
 
-def upload_file(path: str, selector: Optional[str] = None, label: Optional[str] = None, 
-               context: str = "default") -> Dict[str, Any]:
+def upload_file(path: str, selector: Optional[str] = None, label: Optional[str] = None,
+                context: str = "default") -> Dict[str, Any]:
     """
     Upload file to input[type=file] element.
-    
+
     Args:
         path: Path to file to upload
         selector: Optional CSS selector for file input
         label: Optional label text to find associated file input
         context: Browser context name
-        
+
     Returns:
         Dict with upload result
     """
     if not path:
         raise ValueError("File path is required")
-    
+
     # Ensure session is available
     get_web_session()
     return _execute_in_web_thread(_upload_file_sync, path, selector, label, context)
@@ -1207,24 +1207,24 @@ def _wait_for_download_sync(to: str, timeout_ms: int = 30000, context: str = "de
     try:
         download_path = Path(to).expanduser()
         download_dir = download_path if download_path.is_dir() else download_path.parent
-        
+
         # Ensure download directory exists
         download_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Get list of files before download
         initial_files = set()
         if download_dir.exists():
             initial_files = {f.name for f in download_dir.iterdir() if f.is_file()}
-        
+
         start_time = time.time()
         timeout_seconds = timeout_ms / 1000.0
-        
+
         # Poll for new files in download directory
         while (time.time() - start_time) < timeout_seconds:
             if download_dir.exists():
                 current_files = {f.name for f in download_dir.iterdir() if f.is_file()}
                 new_files = current_files - initial_files
-                
+
                 if new_files:
                     # Found new file(s), check if download is complete
                     for file_name in new_files:
@@ -1242,19 +1242,19 @@ def _wait_for_download_sync(to: str, timeout_ms: int = 30000, context: str = "de
                                     "size": initial_size,
                                     "status": "success"
                                 }
-            
+
             time.sleep(0.5)  # Poll every 500ms
-        
+
         return {
             "to": str(download_dir),
             "status": "timeout",
             "error": f"No download detected within {timeout_ms}ms"
         }
-        
+
     except Exception as e:
         return {
             "to": to,
-            "status": "error", 
+            "status": "error",
             "error": str(e)
         }
 
@@ -1262,17 +1262,17 @@ def _wait_for_download_sync(to: str, timeout_ms: int = 30000, context: str = "de
 def wait_for_download(to: str, timeout_ms: int = 30000, context: str = "default") -> Dict[str, Any]:
     """
     Wait for file download to complete in specified directory.
-    
+
     Args:
         to: Directory path to monitor for downloads (e.g., "~/Downloads")
         timeout_ms: Maximum wait time in milliseconds
         context: Browser context name (for consistency, not used in this implementation)
-        
+
     Returns:
         Dict with download completion result
     """
     if not to:
         raise ValueError("Download directory path is required")
-    
+
     # This function doesn't need web session but we use the same pattern for consistency
     return _execute_in_web_thread(_wait_for_download_sync, to, timeout_ms, context)

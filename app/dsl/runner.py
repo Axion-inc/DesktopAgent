@@ -65,7 +65,8 @@ class Runner:
             diff["page_count"] = after_result.get("page_count")
         elif action == "pdf_extract_pages":
             diff["extracted_pages"] = after_result.get("page_count")
-        elif action in ["open_browser", "fill_by_label", "click_by_text", "download_file", "upload_file", "wait_for_download"]:
+        elif action in ["open_browser", "fill_by_label", "click_by_text", "download_file",
+                        "upload_file", "wait_for_download"]:
             diff["web_action"] = {
                 "status": after_result.get("status"),
                 "strategy": after_result.get("strategy"),
@@ -405,7 +406,7 @@ class Runner:
                 where=params.get("where", "screen")
             )
             return result
-        
+
         if action == "assert_element":
             if self.dry_run:
                 return {"would_assert": {"text": params.get("text"), "role": params.get("role")}}
@@ -417,7 +418,7 @@ class Runner:
                 where=params.get("where", "screen")
             )
             return result
-        
+
         if action == "assert_text":
             if self.dry_run:
                 return {"would_assert_text": params.get("contains")}
@@ -427,14 +428,14 @@ class Runner:
                 where=params.get("where", "screen")
             )
             return result
-        
+
         if action == "assert_file_exists":
             if self.dry_run:
                 return {"would_check_file": params.get("path")}
             from app.actions import verifier_actions
             result = verifier_actions.assert_file_exists(path=params["path"])
             return result
-        
+
         if action == "assert_pdf_pages":
             if self.dry_run:
                 return {"would_check_pdf": {"path": params.get("path"), "pages": params.get("expected_pages")}}
@@ -444,7 +445,7 @@ class Runner:
                 expected_pages=params["expected_pages"]
             )
             return result
-        
+
         if action == "capture_screen_schema":
             if self.dry_run:
                 return {"would_capture_schema": params.get("target", "frontmost")}
@@ -454,7 +455,7 @@ class Runner:
             if result.get("captured"):
                 self.state["last_screen_schema"] = result.get("schema")
             return result
-        
+
         # Phase 3: Web Extensions
         if action == "upload_file":
             if self.dry_run:
@@ -467,7 +468,7 @@ class Runner:
                 context=self.state.get("web_context", "default")
             )
             return result
-        
+
         if action == "wait_for_download":
             if self.dry_run:
                 return {"would_wait_download": params.get("to")}
@@ -478,7 +479,7 @@ class Runner:
                 context=self.state.get("web_context", "default")
             )
             return result
-        
+
         # Phase 4: Human-in-the-Loop (HITL)
         if action == "human_confirm":
             if self.dry_run:

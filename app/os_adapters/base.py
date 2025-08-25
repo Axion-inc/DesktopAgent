@@ -23,7 +23,7 @@ class ScreenElement:
 
 class OSAdapter(ABC):
     """Unified OS adapter interface for cross-platform operations."""
-    
+
     @abstractmethod
     def capabilities(self) -> Dict[str, Capability]:
         """Return map of feature capabilities available on this OS."""
@@ -45,7 +45,8 @@ class OSAdapter(ABC):
 
     # Mail operations
     @abstractmethod
-    def compose_mail_draft(self, to: Iterable[str], subject: str, body: str, attachments: Optional[List[str]] = None) -> Dict[str, Any]:
+    def compose_mail_draft(self, to: Iterable[str], subject: str, body: str,
+                           attachments: Optional[List[str]] = None) -> Dict[str, Any]:
         """Create a mail draft with optional attachments.
         Returns:
             Dictionary with draft_id and status information

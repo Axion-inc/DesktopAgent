@@ -28,7 +28,6 @@ try:
     from app.orchestrator.queue import QueueManager
     from app.orchestrator.scheduler import CronScheduler
     from app.orchestrator.watcher import FolderWatcher
-    from app.security.rbac import RBACManager
     from app.security.secrets import SecretsManager
     from app.clustering.failure_analyzer import FailureClusterAnalyzer
 except ImportError:
@@ -282,7 +281,7 @@ class TestPhase4Triggers:
         scheduler = CronScheduler()
 
         # Schedule run for every minute
-        schedule_id = scheduler.add_schedule({
+        scheduler.add_schedule({
             "cron": "* * * * *",  # Every minute
             "template": "weekly_report.yaml",
             "queue": "scheduled",
@@ -387,7 +386,7 @@ class TestPhase4FailureClustering:
     @pytest.mark.xfail(reason="TDD red phase - Clustering metrics not implemented yet")
     def test_failure_cluster_metrics(self, page: Page, base_url: str):
         """Test failure clusters appear in metrics endpoint."""
-        metrics_response = page.goto(f"{base_url}/metrics")
+        page.goto(f"{base_url}/metrics")
         metrics = page.evaluate("() => JSON.parse(document.body.textContent)")
 
         assert "top_failure_clusters_24h" in metrics
@@ -406,7 +405,7 @@ class TestPhase4Metrics:
     @pytest.mark.xfail(reason="TDD red phase - Phase 4 metrics not implemented yet")
     def test_new_metrics_in_endpoint(self, page: Page, base_url: str):
         """Test all new Phase 4 metrics appear in /metrics."""
-        metrics_response = page.goto(f"{base_url}/metrics")
+        page.goto(f"{base_url}/metrics")
         metrics = page.evaluate("() => JSON.parse(document.body.textContent)")
 
         # All new Phase 4 metrics should be present
@@ -513,7 +512,7 @@ class TestPhase4Integration:
 
         # 2. Trigger the schedule
         response = page.request.post(f"{base_url}/api/schedules",
-                                   data=json.dumps(schedule_config))
+                                     data=json.dumps(schedule_config))
         assert response.status == 201
 
         # 3. Should be queued with correct priority
@@ -537,7 +536,7 @@ class TestPhase4Integration:
         assert "COMPLETED" in page.content()
 
         # 7. Metrics should reflect the activity
-        metrics_response = page.goto(f"{base_url}/metrics")
+        page.goto(f"{base_url}/metrics")
         metrics = page.evaluate("() => JSON.parse(document.body.textContent)")
 
         assert metrics["scheduled_runs_24h"] >= 1

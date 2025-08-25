@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 # These imports will fail initially - expected for TDD red phase
 try:
-    from app.orchestrator.queue import QueueManager, RunQueue, QueueConfig
+    from app.orchestrator.queue import QueueManager, RunQueue
     from app.orchestrator.retry import RetryManager
 except ImportError:
     # Expected during red phase
@@ -28,8 +28,8 @@ class TestQueueManager:
         manager = QueueManager()
 
         # Create queues with different configs
-        default_queue = manager.create_queue("default", max_concurrent=2)
-        reports_queue = manager.create_queue("reports", max_concurrent=1)
+        manager.create_queue("default", max_concurrent=2)
+        manager.create_queue("reports", max_concurrent=1)
 
         assert manager.get_queue("default") is not None
         assert manager.get_queue("reports") is not None
@@ -42,9 +42,9 @@ class TestQueueManager:
         queue = manager.create_queue("test", max_concurrent=1)
 
         # Enqueue runs with different priorities
-        run1 = manager.enqueue("test", {"template": "low.yaml", "priority": 1})
-        run2 = manager.enqueue("test", {"template": "high.yaml", "priority": 9})
-        run3 = manager.enqueue("test", {"template": "medium.yaml", "priority": 5})
+        manager.enqueue("test", {"template": "low.yaml", "priority": 1})
+        manager.enqueue("test", {"template": "high.yaml", "priority": 9})
+        manager.enqueue("test", {"template": "medium.yaml", "priority": 5})
 
         # Should dequeue in priority order (high to low)
         next_run = queue.dequeue()
@@ -60,7 +60,7 @@ class TestQueueManager:
     def test_concurrency_control_by_tag(self):
         """Test concurrency limits by tag."""
         manager = QueueManager()
-        queue = manager.create_queue("test", max_concurrent=5)
+        manager.create_queue("test", max_concurrent=5)
 
         # Configure tag-specific concurrency limits
         manager.set_tag_limit("web-form", 2)
@@ -90,9 +90,9 @@ class TestRunQueue:
         queue = RunQueue(max_concurrent=1)
 
         # Add runs with same priority
-        run1_id = queue.enqueue({"template": "first.yaml", "priority": 5, "timestamp": time.time()})
+        queue.enqueue({"template": "first.yaml", "priority": 5, "timestamp": time.time()})
         time.sleep(0.01)  # Ensure different timestamps
-        run2_id = queue.enqueue({"template": "second.yaml", "priority": 5, "timestamp": time.time()})
+        queue.enqueue({"template": "second.yaml", "priority": 5, "timestamp": time.time()})
 
         # Should dequeue in FIFO order for same priority
         first = queue.dequeue()
@@ -123,8 +123,8 @@ class TestRunQueue:
         queue = RunQueue(max_concurrent=2, persist_file="test_queue.json")
 
         # Add some runs
-        run1 = queue.enqueue({"template": "persistent1.yaml", "priority": 5})
-        run2 = queue.enqueue({"template": "persistent2.yaml", "priority": 3})
+        queue.enqueue({"template": "persistent1.yaml", "priority": 5})
+        queue.enqueue({"template": "persistent2.yaml", "priority": 3})
 
         # Save state
         queue.save_state()
@@ -232,7 +232,7 @@ class TestQueueMetrics:
     def test_queue_depth_tracking(self):
         """Test queue depth metrics are tracked."""
         manager = QueueManager()
-        queue = manager.create_queue("metrics_test", max_concurrent=1)
+        manager.create_queue("metrics_test", max_concurrent=1)
 
         # Add runs to create queue depth
         for i in range(5):
@@ -246,7 +246,7 @@ class TestQueueMetrics:
     def test_runs_per_hour_calculation(self):
         """Test runs per hour metric calculation."""
         manager = QueueManager()
-        queue = manager.create_queue("throughput_test", max_concurrent=10)
+        manager.create_queue("throughput_test", max_concurrent=10)
 
         # Simulate completed runs over time
         now = datetime.now()
@@ -317,7 +317,7 @@ class TestQueueConfiguration:
     def test_dynamic_configuration_updates(self):
         """Test updating queue configuration at runtime."""
         manager = QueueManager()
-        queue = manager.create_queue("dynamic", max_concurrent=2)
+        manager.create_queue("dynamic", max_concurrent=2)
 
         # Update configuration
         manager.update_queue_config("dynamic", max_concurrent=5, max_queued=200)

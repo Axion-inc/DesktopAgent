@@ -6,7 +6,7 @@ from .base import Capability
 
 class CapabilityMap:
     """Manages OS capability negotiation and fallback strategies."""
-    
+
     # Define all known capabilities across platforms
     ALL_CAPABILITIES = {
         "mail_compose", "mail_attach", "mail_save_draft",
@@ -14,7 +14,7 @@ class CapabilityMap:
         "fs_operations", "pdf_operations", "permissions_check",
         "ax_api_access", "applescript_automation"
     }
-    
+
     # Platform-specific capability definitions
     PLATFORM_CAPABILITIES = {
         "macos": {
@@ -44,28 +44,28 @@ class CapabilityMap:
             "applescript_automation": Capability("applescript_automation", False, "N/A on Windows")
         }
     }
-    
+
     def __init__(self, platform: str):
         self.platform = platform.lower()
         self.capabilities = self.PLATFORM_CAPABILITIES.get(self.platform, {})
-    
+
     def get_capability(self, name: str) -> Capability:
         """Get capability info for specified feature."""
         return self.capabilities.get(name, Capability(name, False, "Unknown capability"))
-    
+
     def is_available(self, name: str) -> bool:
         """Check if capability is available on current platform."""
         cap = self.get_capability(name)
         return cap.available
-    
+
     def get_available_capabilities(self) -> Set[str]:
         """Get set of all available capability names."""
         return {name for name, cap in self.capabilities.items() if cap.available}
-    
+
     def get_unavailable_capabilities(self) -> Set[str]:
         """Get set of all unavailable capability names."""
         return {name for name, cap in self.capabilities.items() if not cap.available}
-    
+
     def get_fallback_strategy(self, capability: str) -> str:
         """Get fallback strategy when capability is unavailable."""
         fallback_strategies = {
@@ -81,21 +81,21 @@ class CapabilityMap:
             "ax_api_access": "Skip accessibility-based operations",
             "applescript_automation": "Use PowerShell/COM alternatives where possible"
         }
-        
+
         return fallback_strategies.get(capability, "Log operation as TODO item")
-    
+
     def apply_fallback(self, capability: str, operation_details: Dict) -> Dict:
         """Apply fallback strategy for unavailable capability.
-        
+
         Args:
             capability: Name of unavailable capability
             operation_details: Details about the attempted operation
-            
+
         Returns:
             Dictionary with fallback result and metadata
         """
         strategy = self.get_fallback_strategy(capability)
-        
+
         return {
             "fallback_applied": True,
             "original_capability": capability,
