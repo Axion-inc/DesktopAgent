@@ -71,7 +71,7 @@ def mock_form():
 
 @app.post("/mock/form", response_class=HTMLResponse)
 def mock_form_post(
-    name: str = Form("") ,
+    name: str = Form(""),
     email: str = Form(""),
     subject: str = Form(""),
     message: str = Form("")
@@ -180,13 +180,13 @@ def public_dashboard():
         <div>Approvals Granted: <span class='metric-value'>{m.get('approvals_granted_24h', 0)}</span></div>
         <div>Web Success Rate: <span class='metric-value'>{m.get('web_step_success_rate_24h', 0)}</span></div>
         <div>Recovery Applied: <span class='metric-value'>{m.get('recovery_applied_24h', 0)}</span></div>
-        
+
         <h2>Phase 3 Metrics (24h)</h2>
         <div>Verifier Pass Rate: <span class='metric-value'>{m.get('verifier_pass_rate_24h', 0)}</span></div>
         <div>Schema Captures: <span class='metric-value'>{m.get('schema_captures_24h', 0)}</span></div>
         <div>Web Upload Success Rate: <span class='metric-value'>{m.get('web_upload_success_rate_24h', 0)}</span></div>
         <div>OS Capability Misses: <span class='metric-value'>{m.get('os_capability_miss_24h', 0)}</span></div>
-        
+
         <h2>Phase 4 Metrics (24h)</h2>
         <div>Queue Peak Depth: <span class='metric-value'>{m.get('queue_depth_peak_24h', 0)}</span></div>
         <div>Runs per Hour: <span class='metric-value'>{m.get('runs_per_hour_24h', 0)}</span></div>
@@ -194,12 +194,16 @@ def public_dashboard():
         <div>HITL Interventions: <span class='metric-value'>{m.get('hitl_interventions_24h', 0)}</span></div>
         <div>Scheduled Runs: <span class='metric-value'>{m.get('scheduled_runs_24h', 0)}</span></div>
         <div>RBAC Denials: <span class='metric-value'>{m.get('rbac_denied_24h', 0)}</span></div>
-        
+
         <h2>Top Failure Clusters (24h)</h2>
         <div>
-          {chr(10).join([f"<div>{cluster['cluster']}: <span class='metric-value'>{cluster['count']}</span></div>" for cluster in m.get('top_failure_clusters_24h', [])])}
+          {chr(10).join([
+              f"<div>{cluster['cluster']}: "
+              f"<span class='metric-value'>{cluster['count']}</span></div>"
+              for cluster in m.get('top_failure_clusters_24h', [])
+          ])}
         </div>
-        
+
         <h2>Performance (24h)</h2>
         <div>Median Duration: <span class='metric-value'>{m.get('median_duration_ms_24h', 0)}ms</span></div>
         <div>P95 Duration: <span class='metric-value'>{m.get('p95_duration_ms_24h', 0)}ms</span></div>

@@ -274,16 +274,16 @@ class TestE2EPhase3Features:
         page.wait_for_load_state("networkidle")
 
         content = page.content()
-        
+
         # Verify Phase 3 metrics section exists
         assert "Phase 3 Metrics" in content
-        
+
         # Verify Phase 3 specific metrics
         assert "Verifier Pass Rate" in content
         assert "Schema Captures" in content
         assert "Web Upload Success Rate" in content
         assert "OS Capability Misses" in content
-        
+
         # Verify we have additional metric cards for Phase 3
         metric_elements = page.locator(".metric-value").count()
         assert metric_elements >= 11  # Should have at least 11 metrics now (7 + 4 Phase 3)
@@ -330,9 +330,9 @@ class TestE2EPhase3Features:
         """Test 100 mock form submissions to verify Phase 3 reliability."""
         successful_submissions = 0
         failed_submissions = 0
-        
+
         base_names = ["田中", "佐藤", "山田", "高橋", "伊藤", "渡辺", "中村", "小林", "加藤", "吉田"]
-        
+
         for i in range(100):
             try:
                 # Generate test data
@@ -385,14 +385,14 @@ class TestE2EPhase3Features:
 
         # Phase 3 acceptance criteria: 100 runs complete, 0 false-positive uploads
         print(f"E2E Results: {successful_submissions} successful, {failed_submissions} failed")
-        
+
         # Allow for some failures due to network/timing issues, but expect high success rate
         success_rate = successful_submissions / 100
         assert success_rate >= 0.95, (
             f"Success rate {success_rate:.2%} below threshold (95%). "
             f"Successful: {successful_submissions}, Failed: {failed_submissions}"
         )
-        
+
         # No false-positive uploads should have occurred (verified by manual inspection)
         # In a real implementation, this would check upload metrics or logs
 
@@ -402,13 +402,13 @@ class TestE2EPhase3Features:
         page.wait_for_load_state("networkidle")
 
         # Test verifier-like assertions through Playwright
-        
+
         # wait_for_element equivalent
         name_field = page.get_by_label("氏名")
         name_field.wait_for(state="visible", timeout=15000)
         assert name_field.is_visible()
 
-        # assert_element equivalent  
+        # assert_element equivalent
         submit_buttons = page.get_by_role("button", name="送信")
         assert submit_buttons.count() >= 1
 
@@ -417,7 +417,7 @@ class TestE2EPhase3Features:
 
         # Fill and submit to test full workflow
         page.get_by_label("氏名").fill("検証テスト")
-        page.get_by_label("メール").fill("verifier@test.com") 
+        page.get_by_label("メール").fill("verifier@test.com")
         page.get_by_label("件名").fill("検証機能テスト")
         page.get_by_label("本文").fill("Phase 3 検証機能のテスト実行中")
 
@@ -504,11 +504,11 @@ class TestE2EPhase3Features:
 
         # Verify Phase 2 workflows still succeed
         assert "送信完了" in page.content()
-        
+
         # Test dashboard still works
         page.goto(f"{base_url}/public/dashboard")
         page.wait_for_load_state("networkidle")
-        
+
         # Should show both Phase 2 and Phase 3 metrics
         content = page.content()
         assert "Success Rate" in content  # Phase 2 metric
