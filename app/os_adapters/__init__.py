@@ -1,9 +1,10 @@
 import platform
 
+
 def get_os_adapter():
     """Get the appropriate OS adapter for the current platform"""
     system = platform.system()
-    
+
     if system == "Darwin":
         from .macos import MacOSAdapter
         return MacOSAdapter()
@@ -15,9 +16,10 @@ def get_os_adapter():
         from .macos import MacOSAdapter
         return MacOSAdapter()
 
+
 __all__ = [
     "base",
-    "macos", 
+    "macos",
     "windows",
     "get_os_adapter",
 ]
