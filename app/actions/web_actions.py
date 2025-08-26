@@ -1068,7 +1068,7 @@ def get_page_info(context: str = "default") -> Dict[str, Any]:
 DESTRUCTIVE_KEYWORDS = [
     "送信", "確定", "Delete", "削除", "上書き",
     "支払", "送付", "Apply Changes", "Purchase", "Buy",
-    "Remove", "Confirm"
+    "Remove", "Confirm", "Submit"
 ]
 
 

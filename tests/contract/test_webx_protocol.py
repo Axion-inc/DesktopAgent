@@ -7,6 +7,7 @@ import json
 import pytest
 import subprocess
 import time
+import platform
 from typing import Dict, Any, Optional
 
 
@@ -100,6 +101,7 @@ def mock_extension(native_host_executable):
     communicator.close()
 
 
+@pytest.mark.skipif(platform.system() != "Darwin", reason="Native messaging requires macOS environment")
 class TestWebXProtocolContract:
     """Contract tests for WebX JSON-RPC protocol"""
 

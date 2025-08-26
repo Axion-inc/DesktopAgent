@@ -70,6 +70,7 @@ class TestOSAdapterContract:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
+    @pytest.mark.skipif(platform.system() != "Darwin", reason="macOS screencapture command required")
     def test_take_screenshot_handles_invalid_path(self, macos_adapter):
         """Test that take_screenshot raises appropriate error for invalid paths."""
         with pytest.raises(RuntimeError, match="Screenshot failed"):
