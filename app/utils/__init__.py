@@ -21,4 +21,19 @@ def get_logger():
     return _utils_module.get_logger()
 
 
-__all__ = ['take_screenshot', 'get_logger']
+def json_dumps(data) -> str:
+    """JSON dumps - wrapper for backward compatibility"""
+    return _utils_module.json_dumps(data)
+
+
+def safe_filename(basename: str) -> str:
+    """Safe filename - wrapper for backward compatibility"""
+    return _utils_module.safe_filename(basename)
+
+
+def now_iso() -> str:
+    """Current ISO timestamp - wrapper for backward compatibility"""
+    return _utils_module.now_iso()
+
+
+__all__ = ['take_screenshot', 'get_logger', 'json_dumps', 'safe_filename', 'now_iso']
