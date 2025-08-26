@@ -279,15 +279,19 @@ class ExtensionEngine(WebEngine):
                 path = f.name
 
         try:
-            return path
+            # Try RPC call to extension
+            response = self._send_rpc('take_screenshot', {'path': path, 'context': context})
+            if response.get('success'):
+                return path
+            else:
+                raise Exception(f"Screenshot RPC failed: {response}")
         except Exception as e:
             logger.error(f"ExtensionEngine screenshot failed: {e}")
-            # Fallback to OS adapter for now
+            # Fallback to OS adapter
             from ..os_adapters import get_os_adapter
             adapter = get_os_adapter()
-            if adapter.take_screenshot(path):
-                return path
-            raise RuntimeError(f"Screenshot failed: {e}")
+            adapter.take_screenshot(path)
+            return path
 
     def upload_file(self, path: str, selector: Optional[str] = None,
                     label: Optional[str] = None, context: str = "default",

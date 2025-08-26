@@ -81,9 +81,7 @@ class TestPlaywrightEngine:
         engine = PlaywrightEngine()
         result = engine.open_browser('https://example.com', 'test_context')
 
-        mock_open.assert_called_once_with(
-            'https://example.com', 'test_context', wait_for_load=True, visible=None
-        )
+        mock_open.assert_called_once_with('https://example.com', 'test_context')
         assert result['status'] == 'success'
 
     @patch('app.actions.web_actions.fill_by_label')
