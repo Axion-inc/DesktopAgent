@@ -128,7 +128,7 @@ class TestRiskAnalyzer:
 
             assert risk is not None
             assert risk["level"] == "high"
-            assert risk["category"] == "form_submission"
+            assert risk["category"] == "destructive_click"  # Submit is now destructive keyword
             assert pattern in risk["description"].lower()
 
         for pattern in medium_risk_cases:
