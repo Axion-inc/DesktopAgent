@@ -119,9 +119,19 @@ class TestRiskAnalyzer:
         """Test click_by_text analysis with form submission patterns."""
         analyzer = RiskAnalyzer()
 
-        submission_cases = ["submit", "send", "post", "save", "update"]
+        # Submit is now high risk due to being in destructive keywords
+        high_risk_cases = ["submit"]
+        medium_risk_cases = ["send", "post", "save", "update"]
 
-        for pattern in submission_cases:
+        for pattern in high_risk_cases:
+            risk = analyzer._analyze_click_by_text(0, "click_by_text", {"text": f"Click to {pattern}"})
+
+            assert risk is not None
+            assert risk["level"] == "high"
+            assert risk["category"] == "form_submission"
+            assert pattern in risk["description"].lower()
+
+        for pattern in medium_risk_cases:
             risk = analyzer._analyze_click_by_text(0, "click_by_text", {"text": f"Click to {pattern}"})
 
             assert risk is not None

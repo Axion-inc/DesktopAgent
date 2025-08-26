@@ -164,23 +164,22 @@ class ExtensionEngine(WebEngine):
         self.extension_id = None
         self.handshake_token = None
 
-        # Load configuration
-        self._load_config()
+        # Load configuration with error handling
+        try:
+            self._load_config()
+        except Exception as e:
+            logger.warning(f"ExtensionEngine configuration failed: {e}")
+            # Continue with defaults
 
     def _load_config(self):
         """Load extension engine configuration"""
-        try:
-            web_config = self.config.get('web_engine', {})
-            extension_config = web_config.get('extension', {})
+        web_config = self.config.get('web_engine', {})
+        extension_config = web_config.get('extension', {})
 
-            self.extension_id = extension_config.get('id')
-            self.handshake_token = extension_config.get('handshake_token')
+        self.extension_id = extension_config.get('id')
+        self.handshake_token = extension_config.get('handshake_token')
 
-            logger.info(f"ExtensionEngine configured with extension ID: {self.extension_id}")
-
-        except Exception as e:
-            logger.error(f"Failed to load extension configuration: {e}")
-            raise RuntimeError(f"Extension configuration error: {e}")
+        logger.info(f"ExtensionEngine configured with extension ID: {self.extension_id}")
 
     def _ensure_native_host(self):
         """Ensure native messaging host is running"""
