@@ -1,12 +1,12 @@
 # Utils package for Desktop Agent
 
-# Import functions from the sibling utils module
+# Direct import from the sibling utils.py module to avoid circular imports
 import importlib.util
 from pathlib import Path
 
-# Load the utils.py module directly to avoid circular imports
+# Load the utils.py module directly using its file path
 _utils_module_path = Path(__file__).parent.parent / "utils.py"
-_spec = importlib.util.spec_from_file_location("app.utils_module", _utils_module_path)
+_spec = importlib.util.spec_from_file_location("app_utils_module", _utils_module_path)
 _utils_module = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_utils_module)
 
