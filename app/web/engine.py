@@ -430,6 +430,7 @@ def get_web_engine(engine_type: Optional[str] = None) -> WebEngine:
 
         # Create engine if needed or type changed
         if (_current_engine is None or
+                not hasattr(_current_engine, 'name') or
                 not _current_engine.name.lower().startswith(engine_type.lower())):
             # Close existing engine
             if _current_engine is not None:
