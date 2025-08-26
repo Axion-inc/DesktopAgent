@@ -5,6 +5,7 @@ import os
 import glob
 import shutil
 import fnmatch
+from pathlib import Path
 from typing import Iterable, Dict, List, Any, Optional
 
 from .base import OSAdapter, MailAdapter, PreviewAdapter, Capability
@@ -48,7 +49,14 @@ class MacOSAdapter(OSAdapter):
     def take_screenshot(self, dest_path: str) -> None:
         """Take screenshot using macOS screencapture command."""
         try:
-            subprocess.run(["screencapture", "-x", dest_path], check=True)
+            result = subprocess.run(["screencapture", "-x", dest_path], 
+                                   check=False, capture_output=True, text=True)
+            
+            # Check if file was actually created (screencapture returns 0 even on errors)
+            if not Path(dest_path).exists():
+                error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                raise RuntimeError(f"Screenshot failed: {error_msg}")
+                
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Screenshot failed: {e}")
 

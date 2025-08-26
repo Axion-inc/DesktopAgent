@@ -72,7 +72,7 @@ class TestOSAdapterContract:
 
     def test_take_screenshot_handles_invalid_path(self, macos_adapter):
         """Test that take_screenshot raises appropriate error for invalid paths."""
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError, match="Screenshot failed"):
             macos_adapter.take_screenshot("/invalid/nonexistent/path/screenshot.png")
 
     @pytest.mark.xfail(reason="Windows implementation not yet complete")
