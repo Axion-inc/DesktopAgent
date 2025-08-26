@@ -1,7 +1,6 @@
 # Utils package for Desktop Agent
 
 # Import functions from the sibling utils module
-import sys
 import importlib.util
 from pathlib import Path
 
@@ -18,7 +17,7 @@ def take_screenshot(filename: str) -> str:
 
 
 def get_logger():
-    """Get logger - wrapper for backward compatibility"""  
+    """Get logger - wrapper for backward compatibility"""
     return _utils_module.get_logger()
 
 
