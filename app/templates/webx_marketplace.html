@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebX Plugin Marketplace - Desktop Agent</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+            padding: 1rem 0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #007cba;
+        }
+
+        .search-section {
+            background: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: #007cba;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: #007cba;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+
+        .filters {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filter-select {
+            padding: 0.5rem;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            background: white;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .plugins-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .plugin-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+        }
+
+        .plugin-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .plugin-header {
+            display: flex;
+            justify-content: between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .plugin-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+
+        .plugin-author {
+            color: #6c757d;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .plugin-version {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: #e9ecef;
+            color: #495057;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .plugin-description {
+            color: #495057;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+        }
+
+        .plugin-badges {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-verified {
+            background: #28a745;
+            color: white;
+        }
+
+        .badge-security {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .badge-category {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .plugin-stats {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.875rem;
+            color: #6c757d;
+            margin-bottom: 1rem;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .plugin-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            height: fit-content;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .sidebar-section {
+            margin-bottom: 2rem;
+        }
+
+        .sidebar-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+
+        .installed-plugin {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+
+        .installed-plugin-info {
+            flex: 1;
+        }
+
+        .installed-plugin-name {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .installed-plugin-version {
+            font-size: 0.75rem;
+            color: #6c757d;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .status-active {
+            background: #28a745;
+        }
+
+        .status-inactive {
+            background: #dc3545;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #6c757d;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #6c757d;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #6c757d;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            .plugins-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .filters {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">🌐 WebX Plugin Marketplace</div>
+                <div>
+                    <a href="/public/dashboard" class="btn btn-secondary">Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="search-section">
+        <div class="container">
+            <div class="search-bar">
+                <input type="text" id="searchInput" class="search-input" placeholder="Search plugins by name, description, or category...">
+                <button id="searchBtn" class="btn btn-primary">Search</button>
+            </div>
+            <div class="filters">
+                <div class="filter-group">
+                    <label>Category:</label>
+                    <select id="categoryFilter" class="filter-select">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>
+                        <input type="checkbox" id="verifiedFilter"> Verified Only
+                    </label>
+                </div>
+                <div class="filter-group">
+                    <label>Sort by:</label>
+                    <select id="sortFilter" class="filter-select">
+                        <option value="rating">Rating</option>
+                        <option value="downloads">Downloads</option>
+                        <option value="name">Name</option>
+                        <option value="updated">Last Updated</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="content">
+            <div class="main-content">
+                <div id="pluginsGrid" class="plugins-grid">
+                    <div class="loading">
+                        <p>Loading plugins...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Installed Plugins</div>
+                    <div id="installedPlugins">
+                        <div class="loading">Loading...</div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Quick Actions</div>
+                    <button id="refreshBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 0.5rem;">Refresh</button>
+                    <button id="uploadBtn" class="btn btn-secondary" style="width: 100%;">Upload Plugin</button>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Statistics</div>
+                    <div id="statistics">
+                        <div class="loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Plugin Details Modal -->
+    <div id="pluginModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">Plugin Details</div>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modalBody">
+                <!-- Plugin details will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Plugin Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Upload Plugin</div>
+                <button class="close-btn" onclick="closeUploadModal()">&times;</button>
+            </div>
+            <div id="uploadModalBody">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div style="margin-bottom: 1rem;">
+                        <label for="pluginFile">Select plugin ZIP file:</label>
+                        <input type="file" id="pluginFile" accept=".zip" required style="display: block; width: 100%; padding: 0.5rem; margin-top: 0.5rem; border: 1px solid #e9ecef; border-radius: 4px;">
+                    </div>
+                    <div style="display: flex; gap: 1rem;">
+                        <button type="submit" class="btn btn-primary">Upload</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeUploadModal()">Cancel</button>
+                    </div>
+                </form>
+                <div id="uploadResult"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let allPlugins = [];
+        let installedPlugins = [];
+        let categories = [];
+        let currentUser = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadInitialData();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('searchBtn').addEventListener('click', searchPlugins);
+            document.getElementById('searchInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') searchPlugins();
+            });
+            
+            document.getElementById('categoryFilter').addEventListener('change', filterPlugins);
+            document.getElementById('verifiedFilter').addEventListener('change', filterPlugins);
+            document.getElementById('sortFilter').addEventListener('change', filterPlugins);
+            
+            document.getElementById('refreshBtn').addEventListener('click', loadInitialData);
+            document.getElementById('uploadBtn').addEventListener('click', showUploadModal);
+            
+            document.getElementById('uploadForm').addEventListener('submit', uploadPlugin);
+        }
+
+        async function loadInitialData() {
+            await Promise.all([
+                loadPlugins(),
+                loadInstalledPlugins(),
+                loadCategories(),
+                loadStatistics()
+            ]);
+        }
+
+        async function loadPlugins() {
+            try {
+                const response = await fetch('/api/webx/plugins/');
+                if (response.ok) {
+                    const data = await response.json();
+                    allPlugins = data.plugins;
+                    renderPlugins(allPlugins);
+                } else {
+                    throw new Error('Failed to load plugins');
+                }
+            } catch (error) {
+                console.error('Error loading plugins:', error);
+                document.getElementById('pluginsGrid').innerHTML = `
+                    <div class="empty-state">
+                        <p>Failed to load plugins. Please try again later.</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function loadInstalledPlugins() {
+            try {
+                const response = await fetch('/api/webx/plugins/installed');
+                if (response.ok) {
+                    installedPlugins = await response.json();
+                    renderInstalledPlugins();
+                }
+            } catch (error) {
+                console.error('Error loading installed plugins:', error);
+                document.getElementById('installedPlugins').innerHTML = '<p>Failed to load installed plugins</p>';
+            }
+        }
+
+        async function loadCategories() {
+            try {
+                const response = await fetch('/api/webx/plugins/categories');
+                if (response.ok) {
+                    const data = await response.json();
+                    categories = data.categories;
+                    renderCategoryFilter();
+                }
+            } catch (error) {
+                console.error('Error loading categories:', error);
+            }
+        }
+
+        async function loadStatistics() {
+            try {
+                const response = await fetch('/api/webx/plugins/stats/overview');
+                if (response.ok) {
+                    const stats = await response.json();
+                    renderStatistics(stats);
+                }
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+                document.getElementById('statistics').innerHTML = '<p>Statistics unavailable</p>';
+            }
+        }
+
+        function renderPlugins(plugins) {
+            const grid = document.getElementById('pluginsGrid');
+            
+            if (plugins.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <p>No plugins found. Try adjusting your search or filters.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = plugins.map(plugin => `
+                <div class="plugin-card">
+                    <div class="plugin-version">v${plugin.version}</div>
+                    <div class="plugin-header">
+                        <div>
+                            <div class="plugin-title">${plugin.name}</div>
+                            <div class="plugin-author">by ${plugin.author}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="plugin-description">${plugin.description}</div>
+                    
+                    <div class="plugin-badges">
+                        ${plugin.verified ? '<span class="badge badge-verified">Verified</span>' : ''}
+                        <span class="badge badge-security">${plugin.security_level}</span>
+                        ${plugin.keywords.slice(0, 2).map(keyword => `<span class="badge badge-category">${keyword}</span>`).join('')}
+                    </div>
+                    
+                    <div class="plugin-stats">
+                        <div class="stat">⭐ ${plugin.rating.toFixed(1)}</div>
+                        <div class="stat">📥 ${plugin.download_count}</div>
+                        <div class="stat">💬 ${plugin.review_count}</div>
+                    </div>
+                    
+                    <div class="plugin-actions">
+                        ${isPluginInstalled(plugin.id) 
+                            ? `<button onclick="uninstallPlugin('${plugin.id}')" class="btn btn-danger btn-sm">Uninstall</button>`
+                            : `<button onclick="installPlugin('${plugin.id}')" class="btn btn-success btn-sm">Install</button>`
+                        }
+                        <button onclick="showPluginDetails('${plugin.id}')" class="btn btn-secondary btn-sm">Details</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderInstalledPlugins() {
+            const container = document.getElementById('installedPlugins');
+            
+            if (installedPlugins.length === 0) {
+                container.innerHTML = '<p>No plugins installed</p>';
+                return;
+            }
+
+            container.innerHTML = installedPlugins.map(plugin => `
+                <div class="installed-plugin">
+                    <div class="installed-plugin-info">
+                        <div class="installed-plugin-name">
+                            <span class="status-indicator status-active"></span>
+                            ${plugin.name}
+                        </div>
+                        <div class="installed-plugin-version">v${plugin.version}</div>
+                    </div>
+                    <div>
+                        <button onclick="updatePlugin('${plugin.id}')" class="btn btn-primary btn-sm">Update</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderCategoryFilter() {
+            const select = document.getElementById('categoryFilter');
+            const currentValue = select.value;
+            
+            select.innerHTML = '<option value="">All Categories</option>' +
+                categories.map(category => `<option value="${category}">${category}</option>`).join('');
+            
+            select.value = currentValue;
+        }
+
+        function renderStatistics(stats) {
+            const container = document.getElementById('statistics');
+            
+            container.innerHTML = `
+                <div style="margin-bottom: 1rem;">
+                    <div style="font-weight: 600;">Marketplace</div>
+                    <div style="font-size: 0.875rem; color: #6c757d;">
+                        ${stats.marketplace.total_plugins} plugins available<br>
+                        ${stats.marketplace.verified_plugins} verified<br>
+                        ${stats.marketplace.total_downloads} total downloads
+                    </div>
+                </div>
+                <div>
+                    <div style="font-weight: 600;">Your Installation</div>
+                    <div style="font-size: 0.875rem; color: #6c757d;">
+                        ${stats.installation.installed_plugins} plugins installed
+                    </div>
+                </div>
+            `;
+        }
+
+        function isPluginInstalled(pluginId) {
+            return installedPlugins.some(plugin => plugin.id === pluginId);
+        }
+
+        async function searchPlugins() {
+            const query = document.getElementById('searchInput').value.trim();
+            
+            if (query) {
+                try {
+                    const response = await fetch('/api/webx/plugins/search', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            query: query,
+                            category: document.getElementById('categoryFilter').value || null,
+                            verified_only: document.getElementById('verifiedFilter').checked,
+                            limit: 50
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        renderPlugins(data.plugins);
+                    }
+                } catch (error) {
+                    console.error('Search failed:', error);
+                }
+            } else {
+                renderPlugins(allPlugins);
+            }
+        }
+
+        function filterPlugins() {
+            let filtered = [...allPlugins];
+            
+            const category = document.getElementById('categoryFilter').value;
+            const verifiedOnly = document.getElementById('verifiedFilter').checked;
+            const sortBy = document.getElementById('sortFilter').value;
+            
+            if (category) {
+                filtered = filtered.filter(plugin => plugin.keywords.includes(category));
+            }
+            
+            if (verifiedOnly) {
+                filtered = filtered.filter(plugin => plugin.verified);
+            }
+            
+            // Sort plugins
+            filtered.sort((a, b) => {
+                switch (sortBy) {
+                    case 'rating':
+                        return b.rating - a.rating;
+                    case 'downloads':
+                        return b.download_count - a.download_count;
+                    case 'name':
+                        return a.name.localeCompare(b.name);
+                    case 'updated':
+                        return new Date(b.updated_at) - new Date(a.updated_at);
+                    default:
+                        return 0;
+                }
+            });
+            
+            renderPlugins(filtered);
+        }
+
+        async function installPlugin(pluginId) {
+            try {
+                const response = await fetch('/api/webx/plugins/install', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        plugin_id: pluginId
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    showAlert('Plugin installed successfully!', 'success');
+                    await loadInstalledPlugins();
+                    renderPlugins(allPlugins); // Refresh to update install buttons
+                } else {
+                    showAlert(`Installation failed: ${result.message}`, 'danger');
+                }
+            } catch (error) {
+                console.error('Installation failed:', error);
+                showAlert('Installation failed. Please try again.', 'danger');
+            }
+        }
+
+        async function uninstallPlugin(pluginId) {
+            if (!confirm('Are you sure you want to uninstall this plugin?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/webx/plugins/${pluginId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    showAlert('Plugin uninstalled successfully!', 'success');
+                    await loadInstalledPlugins();
+                    renderPlugins(allPlugins); // Refresh to update install buttons
+                } else {
+                    showAlert(`Uninstallation failed: ${result.message}`, 'danger');
+                }
+            } catch (error) {
+                console.error('Uninstallation failed:', error);
+                showAlert('Uninstallation failed. Please try again.', 'danger');
+            }
+        }
+
+        async function updatePlugin(pluginId) {
+            try {
+                const response = await fetch(`/api/webx/plugins/${pluginId}/update`, {
+                    method: 'PUT'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    showAlert('Plugin updated successfully!', 'success');
+                    await loadInstalledPlugins();
+                    await loadPlugins(); // Refresh to get latest versions
+                } else {
+                    showAlert(`Update failed: ${result.message}`, 'danger');
+                }
+            } catch (error) {
+                console.error('Update failed:', error);
+                showAlert('Update failed. Please try again.', 'danger');
+            }
+        }
+
+        function showPluginDetails(pluginId) {
+            const plugin = allPlugins.find(p => p.id === pluginId);
+            if (!plugin) return;
+            
+            document.getElementById('modalTitle').textContent = plugin.name;
+            document.getElementById('modalBody').innerHTML = `
+                <div style="margin-bottom: 1rem;">
+                    <strong>Version:</strong> ${plugin.version}<br>
+                    <strong>Author:</strong> ${plugin.author}<br>
+                    <strong>License:</strong> ${plugin.license}<br>
+                    <strong>Security Level:</strong> ${plugin.security_level}
+                </div>
+                
+                <div style="margin-bottom: 1rem;">
+                    <strong>Description:</strong><br>
+                    ${plugin.description}
+                </div>
+                
+                <div style="margin-bottom: 1rem;">
+                    <strong>Capabilities:</strong><br>
+                    ${plugin.capabilities.map(cap => `<span class="badge badge-security" style="margin-right: 0.25rem;">${cap}</span>`).join('')}
+                </div>
+                
+                <div style="margin-bottom: 1rem;">
+                    <strong>Categories:</strong><br>
+                    ${plugin.keywords.map(keyword => `<span class="badge badge-category" style="margin-right: 0.25rem;">${keyword}</span>`).join('')}
+                </div>
+                
+                <div style="margin-bottom: 1rem;">
+                    <strong>Statistics:</strong><br>
+                    Rating: ${plugin.rating.toFixed(1)}/5.0 (${plugin.review_count} reviews)<br>
+                    Downloads: ${plugin.download_count}<br>
+                    Last Updated: ${new Date(plugin.updated_at).toLocaleDateString()}
+                </div>
+                
+                ${plugin.homepage ? `<div style="margin-bottom: 1rem;"><a href="${plugin.homepage}" target="_blank" class="btn btn-secondary btn-sm">Homepage</a></div>` : ''}
+                
+                <div>
+                    ${isPluginInstalled(plugin.id) 
+                        ? `<button onclick="uninstallPlugin('${plugin.id}'); closeModal();" class="btn btn-danger">Uninstall</button>`
+                        : `<button onclick="installPlugin('${plugin.id}'); closeModal();" class="btn btn-success">Install</button>`
+                    }
+                </div>
+            `;
+            
+            document.getElementById('pluginModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('pluginModal').classList.remove('active');
+        }
+
+        function showUploadModal() {
+            document.getElementById('uploadModal').classList.add('active');
+        }
+
+        function closeUploadModal() {
+            document.getElementById('uploadModal').classList.remove('active');
+            document.getElementById('uploadForm').reset();
+            document.getElementById('uploadResult').innerHTML = '';
+        }
+
+        async function uploadPlugin(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('pluginFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showUploadAlert('Please select a file to upload.', 'danger');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                showUploadAlert('Uploading plugin...', 'info');
+                
+                const response = await fetch('/api/webx/plugins/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    showUploadAlert('Plugin uploaded and registered successfully!', 'success');
+                    await loadPlugins(); // Refresh plugin list
+                    setTimeout(closeUploadModal, 2000);
+                } else {
+                    showUploadAlert(`Upload failed: ${result.message}`, 'danger');
+                }
+            } catch (error) {
+                console.error('Upload failed:', error);
+                showUploadAlert('Upload failed. Please try again.', 'danger');
+            }
+        }
+
+        function showAlert(message, type) {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.style.position = 'fixed';
+            alert.style.top = '20px';
+            alert.style.right = '20px';
+            alert.style.zIndex = '9999';
+            alert.style.minWidth = '300px';
+            
+            document.body.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+
+        function showUploadAlert(message, type) {
+            document.getElementById('uploadResult').innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+        }
+
+        // Close modals when clicking outside
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>

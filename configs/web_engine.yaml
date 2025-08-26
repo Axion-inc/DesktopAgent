@@ -1,101 +1,105 @@
-# Web Engine Configuration
-# Controls which web automation engine to use and its settings
+# Web Engine Configuration for Desktop Agent
+# Phase 5: Chrome Extension + Native Messaging implementation
 
-# Engine selection: "playwright" or "extension"
-engine: "playwright"  # Default to playwright for backward compatibility
+# Engine selection: "extension" or "playwright"
+engine: "extension"          # Default to new extension engine
 
-# Playwright Engine Settings (existing)
+# Playwright engine configuration (existing)
 playwright:
-  headless: true
-  timeout_ms: 30000
-  slow_mo_ms: 0
-  user_agent: null
-  locale: null
-  timezone: null
+  headless: false
+  timeout: 30000
+  slow_mo: 100
+  viewport:
+    width: 1280
+    height: 720
+  user_agent: "Desktop Agent WebX/1.0"
   
-  # Browser launch arguments
-  chromium_args:
-    - "--disable-features=Autofill,AutofillAddressEnabled,AutofillServerCommunication"
-    - "--no-default-browser-check"
-    - "--no-first-run"
-    - "--disable-popup-blocking"
-
-# Chrome Extension Engine Settings (Phase 5 - DoD Compliant)
+# Extension engine configuration (Phase 5)
 extension:
-  # Extension ID (generated during installation)
-  # Replace with actual extension ID after installing the extension
+  # Extension ID - set after installation
   id: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   
-  # Native messaging host configuration  
+  # Native messaging host configuration
   native_host: "com.desktopagent.webx"
   
-  # Security token for handshake authentication
-  # Change this value for production deployments
-  handshake_token: "change-me"
+  # Handshake token for authentication
+  handshake_token: "change-me-in-production"
   
-  # Communication timeout (milliseconds)
+  # Request timeout in milliseconds
   timeout_ms: 15000
   
-  # File upload debugger permission (DoD requirement: default OFF)
+  # Enable debugger permission for file uploads (default: false for security)
   enable_debugger_upload: false
   
-  # Extension permissions and security
+  # Auto-reconnect settings
+  max_reconnect_attempts: 3
+  reconnect_delay_ms: 5000
+
+# Common settings for both engines
+common:
+  # Screenshot configuration
+  screenshot:
+    quality: 80
+    format: "png"
+    full_page: false
+  
+  # Download handling
+  download:
+    default_directory: "./downloads"
+    timeout_ms: 30000
+    
+  # Security settings
   security:
-    # Allowed origins for extension communication
-    allowed_origins:
-      - "http://localhost:*"
-      - "https://localhost:*"
+    # Mask sensitive fields in logs
+    mask_sensitive_data: true
+    sensitive_patterns:
+      - "password"
+      - "passwd" 
+      - "pwd"
+      - "secret"
+      - "token"
+      - "key"
+      - "credit"
+      - "card"
+      - "ccv"
+      - "cvv"
+      - "ssn"
+      - "social"
+      - "pin"
+      - "otp"
     
-    # Log sensitive operations (masked in production)
-    log_sensitive_ops: false
-    
-  # Feature toggles
-  features:
-    # Enable DOM schema capture (web version of screen schema)
-    dom_schema: true
-    
-    # Enable file upload via debugger API
-    file_upload: true
-    
-    # Enable screenshot capture
-    screenshots: true
-    
-    # Enable download monitoring
-    downloads: true
+    # Require approval for destructive actions
+    require_approval_for_destructive: true
+    destructive_keywords:
+      - "delete"
+      - "remove"
+      - "cancel"
+      - "unsubscribe"
+      - "logout"
+      - "sign out"
 
-# Engine selection priority
-# Used when engine is set to "auto"
-auto_selection:
-  # Try extension engine first if available
-  prefer_extension: false
+# Metrics and monitoring
+metrics:
+  # Enable metrics collection
+  enabled: true
   
-  # Fallback to playwright if extension fails
-  fallback_to_playwright: true
-  
-  # Check extension availability before using
-  check_extension_health: true
-
-# Development and testing settings
-development:
-  # Enable engine switching at runtime
-  allow_runtime_switching: true
-  
-  # Log engine selection decisions
-  log_engine_selection: true
-  
-  # Mock extension responses for testing
-  mock_extension_responses: false
-  
-  # Force specific engine for testing
-  force_engine: null  # null, "playwright", or "extension"
-
-# Performance monitoring
-monitoring:
-  # Track engine performance metrics
+  # Track performance metrics
   track_performance: true
   
-  # Compare engine performance when both available
-  performance_comparison: false
+  # Track error rates and types
+  track_errors: true
   
-  # Metrics retention (days)
-  metrics_retention_days: 7
+  # Store artifacts (screenshots, DOM schemas)
+  store_artifacts: true
+  artifacts_directory: "./artifacts"
+
+# Development and debugging
+development:
+  # Enable verbose logging
+  verbose_logging: false
+  
+  # Store debug artifacts
+  debug_artifacts: false
+  
+  # Mock mode for testing
+  mock_mode: false

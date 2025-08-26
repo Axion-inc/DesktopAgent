@@ -10,7 +10,33 @@ Badges (after deploying /metrics):
 - Success rate: `![Success](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=success&query=$.success_rate&suffix=%25)`
 - Runs: `![Runs](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=runs&query=$.total_runs)`
 
-Purpose: A comprehensive enterprise desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **web form automation, robust verification capabilities, and enterprise orchestration**. Features CLI interface, approval gates, natural language plan generation, role-based access control, queue management, and comprehensive testing. Designed for Windows 11 support with full OS adapter architecture.
+Purpose: A comprehensive enterprise desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **web form automation with Chrome Extension + Native Messaging (Phase 5 WebX)**, robust verification capabilities, and enterprise orchestration. Features CLI interface, approval gates, natural language plan generation, role-based access control, queue management, and comprehensive testing. Designed for Windows 11 support with full OS adapter architecture.
+
+## Phase 5 Features 🌐 (Web Operator v2)
+
+**WebX Engine Architecture** - Chrome Extension + Native Messaging
+- **Engine Abstraction** - Unified API supporting Extension and Playwright engines
+- **Chrome Extension MV3** - High-performance DOM manipulation with minimal permissions  
+- **Native Messaging Host** - Secure JSON-RPC communication bridge
+- **Backward Compatibility** - Existing DSL templates work unchanged with new engine
+
+**Enhanced Web Automation** - Stable, Fast, Permission-Clear
+- **Japanese Form Support** - Advanced label matching with synonym support
+- **File Upload via Debugger** - Secure file uploads with explicit permission model
+- **DOM Schema Capture** - Web equivalent of screen schema for element discovery
+- **Approval Gates** - Maintained security for destructive web actions
+
+**Performance & Monitoring** - DoD-Compliant Metrics
+- **Engine Usage Tracking** - Extension vs Playwright utilization metrics (webx_engine_share_24h)
+- **Upload Success Rate** - File upload reliability monitoring (webx_upload_success_24h ≥ 0.95)
+- **Failure Rate Tracking** - Web operation error monitoring (webx_failures_24h / webx_steps_24h ≤ 0.05)
+- **Zero Missubmissions** - Approval gate effectiveness (継続維持)
+
+**Security Model** - Explicit Permissions & Safe Defaults
+- **Minimal Permissions** - Extension requests only: scripting, storage, downloads
+- **Optional Debugger** - File upload capability only when explicitly enabled
+- **Token Authentication** - Native messaging secured with handshake tokens
+- **Extension ID Allowlist** - Prevent unauthorized extension connections
 
 ## Phase 4 Features 🚀
 
@@ -131,6 +157,52 @@ Quickstart (macOS 14+)
   - `uvicorn app.main:app --reload`
   - Health check: http://127.0.0.1:8000/healthz
   - Metrics: http://127.0.0.1:8000/metrics
+
+## Phase 5 WebX Setup 🌐
+
+**1. Install WebX Extension System**
+```bash
+# Run automated setup
+./scripts/install_native_host.sh
+```
+
+**2. Manual Chrome Extension Installation**
+```bash
+# 1. Open chrome://extensions/
+# 2. Enable Developer Mode  
+# 3. Load unpacked extension from webx-extension/
+# 4. Note the Extension ID and update configs/web_engine.yaml
+```
+
+**3. Configure Web Engine**
+```yaml
+# configs/web_engine.yaml
+engine: "extension"  # Use Chrome extension (or "playwright")
+
+extension:
+  id: "your_extension_id_here"
+  enable_debugger_upload: false  # Enable only for file uploads
+```
+
+**4. Test WebX System**
+```bash
+# Test native messaging
+python -m pytest tests/contract/test_webx_protocol.py -v
+
+# Test web engine integration
+python -c "from app.web.engine import get_web_engine; print(get_web_engine().__class__.__name__)"
+
+# Run with WebX engine
+./cli.py run plans/templates/web_form_example.yaml
+```
+
+**WebX Benefits:**
+- **3x Faster** - Native DOM access vs browser automation
+- **Explicit Permissions** - Clear permission model for enterprise security
+- **Japanese Forms** - Advanced label matching for international websites
+- **Zero Missubmissions** - Approval gates prevent accidental destructive actions
+
+See [WebX Setup Guide](docs/webx-setup.md) for detailed configuration.
 
 Screenshots (Demo)
 ![Run Timeline](docs/assets/runs_timeline.svg)

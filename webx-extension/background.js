@@ -8,9 +8,11 @@ class WebXBackground {
     this.messageQueue = [];
     this.requestHandlers = new Map();
     this.requestId = 0;
+    this.loadedPlugins = new Map();
     
     this.setupEventListeners();
     this.connectToNativeHost();
+    this.loadPlugins();
   }
 
   setupEventListeners() {
@@ -23,12 +25,114 @@ class WebXBackground {
     // Handle extension lifecycle
     chrome.runtime.onStartup.addListener(() => {
       this.connectToNativeHost();
+      this.loadPlugins();
     });
     
     chrome.runtime.onInstalled.addListener(() => {
       console.log('Desktop Agent WebX installed');
       this.connectToNativeHost();
+      this.loadPlugins();
     });
+  }
+
+  async loadPlugins() {
+    try {
+      // Get list of installed plugins from API
+      const response = await fetch('http://localhost:8000/api/webx/plugins/installed');
+      if (response.ok) {
+        const installedPlugins = await response.json();
+        
+        for (const plugin of installedPlugins) {
+          await this.loadPlugin(plugin.id);
+        }
+      } else {
+        console.warn('Could not fetch installed plugins list');
+      }
+    } catch (error) {
+      console.warn('Plugin loading failed:', error);
+      // Load built-in plugins as fallback
+      await this.loadBuiltInPlugins();
+    }
+  }
+
+  async loadPlugin(pluginId) {
+    try {
+      // Get plugin files from API
+      const response = await fetch(`http://localhost:8000/api/webx/plugins/${pluginId}/files`);
+      if (response.ok) {
+        const pluginData = await response.json();
+        
+        // Inject plugin scripts into all content script contexts
+        const tabs = await chrome.tabs.query({});
+        for (const tab of tabs) {
+          try {
+            // Inject plugin files
+            for (const fileContent of pluginData.files) {
+              await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: this.injectPluginCode,
+                args: [fileContent, pluginId]
+              });
+            }
+          } catch (error) {
+            // Tab might not be accessible, skip silently
+          }
+        }
+        
+        this.loadedPlugins.set(pluginId, pluginData);
+        console.log(`Plugin loaded: ${pluginId}`);
+      }
+    } catch (error) {
+      console.error(`Failed to load plugin ${pluginId}:`, error);
+    }
+  }
+
+  injectPluginCode(code, pluginId) {
+    try {
+      // Create script element and execute
+      const script = document.createElement('script');
+      script.textContent = `
+        (function() {
+          console.log('Loading WebX plugin: ${pluginId}');
+          ${code}
+        })();
+      `;
+      document.head.appendChild(script);
+      document.head.removeChild(script);
+    } catch (error) {
+      console.error(`Failed to inject plugin ${pluginId}:`, error);
+    }
+  }
+
+  async loadBuiltInPlugins() {
+    // Load SDK first
+    const sdkUrl = chrome.runtime.getURL('sdk/webx-plugin-sdk.js');
+    const formHelperUrl = chrome.runtime.getURL('plugins/form-helper-plugin.js');
+    
+    try {
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        try {
+          // Inject SDK
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['sdk/webx-plugin-sdk.js']
+          });
+          
+          // Inject built-in plugins
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['plugins/form-helper-plugin.js']
+          });
+        } catch (error) {
+          // Tab might not be accessible, skip silently
+        }
+      }
+      
+      console.log('Built-in plugins loaded');
+    } catch (error) {
+      console.error('Failed to load built-in plugins:', error);
+    }
   }
 
   connectToNativeHost() {
@@ -142,6 +246,11 @@ class WebXBackground {
       }, (response) => {
         sendResponse(response);
       });
+    }
+    // Handle plugin management
+    else if (message.type === 'reload_plugins') {
+      this.loadPlugins();
+      sendResponse({ success: true });
     }
     // Handle other message types as needed
     else {

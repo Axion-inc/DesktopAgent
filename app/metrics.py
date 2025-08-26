@@ -418,3 +418,86 @@ def compute_metrics() -> Dict[str, float]:
 
     conn.close()
     return out
+
+def compute_webx_metrics() -> Dict[str, Any]:
+    """Compute Phase 5 WebX-specific metrics (DoD requirements)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    # WebX steps count (24h)
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'upload_file',
+                       'wait_for_element', 'assert_element_exists', 'capture_screen_schema')
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    webx_steps_24h = cur.fetchone()[0] or 0
+    
+    # WebX failures count (24h)
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'upload_file',
+                       'wait_for_element', 'assert_element_exists', 'capture_screen_schema')
+        AND status = 'failed'
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    webx_failures_24h = cur.fetchone()[0] or 0
+    
+    # Engine share metrics (24h) - track which engine was used
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'upload_file')
+        AND output_json LIKE '%"engine":"extension"%'
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    extension_steps_24h = cur.fetchone()[0] or 0
+    
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'upload_file')
+        AND output_json LIKE '%"engine":"playwright"%'
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    playwright_steps_24h = cur.fetchone()[0] or 0
+    
+    total_web_engine_steps = extension_steps_24h + playwright_steps_24h
+    
+    # WebX upload success rate (24h)
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE name = 'upload_file'
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    webx_upload_total = cur.fetchone()[0] or 0
+    
+    cur.execute("""
+        SELECT COUNT(*) FROM run_steps
+        WHERE name = 'upload_file'
+        AND status = 'success'
+        AND finished_at >= datetime('now','-1 day')
+    """)
+    webx_upload_success = cur.fetchone()[0] or 0
+    
+    # Calculate rates and shares
+    webx_failure_rate = webx_failures_24h / webx_steps_24h if webx_steps_24h > 0 else 0.0
+    webx_upload_success_rate = webx_upload_success / webx_upload_total if webx_upload_total > 0 else 1.0
+    
+    extension_share = extension_steps_24h / total_web_engine_steps if total_web_engine_steps > 0 else 0.0
+    playwright_share = playwright_steps_24h / total_web_engine_steps if total_web_engine_steps > 0 else 0.0
+    
+    return {
+        "webx_steps_24h": webx_steps_24h,
+        "webx_failures_24h": webx_failures_24h,
+        "webx_engine_share_24h": {
+            "extension": round(extension_share, 3),
+            "playwright": round(playwright_share, 3)
+        },
+        "webx_upload_success_24h": round(webx_upload_success_rate, 3),
+        
+        # Additional breakdown
+        "webx_failure_rate": round(webx_failure_rate, 3),
+        "webx_upload_total": webx_upload_total,
+        "webx_upload_success_count": webx_upload_success,
+        "extension_steps_count": extension_steps_24h,
+        "playwright_steps_count": playwright_steps_24h
+    }

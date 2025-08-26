@@ -43,6 +43,14 @@ def on_startup() -> None:
 
     get_logger().info("app.startup")
 
+# Phase 6: WebX Plugin System Routes
+try:
+    from .api.webx_plugins import router as webx_plugins_router
+    app.include_router(webx_plugins_router)
+    get_logger().info("WebX Plugin API routes loaded")
+except ImportError as e:
+    get_logger().warning(f"WebX Plugin API not available: {e}")
+
 
 # RBAC-protected endpoints
 from app.middleware.auth import get_current_user, require_admin, require_editor, require_runner
@@ -501,3 +509,16 @@ def public_dashboard():
     </html>
     """
     return HTMLResponse(content=html)
+
+
+@app.get("/webx/marketplace")
+def webx_marketplace(request: Request):
+    """WebX Plugin Marketplace UI"""
+    from fastapi.responses import HTMLResponse
+    from pathlib import Path
+    
+    marketplace_template = Path(__file__).parent / "templates" / "webx_marketplace.html"
+    if marketplace_template.exists():
+        return HTMLResponse(marketplace_template.read_text())
+    else:
+        return HTMLResponse("<h1>WebX Marketplace</h1><p>Marketplace UI not available</p>", status_code=404)
