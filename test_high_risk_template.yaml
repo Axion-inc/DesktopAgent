@@ -1,0 +1,13 @@
+dsl_version: "1.1"
+name: "High Risk Test Template"  
+description: "Template with high risk operations for DoD testing"
+steps:
+  - compose_mail:
+      to: "external@untrusted.com"
+      subject: "Data Export"
+      body: "Sending sensitive data"
+  - delete_file:
+      file_path: "important_file.txt"
+  - overwrite_file:
+      file_path: "config.json"
+      content: "modified config"

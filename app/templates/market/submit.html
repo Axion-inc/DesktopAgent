@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>テンプレート投稿 - Desktop Agent Marketplace</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fa; }
+        .header { background: white; border-bottom: 1px solid #e9ecef; padding: 1rem 0; }
+        .container { max-width: 800px; margin: 0 auto; padding: 0 1rem; }
+        .header-content { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 1.5rem; font-weight: 700; color: #007cba; }
+        .nav { display: flex; gap: 1rem; }
+        .nav a { text-decoration: none; color: #495057; padding: 0.5rem 1rem; border-radius: 4px; }
+        .nav a:hover { background: #e9ecef; }
+        .nav a.active { background: #007cba; color: white; }
+
+        .main-content { background: white; border-radius: 8px; padding: 2rem; margin: 2rem auto; }
+        .page-title { font-size: 2rem; font-weight: 700; color: #495057; margin-bottom: 0.5rem; }
+        .page-subtitle { color: #6c757d; margin-bottom: 2rem; }
+
+        .form-group { margin-bottom: 1.5rem; }
+        .form-label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #495057; }
+        .form-input, .form-textarea, .form-select { width: 100%; padding: 0.75rem; border: 2px solid #e9ecef; border-radius: 8px; font-size: 1rem; transition: border-color 0.2s; }
+        .form-input:focus, .form-textarea:focus, .form-select:focus { outline: none; border-color: #007cba; }
+        .form-textarea { min-height: 120px; resize: vertical; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; }
+        .form-help { font-size: 0.875rem; color: #6c757d; margin-top: 0.25rem; }
+
+        .file-upload { border: 2px dashed #e9ecef; border-radius: 8px; padding: 2rem; text-align: center; background: #f8f9fa; transition: all 0.2s; }
+        .file-upload:hover { border-color: #007cba; background: #e3f2fd; }
+        .file-upload.dragover { border-color: #007cba; background: #e3f2fd; }
+        .file-upload input[type="file"] { display: none; }
+        .file-upload-icon { font-size: 3rem; margin-bottom: 1rem; }
+        .file-upload-text { color: #495057; margin-bottom: 0.5rem; }
+        .file-upload-hint { font-size: 0.875rem; color: #6c757d; }
+
+        .preview-section { margin-top: 2rem; padding-top: 2rem; border-top: 1px solid #e9ecef; }
+        .preview-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem; color: #495057; }
+        .preview-content { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 1rem; }
+        .capability-list { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+        .capability-badge { background: #17a2b8; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+        .risk-badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .risk-low { background: #28a745; color: white; }
+        .risk-medium { background: #ffc107; color: #212529; }
+        .risk-high { background: #dc3545; color: white; }
+
+        .submit-section { margin-top: 2rem; padding-top: 2rem; border-top: 1px solid #e9ecef; display: flex; gap: 1rem; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
+        .btn-primary { background: #007cba; color: white; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-primary:disabled { background: #6c757d; cursor: not-allowed; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+
+        .alert { padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-danger { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+
+        .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .loading-content { background: white; padding: 2rem; border-radius: 8px; text-align: center; }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #007cba; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .requirements-section { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; }
+        .requirements-title { font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem; color: #495057; }
+        .requirements-list { list-style: none; }
+        .requirements-list li { padding: 0.5rem 0; border-bottom: 1px solid #e9ecef; }
+        .requirements-list li:last-child { border-bottom: none; }
+        .requirement-check { color: #28a745; margin-right: 0.5rem; }
+        .requirement-cross { color: #dc3545; margin-right: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">📦 Template Marketplace</div>
+                <nav class="nav">
+                    <a href="/market">マーケット</a>
+                    <a href="/market/submit" class="active">テンプレート投稿</a>
+                    <a href="/public/dashboard">ダッシュボード</a>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="main-content">
+            <div class="page-title">📤 テンプレート投稿</div>
+            <div class="page-subtitle">新しいテンプレートをMarketplaceに投稿して、コミュニティと共有しましょう</div>
+
+            <div class="requirements-section">
+                <div class="requirements-title">📋 投稿要件</div>
+                <ul class="requirements-list">
+                    <li><span class="requirement-check">✅</span> テンプレートファイル（.yaml）が必要です</li>
+                    <li><span class="requirement-check">✅</span> 署名ファイル（.sig.json）の添付を推奨します</li>
+                    <li><span class="requirement-check">✅</span> 適切なテンプレート名とバージョンを指定してください</li>
+                    <li><span class="requirement-check">✅</span> 明確な説明文を記載してください</li>
+                    <li><span class="requirement-cross">⚠️</span> 高リスク操作（送信・削除・上書き）を含む場合は管理者承認が必要です</li>
+                </ul>
+            </div>
+
+            <form id="submitForm" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label class="form-label" for="templateName">テンプレート名 *</label>
+                    <input type="text" id="templateName" name="template_name" class="form-input" required placeholder="例: 月次レポート自動作成">
+                    <div class="form-help">わかりやすく短縮された名前を入力してください</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="version">バージョン *</label>
+                    <input type="text" id="version" name="version" class="form-input" required placeholder="例: 1.0.0" pattern="\\d+\\.\\d+\\.\\d+">
+                    <div class="form-help">セマンティックバージョニング（例: 1.0.0）を使用してください</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="author">作成者 *</label>
+                    <input type="text" id="author" name="author" class="form-input" required placeholder="例: Desktop Agent Team">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="description">説明 *</label>
+                    <textarea id="description" name="description" class="form-textarea" required placeholder="テンプレートの機能や使用目的を詳しく説明してください..."></textarea>
+                    <div class="form-help">ユーザーが理解しやすい詳細な説明を記載してください</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="category">カテゴリ *</label>
+                    <select id="category" name="category" class="form-select" required>
+                        <option value="">カテゴリを選択してください</option>
+                        <option value="automation">業務自動化</option>
+                        <option value="reporting">レポート作成</option>
+                        <option value="data_processing">データ処理</option>
+                        <option value="communication">コミュニケーション</option>
+                        <option value="file_management">ファイル管理</option>
+                        <option value="web_scraping">Web情報収集</option>
+                        <option value="other">その他</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">テンプレートファイル (.yaml) *</label>
+                    <div class="file-upload" onclick="document.getElementById('templateFile').click()">
+                        <div class="file-upload-icon">📄</div>
+                        <div class="file-upload-text">クリックしてテンプレートファイルを選択</div>
+                        <div class="file-upload-hint">または、ここにファイルをドラッグ＆ドロップ</div>
+                        <input type="file" id="templateFile" name="template_file" accept=".yaml,.yml" required>
+                    </div>
+                    <div class="form-help">YAML形式のテンプレートファイルを選択してください</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">署名ファイル (.sig.json)（推奨）</label>
+                    <div class="file-upload" onclick="document.getElementById('signatureFile').click()">
+                        <div class="file-upload-icon">🔐</div>
+                        <div class="file-upload-text">クリックして署名ファイルを選択</div>
+                        <div class="file-upload-hint">署名済みテンプレートとして投稿する場合に添付</div>
+                        <input type="file" id="signatureFile" name="signature_file" accept=".json">
+                    </div>
+                    <div class="form-help">da_sign.py で生成した署名ファイルを添付してください</div>
+                </div>
+
+                <div class="preview-section" id="previewSection" style="display: none;">
+                    <div class="preview-title">📋 テンプレートプレビュー</div>
+                    <div class="preview-content">
+                        <div><strong>検出された機能:</strong></div>
+                        <div class="capability-list" id="detectedCapabilities"></div>
+                        <div style="margin-top: 1rem;"><strong>リスク評価:</strong></div>
+                        <div id="riskAssessment"></div>
+                        <div style="margin-top: 1rem;"><strong>ファイル情報:</strong></div>
+                        <div id="fileInfo"></div>
+                    </div>
+                </div>
+
+                <div class="submit-section">
+                    <button type="submit" id="submitBtn" class="btn btn-primary">
+                        📤 投稿して審査に出す
+                    </button>
+                    <a href="/market" class="btn btn-secondary">キャンセル</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div>テンプレートを検証・投稿中...</div>
+            <div style="font-size: 0.875rem; color: #6c757d; margin-top: 0.5rem;">しばらくお待ちください</div>
+        </div>
+    </div>
+
+    <script>
+        let selectedTemplateFile = null;
+        let selectedSignatureFile = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('submitForm').addEventListener('submit', handleSubmit);
+            document.getElementById('templateFile').addEventListener('change', handleTemplateFileChange);
+            document.getElementById('signatureFile').addEventListener('change', handleSignatureFileChange);
+
+            // Drag and drop for template file
+            setupDragAndDrop(document.querySelector('.file-upload'), 'templateFile');
+        }
+
+        function setupDragAndDrop(element, inputId) {
+            element.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                element.classList.add('dragover');
+            });
+
+            element.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                element.classList.remove('dragover');
+            });
+
+            element.addEventListener('drop', function(e) {
+                e.preventDefault();
+                element.classList.remove('dragover');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    document.getElementById(inputId).files = files;
+                    document.getElementById(inputId).dispatchEvent(new Event('change'));
+                }
+            });
+        }
+
+        async function handleTemplateFileChange(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            selectedTemplateFile = file;
+            
+            try {
+                const content = await readFileContent(file);
+                analyzeTemplate(content, file);
+                document.getElementById('previewSection').style.display = 'block';
+            } catch (error) {
+                console.error('Failed to read template file:', error);
+                showAlert('テンプレートファイルの読み込みに失敗しました', 'danger');
+            }
+        }
+
+        function handleSignatureFileChange(event) {
+            const file = event.target.files[0];
+            selectedSignatureFile = file;
+            
+            if (file) {
+                showAlert('署名ファイルが選択されました。このテンプレートは署名済みとして投稿されます。', 'success');
+            }
+        }
+
+        function readFileContent(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = reject;
+                reader.readAsText(file);
+            });
+        }
+
+        function analyzeTemplate(content, file) {
+            // Detect capabilities
+            const capabilities = detectCapabilities(content);
+            const capabilitiesHtml = capabilities.map(cap => 
+                `<span class="capability-badge">${cap}</span>`
+            ).join('');
+            document.getElementById('detectedCapabilities').innerHTML = capabilitiesHtml || '<span style="color: #6c757d;">基本機能のみ</span>';
+
+            // Assess risk
+            const riskLevel = assessRisk(content);
+            const riskBadge = getRiskBadgeHtml(riskLevel);
+            document.getElementById('riskAssessment').innerHTML = riskBadge;
+
+            // File info
+            document.getElementById('fileInfo').innerHTML = `
+                <div>ファイル名: ${file.name}</div>
+                <div>サイズ: ${formatFileSize(file.size)}</div>
+                <div>行数: ${content.split('\\n').length} 行</div>
+            `;
+        }
+
+        function detectCapabilities(content) {
+            const capabilities = [];
+            const contentLower = content.toLowerCase();
+
+            if (contentLower.includes('open_browser') || contentLower.includes('click_by_text') || contentLower.includes('fill_by_label')) {
+                capabilities.push('webx');
+            }
+            if (contentLower.includes('attach_file') || contentLower.includes('save_file') || contentLower.includes('read_file')) {
+                capabilities.push('fs');
+            }
+            if (contentLower.includes('compose_mail') || contentLower.includes('send_mail')) {
+                capabilities.push('mail_draft');
+            }
+            if (contentLower.includes('pdf') || contentLower.includes('read_pdf')) {
+                capabilities.push('pdf');
+            }
+
+            return capabilities;
+        }
+
+        function assessRisk(content) {
+            const contentLower = content.toLowerCase();
+            
+            if (contentLower.includes('compose_mail') || contentLower.includes('delete') || contentLower.includes('overwrite') || contentLower.includes('send')) {
+                return 'high';
+            } else if (contentLower.includes('click_by_text') || contentLower.includes('fill_by_label') || contentLower.includes('modify')) {
+                return 'medium';
+            }
+            return 'low';
+        }
+
+        function getRiskBadgeHtml(riskLevel) {
+            const badges = {
+                'low': '<span class="risk-badge risk-low">✅ 低リスク</span>',
+                'medium': '<span class="risk-badge risk-medium">⚠️ 中リスク</span>',
+                'high': '<span class="risk-badge risk-high">🚨 高リスク - 管理者承認必須</span>'
+            };
+            return badges[riskLevel] || badges['low'];
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        async function handleSubmit(event) {
+            event.preventDefault();
+
+            const submitBtn = document.getElementById('submitBtn');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+
+            if (!selectedTemplateFile) {
+                showAlert('テンプレートファイルを選択してください', 'danger');
+                return;
+            }
+
+            // Disable submit button and show loading
+            submitBtn.disabled = true;
+            loadingOverlay.style.display = 'flex';
+
+            try {
+                const formData = new FormData();
+                formData.append('template_name', document.getElementById('templateName').value);
+                formData.append('version', document.getElementById('version').value);
+                formData.append('author', document.getElementById('author').value);
+                formData.append('description', document.getElementById('description').value);
+                formData.append('category', document.getElementById('category').value);
+                
+                const templateContent = await readFileContent(selectedTemplateFile);
+                formData.append('template_content', templateContent);
+                
+                if (selectedSignatureFile) {
+                    formData.append('signature_file', selectedSignatureFile);
+                }
+
+                const response = await fetch('/api/marketplace-beta/submit', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showAlert('✅ テンプレートの投稿が完了しました！審査が完了するまでお待ちください。', 'success');
+                    
+                    // Reset form after successful submission
+                    setTimeout(() => {
+                        window.location.href = `/market/templates/${result.submission_id || ''}`;
+                    }, 2000);
+                } else {
+                    showAlert(`❌ 投稿に失敗しました: ${result.message || 'Unknown error'}`, 'danger');
+                }
+
+            } catch (error) {
+                console.error('Submission failed:', error);
+                showAlert('❌ 投稿中にエラーが発生しました: ' + error.message, 'danger');
+            } finally {
+                // Re-enable submit button and hide loading
+                submitBtn.disabled = false;
+                loadingOverlay.style.display = 'none';
+            }
+        }
+
+        function showAlert(message, type) {
+            // Remove existing alerts
+            const existingAlerts = document.querySelectorAll('.alert');
+            existingAlerts.forEach(alert => alert.remove());
+
+            // Create new alert
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+
+            // Insert at the top of the form
+            const form = document.getElementById('submitForm');
+            form.insertBefore(alert, form.firstChild);
+
+            // Auto-remove after 10 seconds
+            setTimeout(() => {
+                alert.remove();
+            }, 10000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+dsl_version: "1.1"
+name: "Test Template"
+description: "Test template for marketplace"
+steps:
+  - log:
+      message: "Hello World"

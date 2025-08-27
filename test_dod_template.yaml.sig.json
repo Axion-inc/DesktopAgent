@@ -1,0 +1,8 @@
+{
+  "algo": "ed25519",
+  "key_id": "da:2025:test_dod",
+  "created_at": "2025-08-27T09:26:32.753264+09:00",
+  "sha256": "1a7fed824bf70862ce2858bf2d1360c2a3b05ca16a7e8b4cc8474676c74c59a2",
+  "signature": "jYKCBYGDjpPuobr/Hy/5krMLVJpbgEbnzR2GSZinsJqjfgYwHZ1JSn//dpSIPrDhO1Yo19dXgWCrZrAdpFjaCw==",
+  "template_path": "test_dod_template.yaml"
+}

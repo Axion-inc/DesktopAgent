@@ -1,0 +1,201 @@
+# Desktop Agent Trust Store Configuration
+# Manages trusted signing keys and authorities for template verification
+
+version: "1.0"
+created_at: "2025-08-26T09:00:00+09:00"
+updated_at: "2025-08-26T09:00:00+09:00"
+
+# Ed25519 Public Keys Registry (DoD Phase 6 Format)
+# Each key entry contains the public key and associated metadata
+keys:
+  - key_id: "da:2025:primary"
+    pubkey: "b8f5d2c4e7a9b1c6d3f8e4a7b2c9d6f1e8a5b2c9d6f3e0a7b4c1d8e5a2b9c6f3"
+    created_at: "2025-01-01T00:00:00+09:00"
+    trust_level: "system"
+    issuer: "Desktop Agent Core Team"
+    purpose: "System template signing"
+    contact: "security@desktopagent.dev"
+    revoked: false
+
+  - key_id: "da:2025:alice"
+    pubkey: "a1b2c3d4e5f6789012345678901234567890123456789012345678901234567890"
+    created_at: "2025-01-01T00:00:00+09:00"
+    trust_level: "development"
+    issuer: "Alice Developer"
+    purpose: "Development and testing templates"
+    contact: "alice@example.com"
+    revoked: false
+
+  - key_id: "da:2025:bob"
+    pubkey: "c9f6e3a0d7b4e1a8c5f2e9b6c3a0d7b4e1a8c5f2e9b6c3a0d7b4e1a8c5f2e9b6"
+    created_at: "2025-01-01T00:00:00+09:00"
+    trust_level: "development"
+    issuer: "Bob Developer"
+    purpose: "Development and testing templates"
+    contact: "bob@example.com"
+    revoked: false
+
+  - key_id: "da:2025:test_dod"
+    pubkey: "j8GR2AhO+YFaCP4OyUvYS842SVjZOdjtyFhWVIYbE3I="
+    created_at: "2025-08-27T09:26:19.890600+09:00"
+    trust_level: "development"
+    issuer: "DoD Test Key"
+    purpose: "DoD acceptance testing"
+    contact: "test@desktopagent.dev"
+    revoked: false
+
+# Legacy format for backward compatibility
+trusted_keys:
+  # Internal Desktop Agent Keys
+  "da:2025:primary":
+    public_key: "b8f5d2c4e7a9b1c6d3f8e4a7b2c9d6f1e8a5b2c9d6f3e0a7b4c1d8e5a2b9c6f3"
+    key_type: "ed25519"
+    issuer: "Desktop Agent Core Team"
+    purpose: "System template signing"
+    valid_from: "2025-01-01T00:00:00+09:00"
+    valid_until: "2026-12-31T23:59:59+09:00"
+    trust_level: "system"
+    description: "Primary signing key for system templates"
+    contact: "security@desktopagent.dev"
+    revoked: false
+
+  "da:2025:alice":
+    public_key: "a1b2c3d4e5f6789012345678901234567890123456789012345678901234567890"
+    key_type: "ed25519"
+    issuer: "Alice Developer"
+    purpose: "Development and testing templates"
+    valid_from: "2025-01-01T00:00:00+09:00"
+    valid_until: "2025-12-31T23:59:59+09:00"
+    trust_level: "development"
+    description: "Development key for template testing"
+    contact: "alice@example.com"
+    revoked: false
+
+  # Third-party Trusted Publishers
+  "publisher:acme:2025":
+    public_key: "c9f6e3a0d7b4e1a8c5f2e9b6c3a0d7b4e1a8c5f2e9b6c3a0d7b4e1a8c5f2e9b6"
+    key_type: "ed25519"
+    issuer: "ACME Automation Corp"
+    purpose: "Commercial template distribution"
+    valid_from: "2025-03-01T00:00:00+09:00"
+    valid_until: "2026-03-01T00:00:00+09:00"
+    trust_level: "commercial"
+    description: "Verified commercial template publisher"
+    contact: "security@acmecorp.com"
+    revoked: false
+
+  # Community Publishers (lower trust level)
+  "community:beta:john":
+    public_key: "d4e7a1b8c5f2e9b6c3a0d7b4e1a8c5f2e9b6c3a0d7b4e1a8c5f2e9b6c3a0d7b4"
+    key_type: "ed25519"
+    issuer: "John Community Developer"
+    purpose: "Community template sharing"
+    valid_from: "2025-06-01T00:00:00+09:00"
+    valid_until: "2025-12-31T23:59:59+09:00"
+    trust_level: "community"
+    description: "Community developer - beta testing"
+    contact: "john@communitydev.org"
+    revoked: false
+
+# Certificate Authorities (future extension point)
+certificate_authorities:
+  desktop_agent_ca:
+    name: "Desktop Agent Root CA"
+    public_key: "root_ca_public_key_here"
+    description: "Root certificate authority for Desktop Agent ecosystem"
+    enabled: true
+
+# Trust Level Definitions
+trust_levels:
+  system:
+    priority: 100
+    description: "Highest trust - system and core templates"
+    auto_execute: true
+    require_confirmation: false
+    
+  commercial:
+    priority: 80
+    description: "Commercial publishers with verification"
+    auto_execute: true
+    require_confirmation: false
+    
+  development:
+    priority: 60
+    description: "Development and testing keys"
+    auto_execute: false
+    require_confirmation: true
+    
+  community:
+    priority: 40
+    description: "Community developers"
+    auto_execute: false
+    require_confirmation: true
+    
+  unknown:
+    priority: 0
+    description: "Unsigned or unknown origin templates"
+    auto_execute: false
+    require_confirmation: true
+
+# Key Management Settings
+key_management:
+  # Automatic key rotation settings
+  rotation_policy:
+    enabled: true
+    rotation_interval_days: 365
+    warning_days_before_expiry: 30
+    
+  # Key validation settings
+  validation:
+    check_expiry: true
+    check_revocation: true
+    require_purpose_match: true
+    
+  # Backup and recovery
+  backup:
+    enabled: true
+    backup_location: "secrets/trust_store_backup"
+    encryption: true
+
+# Revocation List
+revoked_keys:
+  # Example of revoked key
+  # "old_key_id":
+  #   revoked_at: "2025-01-15T10:00:00+09:00"
+  #   reason: "Key compromise suspected"
+  #   revoked_by: "Security Team"
+
+# Security Settings
+security:
+  # Minimum signature age before acceptance (prevent replay attacks)
+  min_signature_age_seconds: 0
+  
+  # Maximum signature age before rejection (prevent stale signatures)
+  max_signature_age_days: 30
+  
+  # Hash algorithm verification
+  required_hash_algorithm: "sha256"
+  
+  # Signature algorithm verification
+  required_signature_algorithm: "ed25519"
+  
+  # Trust store integrity protection
+  integrity_check: true
+  integrity_hash: "calculated_at_runtime"
+
+# Audit and Logging
+audit:
+  log_all_verifications: true
+  log_failed_verifications: true
+  log_trust_level_decisions: true
+  log_policy_violations: true
+  
+  # Log retention
+  retention_days: 90
+  
+  # Alert settings
+  alerts:
+    on_revoked_key_usage: true
+    on_expired_key_usage: true
+    on_policy_violation: true
+    notification_email: "security@desktopagent.dev"

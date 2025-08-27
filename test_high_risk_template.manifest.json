@@ -1,0 +1,19 @@
+{
+  "id": "test_high_risk_template@v1.0.0",
+  "name": "High Risk Test Template",
+  "version": "1.0.0",
+  "dsl_version": "1.1",
+  "description": "Template with high risk operations for DoD testing",
+  "required_capabilities": [
+    "mail_draft",
+    "fs"
+  ],
+  "risk_flags": [
+    "deletes",
+    "sends",
+    "overwrites"
+  ],
+  "webx_urls": [],
+  "created_at": "2025-08-27T09:27:28.393754",
+  "template_hash": "bb9f0e20d59d23c8b3b90ab9754f8b86d409525c4c4ecfd609ca52c911184f4d"
+}

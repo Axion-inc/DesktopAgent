@@ -102,7 +102,7 @@ def validate_yaml(yaml_text: str) -> Dict[str, Any]:
     }
 
 
-def run_plan(yaml_text: str, auto_approve: bool = False) -> int:
+def run_plan(yaml_text: str, auto_approve: bool = False, template_path: str = None) -> int:
     """Run a plan and return the run ID."""
     logger = get_logger()
 
@@ -111,6 +111,101 @@ def run_plan(yaml_text: str, auto_approve: bool = False) -> int:
     if errors:
         print(f"❌ Plan validation failed: {'; '.join(errors)}")
         return -1
+
+    # Phase 6: Template Signature Verification
+    if template_path:
+        from app.security.policy_engine import verify_template_before_execution
+        from pathlib import Path
+        
+        template_file_path = Path("plans/templates") / template_path if not template_path.startswith('/') else Path(template_path)
+        
+        try:
+            should_execute, policy_decision = verify_template_before_execution(template_file_path)
+            
+            # Log security decision
+            logger.info(f"Template signature policy decision: action={policy_decision.action.value}, trust_level={policy_decision.trust_level.value}")
+            
+            # Handle policy decision
+            if not should_execute:
+                print(f"❌ Template execution blocked by security policy:")
+                for reason in policy_decision.reasons:
+                    print(f"   • {reason}")
+                return -1
+            
+            # Show warnings if any
+            if policy_decision.warnings:
+                print("⚠️  Template security warnings:")
+                for warning in policy_decision.warnings:
+                    print(f"   • {warning}")
+            
+            # Handle confirmation requirement
+            if policy_decision.requires_confirmation and not auto_approve:
+                print(f"🔐 Template requires manual approval due to trust level: {policy_decision.trust_level.value}")
+                print("   Use --auto-approve to bypass this requirement.")
+                return -1
+            elif policy_decision.requires_confirmation and auto_approve:
+                print(f"⚠️  Auto-approving template with trust level: {policy_decision.trust_level.value}")
+            
+            # Log successful verification
+            print(f"✅ Template signature verified (trust level: {policy_decision.trust_level.value})")
+            
+        except Exception as e:
+            logger.error(f"Template security verification failed: {e}")
+            print(f"❌ Template security verification failed: {e}")
+            return -1
+
+    # Phase 6: Template Manifest Validation
+    if template_path:
+        from app.security.template_manifest import get_manifest_manager
+        
+        try:
+            manifest_manager = get_manifest_manager()
+            
+            # Check for manifest file
+            template_file_path = Path("plans/templates") / template_path if not template_path.startswith('/') else Path(template_path)
+            manifest_path = template_file_path.parent / f"{template_file_path.stem}.manifest.json"
+            
+            if manifest_path.exists():
+                # Load and validate manifest
+                manifest = manifest_manager.load_manifest(manifest_path)
+                if manifest:
+                    is_valid, errors = manifest_manager.validate_manifest(manifest)
+                    if not is_valid:
+                        print("❌ Template manifest validation failed:")
+                        for error in errors:
+                            print(f"   • {error}")
+                        return -1
+                    
+                    # Check capability compliance
+                    compliant, violations, warnings = manifest_manager.check_capability_compliance(manifest, yaml_text)
+                    
+                    if violations:
+                        print("❌ Template violates declared capabilities:")
+                        for violation in violations:
+                            print(f"   • {violation}")
+                        return -1
+                    
+                    if warnings:
+                        print("⚠️  Template capability warnings:")
+                        for warning in warnings:
+                            print(f"   • {warning}")
+                    
+                    print(f"✅ Template manifest validated ({len(manifest.capabilities)} capabilities declared)")
+                else:
+                    print("⚠️  Could not load template manifest")
+            else:
+                # Generate manifest automatically for templates without one
+                print(f"⚠️  No manifest found for template, generating one...")
+                success, message, generated_path = manifest_manager.generate_manifest_from_template(template_file_path)
+                if success:
+                    print(f"📄 Generated manifest: {generated_path}")
+                else:
+                    print(f"❌ Failed to generate manifest: {message}")
+                    
+        except Exception as e:
+            logger.error(f"Template manifest validation failed: {e}")
+            print(f"❌ Template manifest validation failed: {e}")
+            return -1
 
     # Check if approval is required
     approval_required = check_plan_approval_required(plan)
@@ -474,6 +569,22 @@ def main():
     # List command
     subparsers.add_parser("list", help="List all runs")
 
+    # Manifest commands
+    manifest_parser = subparsers.add_parser("manifest", help="Template manifest operations")
+    manifest_subparsers = manifest_parser.add_subparsers(dest="manifest_command", help="Manifest commands")
+    
+    # Generate manifest command
+    gen_manifest_parser = manifest_subparsers.add_parser("generate", help="Generate manifest for template")
+    gen_manifest_parser.add_argument("template_file", help="Template YAML file path")
+    gen_manifest_parser.add_argument("--output-dir", help="Output directory for manifest file")
+    
+    # Validate manifest command
+    val_manifest_parser = manifest_subparsers.add_parser("validate", help="Validate template manifest")
+    val_manifest_parser.add_argument("manifest_file", help="Manifest JSON file path")
+    
+    # List capabilities command
+    manifest_subparsers.add_parser("capabilities", help="List available capabilities")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -520,7 +631,9 @@ def main():
             return
 
         yaml_text = Path(args.file).read_text(encoding="utf-8")
-        run_id = run_plan(yaml_text, args.auto_approve)
+        # Extract template filename for signature verification
+        template_path = Path(args.file).name if "plans/templates" in args.file else args.file
+        run_id = run_plan(yaml_text, args.auto_approve, template_path)
 
         if run_id > 0:
             print(f"\n🔗 Run ID: {run_id}")
@@ -540,6 +653,79 @@ def main():
 
     elif args.command == "list":
         list_all_runs()
+
+    elif args.command == "manifest":
+        if not args.manifest_command:
+            print("❌ Please specify a manifest command (generate, validate, capabilities)")
+            return
+            
+        from app.security.template_manifest import get_manifest_manager
+        manifest_manager = get_manifest_manager()
+        
+        if args.manifest_command == "generate":
+            if not os.path.exists(args.template_file):
+                print(f"❌ Template file '{args.template_file}' not found")
+                return
+                
+            template_path = Path(args.template_file)
+            output_dir = Path(args.output_dir) if args.output_dir else None
+            
+            success, message, manifest_path = manifest_manager.generate_manifest_from_template(
+                template_path, output_dir
+            )
+            
+            if success:
+                print(f"✅ {message}")
+                print(f"📄 Manifest saved to: {manifest_path}")
+            else:
+                print(f"❌ {message}")
+                
+        elif args.manifest_command == "validate":
+            if not os.path.exists(args.manifest_file):
+                print(f"❌ Manifest file '{args.manifest_file}' not found")
+                return
+                
+            manifest_path = Path(args.manifest_file)
+            manifest = manifest_manager.load_manifest(manifest_path)
+            
+            if not manifest:
+                print("❌ Failed to load manifest file")
+                return
+                
+            is_valid, errors = manifest_manager.validate_manifest(manifest)
+            
+            if is_valid:
+                print("✅ Manifest is valid")
+                print(f"📦 Template: {manifest.name} v{manifest.version}")
+                print(f"👤 Author: {manifest.author} <{manifest.author_email}>")
+                print(f"🔧 Capabilities: {len(manifest.capabilities)}")
+                
+                # Show capabilities
+                for cap in manifest.capabilities:
+                    risk_emoji = {"low": "🟢", "medium": "🟡", "high": "🟠", "critical": "🔴"}
+                    emoji = risk_emoji.get(cap.risk_level.value, "⚪")
+                    print(f"  {emoji} {cap.name} ({cap.risk_level.value}): {cap.description}")
+                    
+            else:
+                print("❌ Manifest validation failed:")
+                for error in errors:
+                    print(f"  • {error}")
+                    
+        elif args.manifest_command == "capabilities":
+            capabilities = manifest_manager.list_available_capabilities()
+            
+            print("🔧 Available Template Capabilities:")
+            print()
+            
+            for cap in sorted(capabilities, key=lambda x: x["name"]):
+                risk_emoji = {"low": "🟢", "medium": "🟡", "high": "🟠", "critical": "🔴"}
+                emoji = risk_emoji.get(cap["default_risk_level"], "⚪")
+                confirmation = " (requires confirmation)" if cap["requires_confirmation"] else ""
+                
+                print(f"{emoji} {cap['name']} ({cap['default_risk_level']}){confirmation}")
+                print(f"   {cap['description']}")
+                print(f"   Actions: {', '.join(cap['actions'])}")
+                print()
 
 
 if __name__ == "__main__":

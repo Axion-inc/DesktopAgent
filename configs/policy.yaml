@@ -1,0 +1,21 @@
+# Desktop Agent Policy Configuration - Phase 7
+# プロンプト指定の正確なフォーマット
+
+autopilot: false                  # デフォOFF（L4）
+allow_domains: ["partner.example.com"]
+allow_risks: ["sends"]            # ここに無いリスクはHITL必須
+window: "SUN 00:00-06:00 Asia/Tokyo"
+require_signed_templates: true
+require_capabilities: ["webx"]
+
+# 差分パッチ採用ポリシー
+adopt_policy:
+  low_risk_auto: true     # L4窓内かつ低リスクなら自動採用
+  min_confidence: 0.85
+
+# 逸脱検知設定
+deviation_threshold: 3
+step_timeout: 30.0
+unexpected_penalty: 2
+failed_penalty: 1
+risk_penalty: 5

@@ -1,0 +1,7 @@
+{
+  "key_id": "da:2025:test_dod",
+  "pubkey": "j8GR2AhO+YFaCP4OyUvYS842SVjZOdjtyFhWVIYbE3I=",
+  "created_at": "2025-08-27T09:26:19.890600+09:00",
+  "algorithm": "ed25519",
+  "purpose": "template_signing"
+}

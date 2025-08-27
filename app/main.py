@@ -51,6 +51,14 @@ try:
 except ImportError as e:
     get_logger().warning(f"WebX Plugin API not available: {e}")
 
+# Phase 6: Marketplace β Routes
+try:
+    from .api.marketplace_beta import router as marketplace_beta_router
+    app.include_router(marketplace_beta_router)
+    get_logger().info("Marketplace β API routes loaded")
+except ImportError as e:
+    get_logger().warning(f"Marketplace β API not available: {e}")
+
 
 # RBAC-protected endpoints
 from app.middleware.auth import get_current_user, require_admin, require_editor, require_runner
@@ -505,20 +513,68 @@ def public_dashboard():
         <h2>Performance (24h)</h2>
         <div>Median Duration: <span class='metric-value'>{m.get('median_duration_ms_24h', 0)}ms</span></div>
         <div>P95 Duration: <span class='metric-value'>{m.get('p95_duration_ms_24h', 0)}ms</span></div>
+
+        <h2>Phase 6 Security & Marketplace (24h)</h2>
+        <div>Templates Verified: <span class='metric-value'>{m.get('templates_verified_24h', 0)}</span></div>
+        <div>Unsigned Templates Blocked: <span class='metric-value'>{m.get('unsigned_blocked_24h', 0)}</span></div>
+        <div>Active Trust Keys: <span class='metric-value'>{m.get('trust_keys_active', 0)}</span></div>
+        <div>Revoked Trust Keys: <span class='metric-value'>{m.get('trust_keys_revoked', 0)}</span></div>
+        
+        <div>Marketplace Submissions: <span class='metric-value'>{m.get('marketplace_submissions_24h', 0)}</span></div>
+        <div>Marketplace Approvals: <span class='metric-value'>{m.get('marketplace_approvals_24h', 0)}</span></div>
+        <div>Published Templates: <span class='metric-value'>{m.get('marketplace_published_templates', 0)}</span></div>
+        <div>Approval Rate: <span class='metric-value'>{m.get('marketplace_approval_rate', 0)}%</span></div>
+        
+        <div>WebX Plugins Installed: <span class='metric-value'>{m.get('webx_plugins_installed', 0)}</span></div>
+        <div>WebX Plugins Sandboxed: <span class='metric-value'>{m.get('webx_plugins_sandboxed', 0)}</span></div>
+        <div>WebX Blocked Plugins: <span class='metric-value'>{m.get('webx_blocked_plugins', 0)}</span></div>
+        
+        <div>WebX Integrity Components: <span class='metric-value'>{m.get('webx_integrity_components', 0)}</span></div>
+        <div>WebX Active Clients: <span class='metric-value'>{m.get('webx_active_clients', 0)}</span></div>
+        <div>WebX Sandbox Executions: <span class='metric-value'>{m.get('webx_sandbox_executions', 0)}</span></div>
+        <div>WebX Sandbox Success Rate: <span class='metric-value'>{m.get('webx_sandbox_success_rate', 0)}%</span></div>
       </body>
     </html>
     """
     return HTMLResponse(content=html)
 
 
+# Phase 6: Marketplace β UI Routes
+@app.get("/market", response_class=HTMLResponse)
+def marketplace_index():
+    """Marketplace listing page"""
+    from pathlib import Path
+    template_path = Path(__file__).parent / "templates" / "market" / "index.html"
+    if template_path.exists():
+        return HTMLResponse(template_path.read_text())
+    else:
+        return HTMLResponse("<h1>Marketplace</h1><p>Marketplace UI not available</p>", status_code=404)
+
+
+@app.get("/market/submit", response_class=HTMLResponse)
+def marketplace_submit():
+    """Template submission page"""
+    from pathlib import Path
+    template_path = Path(__file__).parent / "templates" / "market" / "submit.html"
+    if template_path.exists():
+        return HTMLResponse(template_path.read_text())
+    else:
+        return HTMLResponse("<h1>Submit Template</h1><p>Submit UI not available</p>", status_code=404)
+
+
+@app.get("/market/templates/{template_id}", response_class=HTMLResponse)
+def marketplace_template_detail(template_id: str):
+    """Template detail page"""
+    from pathlib import Path
+    template_path = Path(__file__).parent / "templates" / "market" / "detail.html"
+    if template_path.exists():
+        return HTMLResponse(template_path.read_text())
+    else:
+        return HTMLResponse("<h1>Template Detail</h1><p>Detail UI not available</p>", status_code=404)
+
+
 @app.get("/webx/marketplace")
 def webx_marketplace(request: Request):
-    """WebX Plugin Marketplace UI"""
-    from fastapi.responses import HTMLResponse
-    from pathlib import Path
-    
-    marketplace_template = Path(__file__).parent / "templates" / "webx_marketplace.html"
-    if marketplace_template.exists():
-        return HTMLResponse(marketplace_template.read_text())
-    else:
-        return HTMLResponse("<h1>WebX Marketplace</h1><p>Marketplace UI not available</p>", status_code=404)
+    """WebX Plugin Marketplace UI (legacy redirect)"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/market", status_code=301)

@@ -1,0 +1,10 @@
+dsl_version: "1.1"
+name: "DoD Test Template"
+description: "Phase 6 DoD acceptance test template"
+steps:
+  - open_browser:
+      url: "https://dashboard.example.com"
+  - fill_by_label:
+      label: "Username"
+      text: "test_user"
+  - click_by_text: "Login"

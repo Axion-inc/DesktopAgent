@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>テンプレート詳細 - Desktop Agent Marketplace</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fa; }
+        .header { background: white; border-bottom: 1px solid #e9ecef; padding: 1rem 0; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 0 1rem; }
+        .header-content { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 1.5rem; font-weight: 700; color: #007cba; }
+        .nav { display: flex; gap: 1rem; }
+        .nav a { text-decoration: none; color: #495057; padding: 0.5rem 1rem; border-radius: 4px; }
+        .nav a:hover { background: #e9ecef; }
+
+        .breadcrumb { background: white; padding: 1rem 0; border-bottom: 1px solid #e9ecef; }
+        .breadcrumb-nav { color: #6c757d; font-size: 0.875rem; }
+        .breadcrumb-nav a { color: #007cba; text-decoration: none; }
+        .breadcrumb-nav a:hover { text-decoration: underline; }
+
+        .main-content { display: grid; grid-template-columns: 1fr 300px; gap: 2rem; margin: 2rem auto; }
+        .template-detail { background: white; border-radius: 8px; padding: 2rem; }
+        .template-header { margin-bottom: 2rem; }
+        .template-title { font-size: 2rem; font-weight: 700; color: #495057; margin-bottom: 0.5rem; }
+        .template-meta { display: flex; gap: 2rem; align-items: center; margin-bottom: 1rem; }
+        .template-author { color: #6c757d; }
+        .template-version { background: #e9ecef; color: #495057; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem; }
+        .template-date { color: #6c757d; font-size: 0.875rem; }
+
+        .badges { display: flex; gap: 0.5rem; margin-bottom: 2rem; flex-wrap: wrap; }
+        .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .badge-verified { background: #28a745; color: white; }
+        .badge-risk-low { background: #28a745; color: white; }
+        .badge-risk-medium { background: #ffc107; color: #212529; }
+        .badge-risk-high { background: #dc3545; color: white; }
+        .badge-capability { background: #17a2b8; color: white; }
+
+        .description { color: #495057; line-height: 1.6; margin-bottom: 2rem; }
+        
+        .section { margin-bottom: 2rem; }
+        .section-title { font-size: 1.25rem; font-weight: 700; color: #495057; margin-bottom: 1rem; border-bottom: 2px solid #e9ecef; padding-bottom: 0.5rem; }
+        
+        .capabilities-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+        .capability-item { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 1rem; }
+        .capability-name { font-weight: 600; color: #495057; margin-bottom: 0.5rem; }
+        .capability-desc { color: #6c757d; font-size: 0.875rem; }
+
+        .risk-analysis { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 1rem; }
+        .risk-high { background: #f8d7da; border-color: #f5c6cb; }
+        .risk-low { background: #d4edda; border-color: #c3e6cb; }
+
+        .code-preview { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 1rem; }
+        .code-preview pre { font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 0.875rem; overflow-x: auto; }
+
+        .sidebar { display: flex; flex-direction: column; gap: 1rem; }
+        .sidebar-card { background: white; border-radius: 8px; padding: 1.5rem; }
+        .sidebar-title { font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem; color: #495057; }
+
+        .install-section { text-align: center; }
+        .install-btn { display: block; width: 100%; padding: 1rem; background: #007cba; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-bottom: 1rem; }
+        .install-btn:hover { background: #0056b3; }
+        .install-btn:disabled { background: #6c757d; cursor: not-allowed; }
+        .install-btn.installed { background: #28a745; }
+
+        .stats-list { list-style: none; }
+        .stats-list li { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #e9ecef; }
+        .stats-list li:last-child { border-bottom: none; }
+
+        .verification-status { padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+        .verification-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .verification-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .verification-danger { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.show { display: flex; }
+        .modal-content { background: white; border-radius: 12px; padding: 2rem; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .modal-title { font-size: 1.5rem; font-weight: 700; }
+        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
+
+        @media (max-width: 768px) {
+            .main-content { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">📦 Template Marketplace</div>
+                <nav class="nav">
+                    <a href="/market">マーケット</a>
+                    <a href="/market/submit">テンプレート投稿</a>
+                    <a href="/public/dashboard">ダッシュボード</a>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <div class="breadcrumb">
+        <div class="container">
+            <nav class="breadcrumb-nav">
+                <a href="/market">マーケット</a> &gt; <span id="templateName">テンプレート詳細</span>
+            </nav>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="main-content">
+            <div class="template-detail">
+                <div class="template-header">
+                    <div class="template-title" id="templateTitle">読み込み中...</div>
+                    <div class="template-meta">
+                        <div class="template-author" id="templateAuthor"></div>
+                        <div class="template-version" id="templateVersion"></div>
+                        <div class="template-date" id="templateDate"></div>
+                    </div>
+                    <div class="badges" id="templateBadges"></div>
+                </div>
+
+                <div id="verificationStatus" class="verification-status" style="display: none;"></div>
+
+                <div class="description" id="templateDescription"></div>
+
+                <div class="section">
+                    <div class="section-title">🔧 必要な機能・権限</div>
+                    <div class="capabilities-grid" id="capabilitiesGrid"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">⚠️ リスク分析</div>
+                    <div id="riskAnalysis" class="risk-analysis"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">📄 テンプレートプレビュー</div>
+                    <div class="code-preview">
+                        <pre id="templateCode">読み込み中...</pre>
+                    </div>
+                </div>
+
+                <div class="section" id="verificationDetails" style="display: none;">
+                    <div class="section-title">🔐 署名検証詳細</div>
+                    <div id="signatureInfo"></div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="sidebar-card">
+                    <div class="install-section">
+                        <button id="installBtn" class="install-btn" onclick="handleInstall()">
+                            📦 インストール
+                        </button>
+                        <div style="font-size: 0.875rem; color: #6c757d;">
+                            plans/templates/ にインストールされます
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-card">
+                    <div class="sidebar-title">📊 統計情報</div>
+                    <ul class="stats-list">
+                        <li><span>評価</span><span id="rating">⭐ -.--</span></li>
+                        <li><span>ダウンロード</span><span id="downloads">---</span></li>
+                        <li><span>投稿日</span><span id="submittedDate">----/--/--</span></li>
+                        <li><span>ステータス</span><span id="status">---</span></li>
+                    </ul>
+                </div>
+
+                <div class="sidebar-card">
+                    <div class="sidebar-title">🏷️ メタデータ</div>
+                    <ul class="stats-list">
+                        <li><span>カテゴリ</span><span id="category">---</span></li>
+                        <li><span>ファイルサイズ</span><span id="fileSize">---</span></li>
+                        <li><span>実行時間目安</span><span id="estimatedTime">---</span></li>
+                        <li><span>互換性</span><span>macOS / Windows</span></li>
+                    </ul>
+                </div>
+
+                <div class="sidebar-card">
+                    <div class="sidebar-title">🔗 関連リンク</div>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <a href="#" id="homepageLink" style="display: none; color: #007cba; text-decoration: none;">🏠 ホームページ</a>
+                        <a href="#" id="repositoryLink" style="display: none; color: #007cba; text-decoration: none;">📂 リポジトリ</a>
+                        <a href="/market/submit" style="color: #007cba; text-decoration: none;">📤 類似テンプレートを投稿</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Install Confirmation Modal -->
+    <div id="installModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">インストール確認</div>
+                <button class="close-btn" onclick="closeInstallModal()">&times;</button>
+            </div>
+            <div id="installModalBody">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTemplate = null;
+        const templateId = getTemplateIdFromUrl();
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (templateId) {
+                loadTemplateDetail(templateId);
+            } else {
+                showError('テンプレートIDが指定されていません');
+            }
+        });
+
+        function getTemplateIdFromUrl() {
+            const pathParts = window.location.pathname.split('/');
+            return pathParts[pathParts.length - 1];
+        }
+
+        async function loadTemplateDetail(templateId) {
+            try {
+                const response = await fetch(`/api/marketplace-beta/submissions/${templateId}`);
+                if (!response.ok) {
+                    throw new Error('テンプレート情報の取得に失敗しました');
+                }
+
+                currentTemplate = await response.json();
+                renderTemplateDetail(currentTemplate);
+
+            } catch (error) {
+                console.error('Failed to load template detail:', error);
+                showError(error.message);
+            }
+        }
+
+        function renderTemplateDetail(template) {
+            // Header
+            document.getElementById('templateTitle').textContent = template.template_name;
+            document.getElementById('templateName').textContent = template.template_name;
+            document.getElementById('templateAuthor').textContent = `by ${template.author}`;
+            document.getElementById('templateVersion').textContent = `v${template.version}`;
+            document.getElementById('templateDate').textContent = formatDate(template.submitted_at);
+
+            // Badges
+            const badges = [];
+            if (template.signature_data) {
+                badges.push('<span class="badge badge-verified">✅ 署名済み</span>');
+            }
+            badges.push(getRiskBadge(template));
+            badges.push(...getCapabilityBadges(template));
+            document.getElementById('templateBadges').innerHTML = badges.join('');
+
+            // Verification status
+            renderVerificationStatus(template);
+
+            // Description
+            document.getElementById('templateDescription').textContent = template.description;
+
+            // Capabilities
+            renderCapabilities(template);
+
+            // Risk analysis
+            renderRiskAnalysis(template);
+
+            // Code preview
+            document.getElementById('templateCode').textContent = template.template_content || 'プレビューできません';
+
+            // Signature details
+            if (template.signature_data) {
+                renderSignatureDetails(template);
+            }
+
+            // Sidebar stats
+            document.getElementById('rating').textContent = '⭐ 4.5'; // Mock rating
+            document.getElementById('downloads').textContent = template.metadata?.downloads || '0';
+            document.getElementById('submittedDate').textContent = formatDate(template.submitted_at);
+            document.getElementById('status').textContent = getStatusText(template.status);
+            document.getElementById('category').textContent = template.category || '未分類';
+            document.getElementById('fileSize').textContent = calculateFileSize(template.template_content);
+            document.getElementById('estimatedTime').textContent = estimateExecutionTime(template.template_content);
+
+            // Install button
+            updateInstallButton(template);
+        }
+
+        function renderVerificationStatus(template) {
+            const statusDiv = document.getElementById('verificationStatus');
+            
+            if (template.signature_data) {
+                statusDiv.className = 'verification-status verification-success';
+                statusDiv.innerHTML = '✅ このテンプレートは署名済みで、信頼できる作成者によって提供されています。';
+            } else {
+                statusDiv.className = 'verification-status verification-warning';
+                statusDiv.innerHTML = '⚠️ このテンプレートは署名されていません。インストール前に内容を十分に確認してください。';
+            }
+            
+            statusDiv.style.display = 'block';
+        }
+
+        function renderCapabilities(template) {
+            const capabilities = detectCapabilities(template.template_content);
+            const capabilitiesHtml = capabilities.map(cap => {
+                const info = getCapabilityInfo(cap);
+                return `
+                    <div class="capability-item">
+                        <div class="capability-name">${info.name}</div>
+                        <div class="capability-desc">${info.description}</div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('capabilitiesGrid').innerHTML = 
+                capabilitiesHtml || '<div style="color: #6c757d;">基本的なテンプレート実行機能のみ使用</div>';
+        }
+
+        function renderRiskAnalysis(template) {
+            const riskLevel = assessRiskLevel(template.template_content);
+            const riskDiv = document.getElementById('riskAnalysis');
+            
+            riskDiv.className = `risk-analysis risk-${riskLevel}`;
+            
+            const riskInfo = {
+                'low': {
+                    icon: '✅',
+                    title: '低リスク',
+                    description: 'このテンプレートは安全な操作のみを実行します。データの読み取りや画面操作が主な機能です。'
+                },
+                'medium': {
+                    icon: '⚠️',
+                    title: '中リスク',
+                    description: 'このテンプレートはフォーム入力やクリック操作を実行します。意図しない操作を避けるため、実行前に内容を確認してください。'
+                },
+                'high': {
+                    icon: '🚨',
+                    title: '高リスク',
+                    description: 'このテンプレートはメール送信、ファイル削除、データ上書きなどの重要な操作を実行します。必ず管理者の承認を受けてから使用してください。'
+                }
+            };
+
+            const info = riskInfo[riskLevel] || riskInfo['low'];
+            riskDiv.innerHTML = `
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">${info.icon} ${info.title}</div>
+                <div>${info.description}</div>
+            `;
+        }
+
+        function renderSignatureDetails(template) {
+            const detailsDiv = document.getElementById('verificationDetails');
+            const signatureInfo = template.signature_data;
+            
+            document.getElementById('signatureInfo').innerHTML = `
+                <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.875rem;">
+                    <div><strong>署名アルゴリズム:</strong> ${signatureInfo.algo}</div>
+                    <div><strong>署名者ID:</strong> ${signatureInfo.key_id}</div>
+                    <div><strong>署名日時:</strong> ${signatureInfo.created_at}</div>
+                    <div><strong>ファイルハッシュ:</strong> ${signatureInfo.sha256?.substring(0, 32)}...</div>
+                </div>
+            `;
+            
+            detailsDiv.style.display = 'block';
+        }
+
+        // Utility functions
+        function detectCapabilities(content) {
+            const capabilities = [];
+            if (!content) return capabilities;
+            
+            const contentLower = content.toLowerCase();
+            if (contentLower.includes('open_browser') || contentLower.includes('click_by_text')) capabilities.push('webx');
+            if (contentLower.includes('attach_file') || contentLower.includes('read_file')) capabilities.push('fs');
+            if (contentLower.includes('compose_mail')) capabilities.push('mail_draft');
+            if (contentLower.includes('pdf')) capabilities.push('pdf');
+            
+            return capabilities;
+        }
+
+        function getCapabilityInfo(capability) {
+            const capabilityMap = {
+                'webx': { name: 'Web拡張機能', description: 'ブラウザ操作、フォーム入力、クリック操作' },
+                'fs': { name: 'ファイルシステム', description: 'ファイルの読み書き、添付ファイル操作' },
+                'mail_draft': { name: 'メール作成', description: 'メールの下書き作成、送信' },
+                'pdf': { name: 'PDF操作', description: 'PDFファイルの読み取り、処理' }
+            };
+            return capabilityMap[capability] || { name: capability, description: '詳細不明' };
+        }
+
+        function getRiskBadge(template) {
+            const riskLevel = assessRiskLevel(template.template_content);
+            const badges = {
+                'low': '<span class="badge badge-risk-low">✅ 低リスク</span>',
+                'medium': '<span class="badge badge-risk-medium">⚠️ 中リスク</span>',
+                'high': '<span class="badge badge-risk-high">🚨 高リスク</span>'
+            };
+            return badges[riskLevel] || badges['low'];
+        }
+
+        function getCapabilityBadges(template) {
+            const capabilities = detectCapabilities(template.template_content);
+            return capabilities.map(cap => `<span class="badge badge-capability">${cap}</span>`);
+        }
+
+        function assessRiskLevel(content) {
+            if (!content) return 'low';
+            
+            const contentLower = content.toLowerCase();
+            if (contentLower.includes('compose_mail') || contentLower.includes('delete') || contentLower.includes('overwrite')) {
+                return 'high';
+            } else if (contentLower.includes('click_by_text') || contentLower.includes('fill_by_label')) {
+                return 'medium';
+            }
+            return 'low';
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('ja-JP');
+        }
+
+        function getStatusText(status) {
+            const statusMap = {
+                'published': '公開中',
+                'approved': '承認済み',
+                'submitted': '審査中',
+                'rejected': '却下',
+                'draft': '下書き'
+            };
+            return statusMap[status] || status;
+        }
+
+        function calculateFileSize(content) {
+            if (!content) return '0 KB';
+            const bytes = new TextEncoder().encode(content).length;
+            return bytes < 1024 ? bytes + ' B' : Math.round(bytes / 1024) + ' KB';
+        }
+
+        function estimateExecutionTime(content) {
+            if (!content) return '不明';
+            const lines = content.split('\\n').length;
+            const seconds = Math.max(10, lines * 2); // 1行あたり約2秒と仮定
+            return seconds < 60 ? seconds + '秒' : Math.round(seconds / 60) + '分';
+        }
+
+        function updateInstallButton(template) {
+            const installBtn = document.getElementById('installBtn');
+            
+            if (template.status === 'published') {
+                installBtn.textContent = '📦 インストール';
+                installBtn.disabled = false;
+                installBtn.className = 'install-btn';
+            } else {
+                installBtn.textContent = '⏳ 未公開';
+                installBtn.disabled = true;
+                installBtn.className = 'install-btn';
+            }
+        }
+
+        async function handleInstall() {
+            if (!currentTemplate) return;
+
+            try {
+                document.getElementById('installModalBody').innerHTML = `
+                    <div>
+                        <h3>${currentTemplate.template_name} v${currentTemplate.version}</h3>
+                        <p>このテンプレートをインストールしますか？</p>
+                        <div style="margin: 1rem 0;">
+                            ${getRiskBadge(currentTemplate)}
+                        </div>
+                        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                            <button onclick="confirmInstall()" style="flex: 1; padding: 0.75rem; background: #007cba; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                                インストール実行
+                            </button>
+                            <button onclick="closeInstallModal()" style="flex: 1; padding: 0.75rem; background: #6c757d; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                                キャンセル
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('installModal').classList.add('show');
+                
+            } catch (error) {
+                alert('インストール準備中にエラーが発生しました: ' + error.message);
+            }
+        }
+
+        async function confirmInstall() {
+            try {
+                const response = await fetch(`/api/marketplace-beta/install/${currentTemplate.submission_id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    alert('✅ インストールが完了しました！');
+                    document.getElementById('installBtn').textContent = '✅ インストール済み';
+                    document.getElementById('installBtn').className = 'install-btn installed';
+                    document.getElementById('installBtn').disabled = true;
+                } else {
+                    alert('❌ インストールに失敗しました: ' + (result.message || 'Unknown error'));
+                }
+                
+                closeInstallModal();
+                
+            } catch (error) {
+                alert('❌ インストール中にエラーが発生しました: ' + error.message);
+                closeInstallModal();
+            }
+        }
+
+        function closeInstallModal() {
+            document.getElementById('installModal').classList.remove('show');
+        }
+
+        function showError(message) {
+            document.getElementById('templateTitle').textContent = 'エラー';
+            document.getElementById('templateDescription').innerHTML = `
+                <div style="color: #dc3545; text-align: center; padding: 3rem;">
+                    <div style="font-size: 3rem;">❌</div>
+                    <div style="font-size: 1.25rem; margin: 1rem 0;">${message}</div>
+                    <a href="/market" style="color: #007cba;">マーケットに戻る</a>
+                </div>
+            `;
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('installModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeInstallModal();
+            }
+        });
+    </script>
+</body>
+</html>

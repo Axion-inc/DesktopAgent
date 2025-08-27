@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Template Marketplace - Desktop Agent</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fa; }
+        .header { background: white; border-bottom: 1px solid #e9ecef; padding: 1rem 0; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+        .header-content { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 1.5rem; font-weight: 700; color: #007cba; }
+        .nav { display: flex; gap: 1rem; }
+        .nav a { text-decoration: none; color: #495057; padding: 0.5rem 1rem; border-radius: 4px; }
+        .nav a:hover { background: #e9ecef; }
+        .nav a.active { background: #007cba; color: white; }
+
+        .stats-bar { background: white; padding: 1rem 0; margin-bottom: 2rem; border-bottom: 1px solid #e9ecef; }
+        .stats { display: flex; gap: 2rem; }
+        .stat { text-align: center; }
+        .stat-number { font-size: 1.5rem; font-weight: bold; color: #007cba; }
+        .stat-label { font-size: 0.875rem; color: #6c757d; }
+
+        .content { display: grid; grid-template-columns: 250px 1fr; gap: 2rem; margin-bottom: 2rem; }
+        .sidebar { background: white; border-radius: 8px; padding: 1.5rem; height: fit-content; }
+        .sidebar h3 { margin-bottom: 1rem; color: #495057; }
+        .filter-group { margin-bottom: 1.5rem; }
+        .filter-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+        .filter-input, .filter-select { width: 100%; padding: 0.5rem; border: 1px solid #ced4da; border-radius: 4px; }
+
+        .main-content { background: white; border-radius: 8px; padding: 1.5rem; }
+        .search-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .search-box { flex: 1; max-width: 400px; }
+        .search-input { width: 100%; padding: 0.75rem; border: 2px solid #e9ecef; border-radius: 8px; font-size: 1rem; }
+        .submit-btn { background: #28a745; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .submit-btn:hover { background: #218838; }
+
+        .templates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem; }
+        .template-card { border: 1px solid #e9ecef; border-radius: 8px; padding: 1.5rem; transition: transform 0.2s, box-shadow 0.2s; }
+        .template-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+        .template-header { display: flex; justify-content: between; align-items: flex-start; margin-bottom: 1rem; }
+        .template-title { font-size: 1.25rem; font-weight: 700; color: #495057; margin-bottom: 0.25rem; }
+        .template-author { color: #6c757d; font-size: 0.875rem; }
+        .template-version { font-size: 0.75rem; background: #e9ecef; color: #495057; padding: 0.25rem 0.5rem; border-radius: 4px; }
+
+        .template-description { color: #495057; margin-bottom: 1rem; line-height: 1.5; }
+
+        .badges { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+        .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .badge-verified { background: #28a745; color: white; }
+        .badge-risk-low { background: #28a745; color: white; }
+        .badge-risk-medium { background: #ffc107; color: #212529; }
+        .badge-risk-high { background: #dc3545; color: white; }
+        .badge-capability { background: #17a2b8; color: white; }
+
+        .template-stats { display: flex; gap: 1rem; font-size: 0.875rem; color: #6c757d; margin-bottom: 1rem; }
+        .stat-item { display: flex; align-items: center; gap: 0.25rem; }
+
+        .template-actions { display: flex; gap: 0.5rem; }
+        .btn { padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 600; text-decoration: none; display: inline-block; text-align: center; }
+        .btn-install { background: #007cba; color: white; }
+        .btn-install:hover { background: #0056b3; }
+        .btn-details { background: #6c757d; color: white; }
+        .btn-details:hover { background: #545b62; }
+        .btn-installed { background: #28a745; color: white; cursor: default; }
+
+        .loading { text-align: center; padding: 3rem; color: #6c757d; }
+        .empty { text-align: center; padding: 3rem; color: #6c757d; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.show { display: flex; }
+        .modal-content { background: white; border-radius: 12px; padding: 2rem; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .modal-title { font-size: 1.5rem; font-weight: 700; }
+        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
+        .alert { padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-danger { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">📦 Template Marketplace</div>
+                <nav class="nav">
+                    <a href="/market" class="active">マーケット</a>
+                    <a href="/market/submit">テンプレート投稿</a>
+                    <a href="/public/dashboard">ダッシュボード</a>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <div class="stats-bar">
+        <div class="container">
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-number" id="totalTemplates">-</div>
+                    <div class="stat-label">公開テンプレート</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="verifiedTemplates">-</div>
+                    <div class="stat-label">署名済み</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="totalInstalls">-</div>
+                    <div class="stat-label">総インストール数</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="approvalRate">-</div>
+                    <div class="stat-label">承認率</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="content">
+            <div class="sidebar">
+                <h3>🔍 フィルター</h3>
+                <div class="filter-group">
+                    <label>検索</label>
+                    <input type="text" id="searchFilter" class="filter-input" placeholder="テンプレート名で検索">
+                </div>
+                <div class="filter-group">
+                    <label>署名</label>
+                    <select id="signatureFilter" class="filter-select">
+                        <option value="">すべて</option>
+                        <option value="verified">署名済みのみ</option>
+                        <option value="unsigned">未署名のみ</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>リスクレベル</label>
+                    <select id="riskFilter" class="filter-select">
+                        <option value="">すべて</option>
+                        <option value="low">低リスク</option>
+                        <option value="medium">中リスク</option>
+                        <option value="high">高リスク</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>必要な機能</label>
+                    <select id="capabilityFilter" class="filter-select">
+                        <option value="">すべて</option>
+                        <option value="webx">Web拡張</option>
+                        <option value="fs">ファイル操作</option>
+                        <option value="mail_draft">メール作成</option>
+                        <option value="pdf">PDF操作</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div class="search-header">
+                    <div class="search-box">
+                        <input type="text" id="mainSearch" class="search-input" placeholder="テンプレートを検索...">
+                    </div>
+                    <a href="/market/submit" class="submit-btn">📤 テンプレート投稿</a>
+                </div>
+
+                <div id="templatesGrid" class="templates-grid">
+                    <div class="loading">
+                        <p>テンプレートを読み込み中...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Install Confirmation Modal -->
+    <div id="installModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">テンプレートのインストール</div>
+                <button class="close-btn" onclick="closeInstallModal()">&times;</button>
+            </div>
+            <div id="installModalBody">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allTemplates = [];
+        let installedTemplates = new Set();
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadMarketplaceData();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('searchFilter').addEventListener('input', filterTemplates);
+            document.getElementById('mainSearch').addEventListener('input', filterTemplates);
+            document.getElementById('signatureFilter').addEventListener('change', filterTemplates);
+            document.getElementById('riskFilter').addEventListener('change', filterTemplates);
+            document.getElementById('capabilityFilter').addEventListener('change', filterTemplates);
+        }
+
+        async function loadMarketplaceData() {
+            try {
+                // Load marketplace stats
+                const statsResponse = await fetch('/api/marketplace-beta/stats');
+                if (statsResponse.ok) {
+                    const stats = await statsResponse.json();
+                    updateStatsDisplay(stats);
+                }
+
+                // Load published templates
+                const templatesResponse = await fetch('/api/marketplace-beta/submissions?status=published');
+                if (templatesResponse.ok) {
+                    allTemplates = await templatesResponse.json();
+                    renderTemplates(allTemplates);
+                } else {
+                    throw new Error('Failed to load templates');
+                }
+
+            } catch (error) {
+                console.error('Failed to load marketplace data:', error);
+                document.getElementById('templatesGrid').innerHTML = `
+                    <div class="empty">
+                        <p>⚠️ データの読み込みに失敗しました</p>
+                        <p>しばらく時間をおいてから再試行してください</p>
+                    </div>
+                `;
+            }
+        }
+
+        function updateStatsDisplay(stats) {
+            document.getElementById('totalTemplates').textContent = stats.published_templates || 0;
+            document.getElementById('verifiedTemplates').textContent = stats.total_submissions || 0;
+            document.getElementById('totalInstalls').textContent = '---'; // Would track installs
+            document.getElementById('approvalRate').textContent = `${stats.approval_rate_percent || 0}%`;
+        }
+
+        function renderTemplates(templates) {
+            const grid = document.getElementById('templatesGrid');
+            
+            if (templates.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty">
+                        <p>📭 該当するテンプレートが見つかりませんでした</p>
+                        <p>検索条件を変更して再試行してください</p>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = templates.map(template => `
+                <div class="template-card">
+                    <div class="template-header">
+                        <div>
+                            <div class="template-title">${template.template_name}</div>
+                            <div class="template-author">by ${template.author}</div>
+                        </div>
+                        <div class="template-version">v${template.version}</div>
+                    </div>
+                    
+                    <div class="template-description">${template.description}</div>
+                    
+                    <div class="badges">
+                        ${template.signature_data ? '<span class="badge badge-verified">✅ 署名済み</span>' : ''}
+                        ${getRiskBadge(template)}
+                        ${getCapabilityBadges(template)}
+                    </div>
+                    
+                    <div class="template-stats">
+                        <div class="stat-item">⭐ 4.5</div>
+                        <div class="stat-item">📥 ${template.metadata?.downloads || 0}</div>
+                        <div class="stat-item">📅 ${formatDate(template.submitted_at)}</div>
+                    </div>
+                    
+                    <div class="template-actions">
+                        ${isInstalled(template.submission_id) 
+                            ? '<button class="btn btn-installed">✅ インストール済み</button>'
+                            : `<button class="btn btn-install" onclick="showInstallModal('${template.submission_id}')">📦 インストール</button>`
+                        }
+                        <a href="/market/templates/${template.submission_id}" class="btn btn-details">詳細</a>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getRiskBadge(template) {
+            // Simulate risk assessment based on template content
+            const hasRiskFlags = template.template_content && (
+                template.template_content.includes('compose_mail') ||
+                template.template_content.includes('delete') ||
+                template.template_content.includes('overwrite')
+            );
+            
+            if (hasRiskFlags) {
+                return '<span class="badge badge-risk-high">⚠️ 高リスク</span>';
+            } else if (template.template_content && template.template_content.includes('click_by_text')) {
+                return '<span class="badge badge-risk-medium">⚠️ 中リスク</span>';
+            } else {
+                return '<span class="badge badge-risk-low">✅ 低リスク</span>';
+            }
+        }
+
+        function getCapabilityBadges(template) {
+            const capabilities = [];
+            if (template.template_content) {
+                if (template.template_content.includes('open_browser')) capabilities.push('webx');
+                if (template.template_content.includes('attach_file')) capabilities.push('fs');
+                if (template.template_content.includes('compose_mail')) capabilities.push('mail_draft');
+                if (template.template_content.includes('pdf')) capabilities.push('pdf');
+            }
+            
+            return capabilities.map(cap => `<span class="badge badge-capability">${cap}</span>`).join('');
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('ja-JP');
+        }
+
+        function isInstalled(templateId) {
+            return installedTemplates.has(templateId);
+        }
+
+        function filterTemplates() {
+            const searchTerm = (document.getElementById('searchFilter').value + ' ' + 
+                              document.getElementById('mainSearch').value).toLowerCase();
+            const signatureFilter = document.getElementById('signatureFilter').value;
+            const riskFilter = document.getElementById('riskFilter').value;
+            const capabilityFilter = document.getElementById('capabilityFilter').value;
+
+            const filtered = allTemplates.filter(template => {
+                // Search filter
+                if (searchTerm.trim()) {
+                    const matchesSearch = template.template_name.toLowerCase().includes(searchTerm) ||
+                                        template.description.toLowerCase().includes(searchTerm) ||
+                                        template.author.toLowerCase().includes(searchTerm);
+                    if (!matchesSearch) return false;
+                }
+
+                // Signature filter
+                if (signatureFilter) {
+                    const isSigned = !!template.signature_data;
+                    if (signatureFilter === 'verified' && !isSigned) return false;
+                    if (signatureFilter === 'unsigned' && isSigned) return false;
+                }
+
+                // Risk filter
+                if (riskFilter) {
+                    const riskLevel = assessRiskLevel(template);
+                    if (riskLevel !== riskFilter) return false;
+                }
+
+                // Capability filter
+                if (capabilityFilter) {
+                    const hasCapability = template.template_content && 
+                                         template.template_content.includes(getCapabilityKeyword(capabilityFilter));
+                    if (!hasCapability) return false;
+                }
+
+                return true;
+            });
+
+            renderTemplates(filtered);
+        }
+
+        function assessRiskLevel(template) {
+            if (!template.template_content) return 'low';
+            
+            const content = template.template_content.toLowerCase();
+            if (content.includes('compose_mail') || content.includes('delete') || content.includes('overwrite')) {
+                return 'high';
+            } else if (content.includes('click_by_text') || content.includes('fill_by_label')) {
+                return 'medium';
+            }
+            return 'low';
+        }
+
+        function getCapabilityKeyword(capability) {
+            const keywords = {
+                'webx': 'open_browser',
+                'fs': 'attach_file',
+                'mail_draft': 'compose_mail',
+                'pdf': 'pdf'
+            };
+            return keywords[capability] || '';
+        }
+
+        async function showInstallModal(templateId) {
+            try {
+                const response = await fetch(`/api/marketplace-beta/submissions/${templateId}`);
+                if (!response.ok) throw new Error('Failed to load template details');
+                
+                const template = await response.json();
+                
+                document.getElementById('installModalBody').innerHTML = `
+                    <div class="template-details">
+                        <h3>${template.template_name} v${template.version}</h3>
+                        <p><strong>作成者:</strong> ${template.author}</p>
+                        <p><strong>説明:</strong> ${template.description}</p>
+                        
+                        <div style="margin: 1rem 0;">
+                            <strong>リスク評価:</strong>
+                            ${getRiskBadge(template)}
+                        </div>
+                        
+                        <div style="margin: 1rem 0;">
+                            <strong>必要な機能:</strong><br>
+                            ${getCapabilityBadges(template) || '<span class="badge badge-capability">基本機能のみ</span>'}
+                        </div>
+                        
+                        ${template.signature_data ? 
+                            '<div class="alert alert-success">✅ このテンプレートは署名済みで安全です</div>' :
+                            '<div class="alert alert-danger">⚠️ このテンプレートは署名されていません。インストールには注意が必要です。</div>'
+                        }
+                        
+                        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                            <button class="btn btn-install" onclick="installTemplate('${templateId}')" style="flex: 1;">
+                                📦 インストール実行
+                            </button>
+                            <button class="btn btn-details" onclick="closeInstallModal()">
+                                キャンセル
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('installModal').classList.add('show');
+                
+            } catch (error) {
+                alert('テンプレート情報の読み込みに失敗しました: ' + error.message);
+            }
+        }
+
+        async function installTemplate(templateId) {
+            try {
+                const response = await fetch(`/api/marketplace-beta/install/${templateId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    installedTemplates.add(templateId);
+                    alert('✅ テンプレートのインストールが完了しました！');
+                    closeInstallModal();
+                    renderTemplates(allTemplates); // Refresh to show installed state
+                } else {
+                    alert('❌ インストールに失敗しました: ' + (result.message || 'Unknown error'));
+                }
+                
+            } catch (error) {
+                alert('❌ インストール中にエラーが発生しました: ' + error.message);
+            }
+        }
+
+        function closeInstallModal() {
+            document.getElementById('installModal').classList.remove('show');
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('installModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeInstallModal();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-Desktop Agent (Phase 5)
+Desktop Agent (Phase 7 - L4 Autopilot + Policy Engine v1 + Planner L2)
 
 Demo Site: https://axion-inc.github.io/DesktopAgent/
 
@@ -10,7 +10,43 @@ Badges (after deploying /metrics):
 - Success rate: `![Success](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=success&query=$.success_rate&suffix=%25)`
 - Runs: `![Runs](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=runs&query=$.total_runs)`
 
-Purpose: A comprehensive enterprise desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **web form automation with Chrome Extension + Native Messaging (Phase 5 WebX)**, robust verification capabilities, and enterprise orchestration. Features CLI interface, approval gates, natural language plan generation, role-based access control, queue management, and comprehensive testing. Designed for Windows 11 support with full OS adapter architecture.
+Purpose: A comprehensive enterprise desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **web form automation with Chrome Extension + Native Messaging (Phase 5 WebX)**, **Template Marketplace β with Ed25519 digital signatures (Phase 6)**, robust verification capabilities, and enterprise orchestration. Features CLI interface, approval gates, natural language plan generation, role-based access control, queue management, plugin system, and comprehensive testing. Designed for Windows 11 support with full OS adapter architecture.
+
+## Phase 6 Features 🏪 (Marketplace β + Security)
+
+**Template Marketplace β** - Community-driven template sharing
+- **Submission Pipeline** - Template validation, dry-run testing, and approval workflow
+- **Trust Levels** - System/commercial/development/community/unknown template classification
+- **Capability Manifests** - Automatic detection of required capabilities (webx/fs/pdf/mail_draft)
+- **Risk Analysis** - Detection of high-risk flags (sends/deletes/overwrites) with approval gates
+- **Marketplace UI** - Template browsing, submission, and installation interface
+
+**Ed25519 Digital Signatures** - Cryptographic template verification
+- **Template Signing** - Ed25519 private key signing with SHA-256 template hashes
+- **Trust Store** - Hierarchical trust management with YAML-based key registry
+- **Signature Verification** - Runtime template integrity checking before execution
+- **Key Management** - Secure key generation, storage, and rotation workflows
+- **Author Authentication** - Verified publisher identity with da:YYYY:author format
+
+**Plugin System** - Extensible action registry with security sandbox
+- **Plugin Loading** - Dynamic Python module loading from plugins/actions/*.py
+- **Security Sandbox** - Network blocking, file IO restrictions, execution timeouts
+- **Plugin Allowlist** - Admin-controlled plugin security with explicit approval
+- **Action Registry** - Unified plugin registration system with type safety
+- **Example Plugins** - clipboard_actions.py with safe system clipboard operations
+
+**WebX Integrity Checking** - Extension host permissions validation
+- **Permission Validation** - Template URL validation against extension host_permissions
+- **Risk-based Safety** - Block execution for high-risk templates with permission mismatches
+- **Compatibility Warnings** - Non-blocking warnings for low-risk permission mismatches
+- **Engine Integration** - Seamless WebX extension and Playwright engine support
+- **Security Enforcement** - Configurable blocking policies for enterprise compliance
+
+**Enhanced Review System** - Rich capability and risk visualization
+- **Manifest Display** - Visual capability cards with risk level indicators
+- **Approval Gates** - Automatic high-risk template approval requirements
+- **Run Detail Pages** - Complete manifest and signature verification status
+- **Security Insights** - Template capability analysis with execution warnings
 
 ## Phase 5 Features 🌐 (Web Operator v2)
 
@@ -203,6 +239,64 @@ python -c "from app.web.engine import get_web_engine; print(get_web_engine().__c
 - **Zero Missubmissions** - Approval gates prevent accidental destructive actions
 
 See [WebX Setup Guide](docs/webx-setup.md) for detailed configuration.
+
+## Phase 6 Marketplace Setup 🏪
+
+**1. Initialize Template Signing System**
+```bash
+# Generate Ed25519 keypair for template signing
+./scripts/init_signing_keys.sh
+
+# Configure trust store (admin only)
+./cli.py admin trust-store add --key-id "da:2025:alice" --trust-level "development"
+```
+
+**2. Start Marketplace β Server**
+```bash
+# Start API server with marketplace routes
+uvicorn app.main:app --reload
+
+# Access marketplace UI
+open http://localhost:8000/market
+```
+
+**3. Configure Plugin System**
+```bash
+# Set plugin allowlist (admin only)
+./cli.py admin plugins allowlist add clipboard_actions
+
+# Load plugins from plugins/actions/
+./cli.py admin plugins reload
+```
+
+**4. Template Submission Workflow**
+```bash
+# Sign a template (developer)
+./cli.py sign-template plans/templates/my_template.yaml --key-id "da:2025:alice"
+
+# Submit to marketplace
+curl -X POST http://localhost:8000/api/marketplace-beta/submit \
+  -F "template_content=@plans/templates/my_template.yaml" \
+  -F "signature_file=@plans/templates/my_template.yaml.sig.json"
+
+# Install from marketplace
+./cli.py marketplace install template_id
+```
+
+**5. WebX Integrity Validation**
+```bash
+# Configure extension permissions
+echo "host_permissions: ['https://dashboard.example.com/*']" > configs/webx_permissions.yaml
+
+# Validate template compatibility
+./cli.py webx validate plans/templates/web_template.yaml
+```
+
+**Marketplace Benefits:**
+- **Community Sharing** - Discover and share automation templates
+- **Cryptographic Trust** - Ed25519 signatures ensure template integrity
+- **Risk Analysis** - Automatic detection of high-risk operations
+- **Plugin Ecosystem** - Extensible action registry with sandboxed execution
 
 Screenshots (Demo)
 ![Run Timeline](docs/assets/runs_timeline.svg)
