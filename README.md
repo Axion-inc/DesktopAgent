@@ -10,7 +10,60 @@ Badges (after deploying /metrics):
 - Success rate: `![Success](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=success&query=$.success_rate&suffix=%25)`
 - Runs: `![Runs](https://img.shields.io/endpoint?url=https://YOUR_HOST/metrics&label=runs&query=$.total_runs)`
 
-Purpose: A comprehensive enterprise desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **web form automation with Chrome Extension + Native Messaging (Phase 5 WebX)**, **Template Marketplace β with Ed25519 digital signatures (Phase 6)**, robust verification capabilities, and enterprise orchestration. Features CLI interface, approval gates, natural language plan generation, role-based access control, queue management, plugin system, and comprehensive testing. Designed for Windows 11 support with full OS adapter architecture.
+Purpose: A comprehensive enterprise desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **web form automation with Chrome Extension + Native Messaging (Phase 5 WebX)**, **Template Marketplace β with Ed25519 digital signatures (Phase 6)**, **L4 Limited Full Automation with Policy Engine v1 and Planner L2 differential patches (Phase 7)**, robust verification capabilities, and enterprise orchestration. Features CLI interface, approval gates, natural language plan generation, role-based access control, queue management, plugin system, GitHub integration, multi-channel notifications, and comprehensive testing. Designed for Windows 11 support with full OS adapter architecture.
+
+## Phase 7 Features 🤖 (L4 Autopilot + Policy Engine v1 + Planner L2)
+
+**L4 Limited Full Automation** - Policy-gated autopilot with deviation detection
+- **Safe-Fail Mechanisms** - Automatic execution halting when deviation thresholds exceeded
+- **Policy-Gated Execution** - Domain/time/risk-based policy validation before automation
+- **Deviation Detection** - Real-time monitoring of expected vs actual execution outcomes
+- **Human Override** - Manual intervention capability when autopilot encounters edge cases
+- **L4 Metrics Tracking** - Comprehensive logging of automation success rates and policy enforcement
+
+**Policy Engine v1** - Enterprise-grade policy validation and enforcement
+- **Domain Policies** - URL whitelist/blacklist enforcement with pattern matching
+- **Time Policies** - Business hours restrictions and schedule-based execution controls
+- **Risk Policies** - Template risk level validation with signature verification requirements
+- **Signature Policies** - Ed25519 trust level enforcement with configurable approval gates
+- **Safe-Fail Design** - Policy violations result in execution blocking rather than warnings
+- **Policy Metrics** - Real-time tracking of policy blocks, violations, and approval rates
+
+**Planner L2** - Advanced differential patch system for UI adaptation
+- **DOM Differential Analysis** - Real-time comparison of expected vs actual page structures
+- **Patch Proposal Generation** - Automatic UI adaptation suggestions when elements change
+- **GitHub Integration** - Direct issue/PR creation for UI changes requiring developer attention
+- **Confidence Scoring** - Machine learning-based assessment of patch success probability
+- **Template Versioning** - Automatic template updates based on successful patch applications
+
+**Enhanced WebX Capabilities** - Advanced web automation with enterprise security
+- **Iframe Navigation** - Cross-frame automation with security context preservation
+- **Shadow DOM Piercing** - Deep web component interaction capability
+- **Download Management** - Advanced file download monitoring and validation
+- **Cookie Management** - Session state preservation across automation runs
+- **JSON-RPC Protocol v2** - Enhanced native messaging with better error handling
+
+**GitHub CLI/API Integration** - Complete DevOps workflow automation
+- **Issue Management** - Automatic issue creation, labeling, assignment, and closure
+- **Pull Request Workflows** - PR creation, review requests, and merge automation
+- **Workflow Triggers** - GitHub Actions integration with policy compliance checks
+- **Milestone Tracking** - Project milestone management and progress reporting
+- **Branch Management** - Automated branch creation and cleanup for patch proposals
+
+**Multi-Channel Notifications** - Enterprise communication integration
+- **Email Notifications** - HTML email alerts for L4 deviations, policy violations, and safe-fails
+- **Slack Integration** - Rich message formatting with action buttons and attachment support
+- **Webhook Delivery** - Custom HTTP endpoint notifications with retry and rate limiting
+- **Notification Routing** - Channel-specific message routing based on severity and context
+- **Rate Limiting** - Intelligent throttling to prevent notification spam during incidents
+
+**Enhanced Enterprise Dashboard** - Real-time Phase 7 monitoring and control
+- **L4 Autopilot Status** - Live autopilot execution status with deviation alerts
+- **Policy Engine Dashboard** - Policy violation tracking and approval workflow management  
+- **Planner L2 Insights** - UI change detection and patch success rate analytics
+- **GitHub Integration Status** - Repository connection health and API rate limit monitoring
+- **Notification Health** - Multi-channel delivery status and error rate tracking
+- **Phase 7 Metrics Visualization** - Real-time KPI dashboards with historical trending
 
 ## Phase 6 Features 🏪 (Marketplace β + Security)
 
@@ -297,6 +350,82 @@ echo "host_permissions: ['https://dashboard.example.com/*']" > configs/webx_perm
 - **Cryptographic Trust** - Ed25519 signatures ensure template integrity
 - **Risk Analysis** - Automatic detection of high-risk operations
 - **Plugin Ecosystem** - Extensible action registry with sandboxed execution
+
+## Phase 7 L4 Autopilot Setup 🤖
+
+**1. Initialize Policy Engine**
+```bash
+# Configure domain and time policies
+./cli.py policy init --config configs/policy.yaml
+
+# Add domain whitelist for autopilot
+./cli.py policy domain add --pattern "*.trusted-domain.com" --action allow
+./cli.py policy domain add --pattern "*.example.com" --action allow
+
+# Configure business hours (9 AM - 5 PM weekdays)
+./cli.py policy time set --start "09:00" --end "17:00" --weekdays "1-5"
+```
+
+**2. Enable L4 Autopilot Mode**
+```bash
+# Enable autopilot with policy validation
+export L4_AUTOPILOT_ENABLED=1
+export POLICY_ENGINE_STRICT=1
+
+# Configure deviation thresholds
+./cli.py autopilot config --deviation-threshold 0.2 --safe-fail-timeout 30
+
+# Start autopilot daemon
+./cli.py autopilot start --policy-check --deviation-detection
+```
+
+**3. Configure GitHub Integration**
+```bash
+# Setup GitHub CLI integration
+gh auth login
+
+# Configure repository for patch proposals
+export GITHUB_OWNER="your-org"
+export GITHUB_REPO="your-templates-repo"
+export GITHUB_TOKEN="ghp_your_token_here"
+
+# Initialize Planner L2 patch system
+./cli.py planner init --github-integration --patch-mode differential
+```
+
+**4. Setup Multi-Channel Notifications**
+```bash
+# Configure email notifications
+./cli.py notify email setup --smtp-host smtp.company.com --from noreply@company.com
+
+# Configure Slack integration
+./cli.py notify slack setup --webhook-url https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+
+# Configure webhook delivery
+./cli.py notify webhook add --url https://your-api.com/notifications --events l4_deviation,policy_violation
+```
+
+**5. Test Phase 7 Components**
+```bash
+# Test policy engine
+./cli.py policy test --template plans/templates/web_template.yaml
+
+# Test L4 autopilot (dry-run)
+./cli.py run plans/templates/test_template.yaml --autopilot --dry-run
+
+# Test GitHub integration
+./cli.py github test-connection
+
+# Test notification channels
+./cli.py notify test --channels email,slack,webhook
+```
+
+**Phase 7 Benefits:**
+- **Autonomous Operation** - L4 autopilot handles routine tasks with minimal human intervention
+- **Enterprise Policy Compliance** - Built-in policy validation ensures regulatory and security compliance
+- **Adaptive Templates** - Planner L2 automatically adapts to UI changes with differential patches
+- **DevOps Integration** - GitHub CLI/API integration streamlines development workflows
+- **Real-time Monitoring** - Multi-channel notifications provide immediate visibility into system state
 
 Screenshots (Demo)
 ![Run Timeline](docs/assets/runs_timeline.svg)
@@ -698,9 +827,30 @@ if not caps["mail_compose"].available:
     {"cluster": "VERIFIER_TIMEOUT", "count": 2},
     {"cluster": "APPROVAL_DENIED", "count": 1}
   ],
-  "rolling_7d": {"success_rate": 0.93, "median_duration_ms": 19000}
+  "rolling_7d": {"success_rate": 0.93, "median_duration_ms": 19000},
+  
+  "l4_autoruns_24h": 23,
+  "policy_blocks_24h": 3,
+  "deviation_stops_24h": 1,
+  "webx_frame_switches_24h": 47,
+  "webx_shadow_hits_24h": 12,
+  "github_l4_issues_24h": 2,
+  "github_policy_violations_24h": 1,
+  "github_patch_proposals_24h": 4,
+  "github_workflow_runs_24h": 18
 }
 ```
+
+**Phase 7 Metrics**:
+- **L4 Autoruns**: Number of fully automated L4 autopilot executions (24h)
+- **Policy Blocks**: Executions blocked by Policy Engine v1 validation (24h)
+- **Deviation Stops**: Safe-fail triggers from L4 autopilot deviation detection (24h)
+- **WebX Frame Switches**: Cross-iframe navigation count (24h)
+- **WebX Shadow Hits**: Shadow DOM piercing operations (24h)
+- **GitHub L4 Issues**: L4 autopilot issues created via GitHub integration (24h)
+- **GitHub Policy Violations**: Policy violation reports sent to GitHub (24h)
+- **GitHub Patch Proposals**: Planner L2 differential patches proposed via GitHub (24h)
+- **GitHub Workflow Runs**: GitHub Actions workflows triggered by system (24h)
 
 **Phase 3 Metrics**:
 - **Verifier Pass Rate**: Verification success rate including auto-retry recovery (24h)
