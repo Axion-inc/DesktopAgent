@@ -43,6 +43,7 @@ def on_startup() -> None:
 
     get_logger().info("app.startup")
 
+
 # Phase 6: WebX Plugin System Routes
 try:
     from .api.webx_plugins import router as webx_plugins_router
@@ -519,16 +520,16 @@ def public_dashboard():
         <div>Unsigned Templates Blocked: <span class='metric-value'>{m.get('unsigned_blocked_24h', 0)}</span></div>
         <div>Active Trust Keys: <span class='metric-value'>{m.get('trust_keys_active', 0)}</span></div>
         <div>Revoked Trust Keys: <span class='metric-value'>{m.get('trust_keys_revoked', 0)}</span></div>
-        
+
         <div>Marketplace Submissions: <span class='metric-value'>{m.get('marketplace_submissions_24h', 0)}</span></div>
         <div>Marketplace Approvals: <span class='metric-value'>{m.get('marketplace_approvals_24h', 0)}</span></div>
         <div>Published Templates: <span class='metric-value'>{m.get('marketplace_published_templates', 0)}</span></div>
         <div>Approval Rate: <span class='metric-value'>{m.get('marketplace_approval_rate', 0)}%</span></div>
-        
+
         <div>WebX Plugins Installed: <span class='metric-value'>{m.get('webx_plugins_installed', 0)}</span></div>
         <div>WebX Plugins Sandboxed: <span class='metric-value'>{m.get('webx_plugins_sandboxed', 0)}</span></div>
         <div>WebX Blocked Plugins: <span class='metric-value'>{m.get('webx_blocked_plugins', 0)}</span></div>
-        
+
         <div>WebX Integrity Components: <span class='metric-value'>{m.get('webx_integrity_components', 0)}</span></div>
         <div>WebX Active Clients: <span class='metric-value'>{m.get('webx_active_clients', 0)}</span></div>
         <div>WebX Sandbox Executions: <span class='metric-value'>{m.get('webx_sandbox_executions', 0)}</span></div>

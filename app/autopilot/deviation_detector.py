@@ -23,7 +23,7 @@ class Deviation:
     escalated_risks: Optional[List[str]] = None
     details: Optional[str] = None
     detected_at: Optional[datetime] = None
-    
+
     def __post_init__(self):
         if self.detected_at is None:
             self.detected_at = datetime.now(timezone.utc)
@@ -31,7 +31,7 @@ class Deviation:
 
 class DeviationDetector:
     """Detect execution deviations and assess safety thresholds"""
-    
+
     def __init__(self, config: Dict[str, Any]):
         """Initialize deviation detector with configuration"""
         self.max_deviations = config.get('max_deviations', 3)
@@ -39,27 +39,27 @@ class DeviationDetector:
         self.unexpected_step_penalty = config.get('unexpected_step_penalty', 2)
         self.failed_step_penalty = config.get('failed_step_penalty', 1)
         self.risk_escalation_penalty = config.get('risk_escalation_penalty', 5)
-        
+
         self.deviation_count = 0
         self.detected_deviations: List[Deviation] = []
-        
+
         logger.info(f"Deviation detector initialized with max_deviations={self.max_deviations}")
-    
+
     def analyze_sequence_deviation(
-        self, 
-        expected_sequence: List[str], 
+        self,
+        expected_sequence: List[str],
         actual_sequence: List[str]
     ) -> List[Deviation]:
         """Analyze sequence deviation between expected and actual execution"""
         deviations = []
-        
+
         # Find unexpected steps (present in actual but not in expected at same position)
         max_len = max(len(expected_sequence), len(actual_sequence))
-        
+
         for i in range(max_len):
             expected_step = expected_sequence[i] if i < len(expected_sequence) else None
             actual_step = actual_sequence[i] if i < len(actual_sequence) else None
-            
+
             if actual_step and actual_step not in expected_sequence:
                 # Completely unexpected step
                 deviation = Deviation(
@@ -71,7 +71,7 @@ class DeviationDetector:
                 )
                 deviations.append(deviation)
                 self._record_deviation(deviation)
-            
+
             elif expected_step and actual_step and expected_step != actual_step:
                 # Out of order execution
                 if actual_step in expected_sequence:
@@ -84,9 +84,9 @@ class DeviationDetector:
                     )
                     deviations.append(deviation)
                     self._record_deviation(deviation)
-        
+
         return deviations
-    
+
     def check_step_timeout(self, step_name: str, execution_duration: float) -> Optional[Deviation]:
         """Check if step execution exceeded timeout threshold"""
         if execution_duration > self.step_timeout_threshold:
@@ -99,17 +99,17 @@ class DeviationDetector:
             )
             self._record_deviation(deviation)
             return deviation
-        
+
         return None
-    
+
     def check_risk_escalation(
-        self, 
-        expected_risks: List[str], 
+        self,
+        expected_risks: List[str],
         actual_risks: List[str]
     ) -> Optional[Deviation]:
         """Check for risk level escalation during execution"""
         escalated_risks = [risk for risk in actual_risks if risk not in expected_risks]
-        
+
         if escalated_risks:
             # Determine severity based on escalated risk types
             severity = "critical"
@@ -121,7 +121,7 @@ class DeviationDetector:
                     severity = "high"
                 elif risk in ["reads", "downloads"]:
                     severity = "medium"
-            
+
             deviation = Deviation(
                 type="risk_escalation",
                 severity=severity,
@@ -130,12 +130,12 @@ class DeviationDetector:
             )
             self._record_deviation(deviation)
             return deviation
-        
+
         return None
-    
+
     def check_domain_deviation(
-        self, 
-        expected_domains: List[str], 
+        self,
+        expected_domains: List[str],
         actual_domain: str
     ) -> Optional[Deviation]:
         """Check for unauthorized domain access"""
@@ -147,13 +147,13 @@ class DeviationDetector:
             )
             self._record_deviation(deviation)
             return deviation
-        
+
         return None
-    
+
     def assess_safety_threshold(self) -> bool:
         """Assess if safety threshold has been exceeded"""
         total_penalty = 0
-        
+
         for deviation in self.detected_deviations:
             if deviation.type == "unexpected_step":
                 total_penalty += self.unexpected_step_penalty
@@ -163,23 +163,23 @@ class DeviationDetector:
                 total_penalty += self.risk_escalation_penalty
             else:
                 total_penalty += 1  # Default penalty
-        
+
         threshold_exceeded = total_penalty >= self.max_deviations
-        
+
         if threshold_exceeded:
             logger.critical(f"Safety threshold exceeded: penalty={total_penalty}, max={self.max_deviations}")
-        
+
         return threshold_exceeded
-    
+
     def get_deviation_summary(self) -> Dict[str, Any]:
         """Get summary of all detected deviations"""
         severity_counts = {}
         type_counts = {}
-        
+
         for deviation in self.detected_deviations:
             severity_counts[deviation.severity] = severity_counts.get(deviation.severity, 0) + 1
             type_counts[deviation.type] = type_counts.get(deviation.type, 0) + 1
-        
+
         return {
             'total_deviations': len(self.detected_deviations),
             'deviation_count': self.deviation_count,
@@ -197,12 +197,12 @@ class DeviationDetector:
                 for dev in self.detected_deviations[-5:]  # Last 5 deviations
             ]
         }
-    
+
     def _record_deviation(self, deviation: Deviation):
         """Record a detected deviation"""
         self.detected_deviations.append(deviation)
         self.deviation_count += 1
-        
+
         logger.warning(
             f"Deviation detected: {deviation.type} "
             f"(severity: {deviation.severity}, step: {deviation.step_name})"

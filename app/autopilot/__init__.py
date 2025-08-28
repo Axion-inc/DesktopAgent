@@ -10,7 +10,7 @@ from .execution_monitor import ExecutionMonitor, ExecutionState
 __all__ = [
     'L4AutopilotSystem',
     'AutopilotDecision',
-    'DeviationDetector', 
+    'DeviationDetector',
     'Deviation',
     'ExecutionMonitor',
     'ExecutionState'

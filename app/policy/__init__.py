@@ -8,7 +8,7 @@ from .time_window import TimeWindow, TimeWindowParser
 
 __all__ = [
     'PolicyEngine',
-    'PolicyViolation', 
+    'PolicyViolation',
     'PolicyDecision',
     'TimeWindow',
     'TimeWindowParser',

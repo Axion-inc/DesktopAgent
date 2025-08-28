@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import Dict, List, Any
+import os
+from datetime import datetime
 
 from .models import get_conn
 import math
@@ -8,18 +10,18 @@ import math
 
 class MetricsCollector:
     """Basic metrics collector for Phase 7 Policy Engine"""
-    
+
     def __init__(self):
         self.counters: Dict[str, int] = {}
-    
+
     def increment_counter(self, counter_name: str, value: int = 1):
         """Increment a named counter"""
         self.counters[counter_name] = self.counters.get(counter_name, 0) + value
-    
+
     def get_counter(self, counter_name: str) -> int:
         """Get current counter value"""
         return self.counters.get(counter_name, 0)
-    
+
     def reset_counter(self, counter_name: str):
         """Reset counter to zero"""
         self.counters[counter_name] = 0
@@ -147,23 +149,23 @@ def compute_metrics() -> Dict[str, float]:
         return float((lst[mid - 1] + lst[mid]) / 2)
 
     # Phase 6 DoD KPI metrics (24h)
-    
+
     # Template verification metrics
     cur.execute("""
-        SELECT COUNT(*) FROM runs 
+        SELECT COUNT(*) FROM runs
         WHERE metadata LIKE '%"signature_verified": true%'
         AND started_at >= datetime('now','-1 day')
     """)
     templates_verified_24h = cur.fetchone()[0] or 0
-    
-    # Marketplace approval metrics  
+
+    # Marketplace approval metrics
     cur.execute("""
         SELECT COUNT(*) FROM approval_logs
         WHERE context LIKE '%marketplace%' AND decision='approved'
         AND created_at >= datetime('now','-1 day')
     """)
     market_approved_24h = cur.fetchone()[0] or 0
-    
+
     # Unsigned template blocking metrics
     cur.execute("""
         SELECT COUNT(*) FROM runs
@@ -171,7 +173,7 @@ def compute_metrics() -> Dict[str, float]:
         AND started_at >= datetime('now','-1 day')
     """)
     unsigned_blocked_24h = cur.fetchone()[0] or 0
-    
+
     # Plugin loading blocked metrics
     cur.execute("""
         SELECT COUNT(*) FROM plugin_logs
@@ -179,11 +181,11 @@ def compute_metrics() -> Dict[str, float]:
         AND created_at >= datetime('now','-1 day')
     """)
     plugin_load_blocked_24h = cur.fetchone()[0] or 0
-    
+
     # WebX permission mismatch metrics
     cur.execute("""
         SELECT COUNT(*) FROM webx_integrity_logs
-        WHERE status='mismatch' 
+        WHERE status='mismatch'
         AND created_at >= datetime('now','-1 day')
     """)
     webx_permission_mismatch_24h = cur.fetchone()[0] or 0
@@ -496,7 +498,7 @@ def compute_metrics() -> Dict[str, float]:
     })
 
     # Phase 7 new metrics (6 required metrics)
-    
+
     # 1. L4 autoruns (24h) - autopilot executions
     try:
         metrics_collector = get_metrics_collector()
@@ -504,7 +506,7 @@ def compute_metrics() -> Dict[str, float]:
         out["l4_autoruns_24h"] = l4_autoruns_24h
     except Exception:
         out["l4_autoruns_24h"] = 0
-    
+
     # 2. Policy blocks (24h) - policy violations that blocked execution
     try:
         metrics_collector = get_metrics_collector()
@@ -512,7 +514,7 @@ def compute_metrics() -> Dict[str, float]:
         out["policy_blocks_24h"] = policy_blocks_24h
     except Exception:
         out["policy_blocks_24h"] = 0
-    
+
     # 3. Deviation stops (24h) - safe-fail triggers from L4 autopilot
     try:
         metrics_collector = get_metrics_collector()
@@ -520,10 +522,10 @@ def compute_metrics() -> Dict[str, float]:
         out["deviation_stops_24h"] = deviation_stops_24h
     except Exception:
         out["deviation_stops_24h"] = 0
-    
+
     # 4. Verifier pass rate (24h) - already implemented above as verifier_pass_rate_24h
     # Phase 7 uses the same verifier system as previous phases
-    
+
     # 5. WebX frame switches (24h) - iframe navigation count
     try:
         metrics_collector = get_metrics_collector()
@@ -531,7 +533,7 @@ def compute_metrics() -> Dict[str, float]:
         out["webx_frame_switches_24h"] = webx_frame_switches_24h
     except Exception:
         out["webx_frame_switches_24h"] = 0
-    
+
     # 6. WebX shadow hits (24h) - shadow DOM piercing count
     try:
         metrics_collector = get_metrics_collector()
@@ -541,21 +543,21 @@ def compute_metrics() -> Dict[str, float]:
         out["webx_shadow_hits_24h"] = 0
 
     # Phase 6 metrics: Template Security and Marketplace β (DoD requirements)
-    
+
     # Template verification metrics
     try:
         from .security.policy_engine import get_policy_engine
         policy_engine = get_policy_engine()
         security_metrics = policy_engine.get_security_metrics()
-        
+
         # Template signatures verified in 24h (simulated for now)
         # In production, this would track actual verification calls
         templates_verified_24h = cur.execute("""
-            SELECT COUNT(*) FROM runs 
+            SELECT COUNT(*) FROM runs
             WHERE started_at >= datetime('now','-1 day')
             AND template IS NOT NULL
         """).fetchone()[0] or 0
-        
+
         out.update({
             "templates_verified_24h": templates_verified_24h,
             "trust_keys_active": security_metrics.get("active_keys", 0),
@@ -567,36 +569,36 @@ def compute_metrics() -> Dict[str, float]:
             "trust_keys_active": 0,
             "trust_keys_revoked": 0
         })
-    
+
     # Unsigned template blocks (24h) - simulated policy enforcement
     try:
         # This would track templates blocked due to missing/invalid signatures
         cur.execute("""
-            SELECT COUNT(*) FROM runs 
-            WHERE status = 'failed' 
+            SELECT COUNT(*) FROM runs
+            WHERE status = 'failed'
             AND started_at >= datetime('now','-1 day')
         """)
         # For now, assume 10% of failures are signature-related
         total_failures = cur.fetchone()[0] or 0
         unsigned_blocked_24h = int(total_failures * 0.1)  # Placeholder calculation
-        
+
         out["unsigned_blocked_24h"] = unsigned_blocked_24h
     except Exception:
         out["unsigned_blocked_24h"] = 0
-    
+
     # Marketplace β metrics
     try:
         from .webx.marketplace_beta import get_marketplace_beta
         marketplace = get_marketplace_beta()
         marketplace_stats = marketplace.get_marketplace_stats()
-        
+
         out.update({
             "marketplace_submissions_24h": len([
                 s for s in marketplace.submissions.values()
                 if (datetime.now() - s.submitted_at).days < 1
             ]),
             "marketplace_approvals_24h": len([
-                s for s in marketplace.submissions.values() 
+                s for s in marketplace.submissions.values()
                 if s.status.value in ["approved", "published"]
                 and hasattr(s.metadata, "approved_at")
                 and s.metadata.get("approved_at")
@@ -612,24 +614,24 @@ def compute_metrics() -> Dict[str, float]:
             "marketplace_published_templates": 0,
             "marketplace_approval_rate": 0
         })
-    
+
     # Plugin security metrics
     try:
         from .webx.plugin_manager import get_plugin_manager
         plugin_manager = get_plugin_manager()
-        
+
         # Count installed plugins by security level
         installed_plugins = plugin_manager.list_installed_plugins()
         plugin_security_distribution = {}
         for plugin in installed_plugins:
             security_level = plugin.metadata.security_level
             plugin_security_distribution[security_level] = plugin_security_distribution.get(security_level, 0) + 1
-        
+
         out.update({
             "webx_plugins_installed": len(installed_plugins),
             "webx_plugin_security_distribution": plugin_security_distribution,
             "webx_plugins_sandboxed": sum(
-                1 for plugin in installed_plugins 
+                1 for plugin in installed_plugins
                 if plugin.metadata.security_level in ["standard", "strict", "maximum"]
             )
         })
@@ -639,18 +641,18 @@ def compute_metrics() -> Dict[str, float]:
             "webx_plugin_security_distribution": {},
             "webx_plugins_sandboxed": 0
         })
-    
+
     # WebX integrity and sandbox metrics
     try:
         from .webx.integrity_checker import get_integrity_checker
         from .webx.plugin_sandbox import get_plugin_sandbox
-        
+
         integrity_checker = get_integrity_checker()
         plugin_sandbox = get_plugin_sandbox()
-        
+
         integrity_metrics = integrity_checker.get_security_metrics()
         sandbox_stats = plugin_sandbox.get_execution_stats()
-        
+
         out.update({
             "webx_integrity_components": integrity_metrics.get("webx_registered_components", 0),
             "webx_active_clients": integrity_metrics.get("webx_clients_active", 0),
@@ -670,8 +672,6 @@ def compute_metrics() -> Dict[str, float]:
     # GitHub Integration metrics (Phase 7)
     try:
         from .integrations.github_api import GitHubAPIClient, GitHubAPIConfig, GitHubMetricsCollector
-        import os
-        
         # Initialize GitHub API client if token available
         github_token = os.getenv("GITHUB_TOKEN", "")
         if github_token:
@@ -683,7 +683,7 @@ def compute_metrics() -> Dict[str, float]:
             api_client = GitHubAPIClient(config)
             metrics_collector_gh = GitHubMetricsCollector(api_client)
             github_metrics = metrics_collector_gh.collect_phase7_metrics()
-            
+
             out.update({
                 "github_l4_issues_24h": github_metrics.get("github_l4_issues", 0),
                 "github_policy_violations_24h": github_metrics.get("github_policy_violations", 0),
@@ -708,11 +708,12 @@ def compute_metrics() -> Dict[str, float]:
     conn.close()
     return out
 
+
 def compute_webx_metrics() -> Dict[str, Any]:
     """Compute Phase 5 WebX-specific metrics (DoD requirements)."""
     conn = get_conn()
     cur = conn.cursor()
-    
+
     # WebX steps count (24h)
     cur.execute("""
         SELECT COUNT(*) FROM run_steps
@@ -721,7 +722,7 @@ def compute_webx_metrics() -> Dict[str, Any]:
         AND finished_at >= datetime('now','-1 day')
     """)
     webx_steps_24h = cur.fetchone()[0] or 0
-    
+
     # WebX failures count (24h)
     cur.execute("""
         SELECT COUNT(*) FROM run_steps
@@ -731,7 +732,7 @@ def compute_webx_metrics() -> Dict[str, Any]:
         AND finished_at >= datetime('now','-1 day')
     """)
     webx_failures_24h = cur.fetchone()[0] or 0
-    
+
     # Engine share metrics (24h) - track which engine was used
     cur.execute("""
         SELECT COUNT(*) FROM run_steps
@@ -740,7 +741,7 @@ def compute_webx_metrics() -> Dict[str, Any]:
         AND finished_at >= datetime('now','-1 day')
     """)
     extension_steps_24h = cur.fetchone()[0] or 0
-    
+
     cur.execute("""
         SELECT COUNT(*) FROM run_steps
         WHERE name IN ('open_browser', 'fill_by_label', 'click_by_text', 'upload_file')
@@ -748,9 +749,9 @@ def compute_webx_metrics() -> Dict[str, Any]:
         AND finished_at >= datetime('now','-1 day')
     """)
     playwright_steps_24h = cur.fetchone()[0] or 0
-    
+
     total_web_engine_steps = extension_steps_24h + playwright_steps_24h
-    
+
     # WebX upload success rate (24h)
     cur.execute("""
         SELECT COUNT(*) FROM run_steps
@@ -758,7 +759,7 @@ def compute_webx_metrics() -> Dict[str, Any]:
         AND finished_at >= datetime('now','-1 day')
     """)
     webx_upload_total = cur.fetchone()[0] or 0
-    
+
     cur.execute("""
         SELECT COUNT(*) FROM run_steps
         WHERE name = 'upload_file'
@@ -766,14 +767,14 @@ def compute_webx_metrics() -> Dict[str, Any]:
         AND finished_at >= datetime('now','-1 day')
     """)
     webx_upload_success = cur.fetchone()[0] or 0
-    
+
     # Calculate rates and shares
     webx_failure_rate = webx_failures_24h / webx_steps_24h if webx_steps_24h > 0 else 0.0
     webx_upload_success_rate = webx_upload_success / webx_upload_total if webx_upload_total > 0 else 1.0
-    
+
     extension_share = extension_steps_24h / total_web_engine_steps if total_web_engine_steps > 0 else 0.0
     playwright_share = playwright_steps_24h / total_web_engine_steps if total_web_engine_steps > 0 else 0.0
-    
+
     return {
         "webx_steps_24h": webx_steps_24h,
         "webx_failures_24h": webx_failures_24h,
@@ -782,7 +783,7 @@ def compute_webx_metrics() -> Dict[str, Any]:
             "playwright": round(playwright_share, 3)
         },
         "webx_upload_success_24h": round(webx_upload_success_rate, 3),
-        
+
         # Additional breakdown
         "webx_failure_rate": round(webx_failure_rate, 3),
         "webx_upload_total": webx_upload_total,

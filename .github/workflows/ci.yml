@@ -174,7 +174,7 @@ jobs:
         run: |
           # Test template submission and validation pipeline
           python -c "
-          import requests, tempfile, json
+          import tempfile, json
           import sys
           
           # Test template content
@@ -218,7 +218,7 @@ jobs:
               manifest_path.unlink(missing_ok=True)
           
           print('✅ Marketplace nightly dry-run: SUCCESS')
-          "
+"
         env:
           PLAYWRIGHT_HEADLESS: "true"
       - name: Test plugin system

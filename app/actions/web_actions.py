@@ -10,6 +10,9 @@ from urllib.parse import urlparse
 import time
 import urllib.request
 import urllib.error
+from ..utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 try:
     from playwright.sync_api import (
@@ -460,38 +463,38 @@ def _open_browser_sync(url: str, context: str = "default", wait_for_load: bool =
 def open_browser(url: str, context: str = "default", headless: Optional[bool] = None, **kwargs) -> Dict[str, Any]:
     """
     Navigate to a URL using the configured web engine.
-    
+
     Args:
         url: URL to navigate to
-        context: Browser context name  
+        context: Browser context name
         headless: Override headless mode (for Playwright engine)
         **kwargs: Additional engine-specific options
-        
+
     Returns:
         Dict with navigation result
     """
     from ..web.engine import get_web_engine
-    
+
     try:
         # Get configured engine
         engine = get_web_engine()
-        
+
         # Add headless override for Playwright engine
         if hasattr(engine, '_open_browser') and headless is not None:
             set_headless_override(headless)
-        
+
         result = engine.open_browser(url, context, **kwargs)
-        
+
         # Store artifacts if configured
         _store_step_artifacts("open_browser", {"url": url, "context": context}, result)
-        
+
         return result
-        
+
     except Exception as e:
         error_result = {
             "url": url,
             "context": context,
-            "status": "error", 
+            "status": "error",
             "error": str(e),
             "engine": getattr(engine, 'name', 'unknown') if 'engine' in locals() else 'unknown'
         }
@@ -813,28 +816,28 @@ def _fill_by_label_sync(label: str, text: str, context: str = "default") -> Dict
 def fill_by_label(label: str, text: str, context: str = "default", **kwargs) -> Dict[str, Any]:
     """
     Fill a form field by its label using the configured web engine.
-    
+
     Args:
         label: Label text to search for
         text: Text to fill
         context: Browser context name
         **kwargs: Additional engine-specific options
-        
+
     Returns:
         Dict with fill result
     """
     from ..web.engine import get_web_engine
-    
+
     try:
         engine = get_web_engine()
         result = engine.fill_by_label(label, text, context, **kwargs)
-        
+
         # Mask sensitive data in artifacts
         safe_text = "***MASKED***" if _is_sensitive_field(None, label) else text
         _store_step_artifacts("fill_by_label", {"label": label, "text": safe_text, "context": context}, result)
-        
+
         return result
-        
+
     except Exception as e:
         error_result = {
             "label": label,
@@ -844,7 +847,15 @@ def fill_by_label(label: str, text: str, context: str = "default", **kwargs) -> 
             "error": str(e),
             "engine": getattr(engine, 'name', 'unknown') if 'engine' in locals() else 'unknown'
         }
-        _store_step_artifacts("fill_by_label", {"label": label, "text": "***MASKED***" if _is_sensitive_field(None, label) else text, "context": context}, error_result)
+        _store_step_artifacts(
+            "fill_by_label",
+            {
+                "label": label,
+                "text": "***MASKED***" if _is_sensitive_field(None, label) else text,
+                "context": context,
+            },
+            error_result,
+        )
         return error_result
 
 
@@ -934,19 +945,19 @@ def _click_by_text_sync(text: str, role: Optional[str] = None, context: str = "d
 def click_by_text(text: str, role: Optional[str] = None, context: str = "default", **kwargs) -> Dict[str, Any]:
     """
     Click an element by its text content using the configured web engine.
-    
+
     Args:
         text: Text content to search for
         role: Optional element role/tag filter
         context: Browser context name
         **kwargs: Additional engine-specific options
-        
+
     Returns:
         Dict with click result
     """
     from ..web.engine import get_web_engine
     from ..approval import require_approval_if_destructive
-    
+
     try:
         # Check if action requires approval
         if is_destructive_action(text):
@@ -959,14 +970,14 @@ def click_by_text(text: str, role: Optional[str] = None, context: str = "default
                     "status": "cancelled",
                     "reason": "User cancelled destructive action"
                 }
-        
+
         engine = get_web_engine()
         result = engine.click_by_text(text, role, context, **kwargs)
-        
+
         _store_step_artifacts("click_by_text", {"text": text, "role": role, "context": context}, result)
-        
+
         return result
-        
+
     except Exception as e:
         error_result = {
             "text": text,
@@ -988,38 +999,42 @@ def _screenshot_sync(context: str = "default", path: Optional[str] = None) -> st
 def take_screenshot(context: str = "default", path: Optional[str] = None, **kwargs) -> str:
     """
     Take a screenshot using the configured web engine.
-    
+
     Args:
         context: Browser context name
         path: Optional path to save screenshot
         **kwargs: Additional engine-specific options
-        
+
     Returns:
         Path to saved screenshot
     """
     from ..web.engine import get_web_engine
-    
+
     try:
         engine = get_web_engine()
         screenshot_path = engine.take_screenshot(context, path, **kwargs)
-        
-        _store_step_artifacts("take_screenshot", {"context": context, "path": path}, {"status": "success", "path": screenshot_path})
-        
+
+        _store_step_artifacts(
+            "take_screenshot",
+            {"context": context, "path": path},
+            {"status": "success", "path": screenshot_path},
+        )
+
         return screenshot_path
-        
+
     except Exception as e:
         logger.error(f"Screenshot failed: {e}")
         # Fallback to OS adapter
         from ..os_adapters import get_os_adapter
-        
+
         if path is None:
             import tempfile
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
                 path = f.name
-        
+
         adapter = get_os_adapter()
         success = adapter.take_screenshot(path)
-        
+
         if success:
             return path
         else:
@@ -1263,23 +1278,29 @@ def _upload_file_sync(path: str, selector: Optional[str] = None, label: Optional
         }
 
 
-def upload_file(path: str, selector: Optional[str] = None, label: Optional[str] = None, context: str = "default", **kwargs) -> Dict[str, Any]:
+def upload_file(
+    path: str,
+    selector: Optional[str] = None,
+    label: Optional[str] = None,
+    context: str = "default",
+    **kwargs,
+) -> Dict[str, Any]:
     """
     Upload a file using the configured web engine.
-    
+
     Args:
         path: Path to file to upload
         selector: Optional CSS selector for file input
         label: Optional label text to find file input
         context: Browser context name
         **kwargs: Additional engine-specific options
-        
+
     Returns:
         Dict with upload result
     """
     from ..web.engine import get_web_engine
     from ..approval import require_approval_if_destructive
-    
+
     try:
         # File upload requires approval in some contexts
         file_name = Path(path).name
@@ -1293,14 +1314,18 @@ def upload_file(path: str, selector: Optional[str] = None, label: Optional[str] 
                 "status": "cancelled",
                 "reason": "User cancelled file upload"
             }
-        
+
         engine = get_web_engine()
         result = engine.upload_file(path, selector, label, context, **kwargs)
-        
-        _store_step_artifacts("upload_file", {"path": path, "selector": selector, "label": label, "context": context}, result)
-        
+
+        _store_step_artifacts(
+            "upload_file",
+            {"path": path, "selector": selector, "label": label, "context": context},
+            result,
+        )
+
         return result
-        
+
     except Exception as e:
         error_result = {
             "path": path,
@@ -1311,31 +1336,39 @@ def upload_file(path: str, selector: Optional[str] = None, label: Optional[str] 
             "error": str(e),
             "engine": getattr(engine, 'name', 'unknown') if 'engine' in locals() else 'unknown'
         }
-        _store_step_artifacts("upload_file", {"path": path, "selector": selector, "label": label, "context": context}, error_result)
+        _store_step_artifacts(
+            "upload_file",
+            {"path": path, "selector": selector, "label": label, "context": context},
+            error_result,
+        )
         return error_result
 
 
-def wait_for_element(selector: Optional[str] = None, text: Optional[str] = None, 
-                    timeout_ms: Optional[int] = None, context: str = "default", 
-                    **kwargs) -> Dict[str, Any]:
+def wait_for_element(
+    selector: Optional[str] = None,
+    text: Optional[str] = None,
+    timeout_ms: Optional[int] = None,
+    context: str = "default",
+    **kwargs,
+) -> Dict[str, Any]:
     """
     Wait for an element to appear using the configured web engine.
-    
+
     Args:
         selector: CSS selector to wait for
         text: Text content to wait for
         timeout_ms: Timeout in milliseconds
         context: Browser context name
         **kwargs: Additional engine-specific options
-        
+
     Returns:
         Dict with wait result
     """
     from ..web.engine import get_web_engine
-    
+
     try:
         engine = get_web_engine()
-        
+
         # Handle different engines
         if hasattr(engine, 'wait_for_selector'):
             if selector:
@@ -1345,11 +1378,15 @@ def wait_for_element(selector: Optional[str] = None, text: Optional[str] = None,
                 result = {"status": "success", "found": True, "engine": getattr(engine, 'name', 'extension')}
         else:
             result = {"status": "error", "error": "Engine does not support wait_for_element"}
-        
-        _store_step_artifacts("wait_for_element", {"selector": selector, "text": text, "timeout_ms": timeout_ms, "context": context}, result)
-        
+
+        _store_step_artifacts(
+            "wait_for_element",
+            {"selector": selector, "text": text, "timeout_ms": timeout_ms, "context": context},
+            result,
+        )
+
         return result
-        
+
     except Exception as e:
         error_result = {
             "selector": selector,
@@ -1360,31 +1397,39 @@ def wait_for_element(selector: Optional[str] = None, text: Optional[str] = None,
             "error": str(e),
             "engine": getattr(engine, 'name', 'unknown') if 'engine' in locals() else 'unknown'
         }
-        _store_step_artifacts("wait_for_element", {"selector": selector, "text": text, "timeout_ms": timeout_ms, "context": context}, error_result)
+        _store_step_artifacts(
+            "wait_for_element",
+            {"selector": selector, "text": text, "timeout_ms": timeout_ms, "context": context},
+            error_result,
+        )
         return error_result
 
 
-def assert_element_exists(selector: Optional[str] = None, text: Optional[str] = None,
-                         count_gte: int = 1, context: str = "default", 
-                         **kwargs) -> Dict[str, Any]:
+def assert_element_exists(
+    selector: Optional[str] = None,
+    text: Optional[str] = None,
+    count_gte: int = 1,
+    context: str = "default",
+    **kwargs,
+) -> Dict[str, Any]:
     """
     Assert that an element exists using the configured web engine.
-    
+
     Args:
         selector: CSS selector to check
         text: Text content to check
         count_gte: Minimum number of elements expected
         context: Browser context name
         **kwargs: Additional engine-specific options
-        
+
     Returns:
         Dict with assertion result
     """
     from ..web.engine import get_web_engine
-    
+
     try:
         engine = get_web_engine()
-        
+
         # For extension engine, use a mock implementation
         if hasattr(engine, '__class__') and 'Extension' in engine.__class__.__name__:
             result = {
@@ -1397,11 +1442,15 @@ def assert_element_exists(selector: Optional[str] = None, text: Optional[str] = 
         else:
             # For Playwright engine, use existing implementation
             result = {"status": "success", "found_count": count_gte, "engine": "playwright"}
-        
-        _store_step_artifacts("assert_element_exists", {"selector": selector, "text": text, "count_gte": count_gte, "context": context}, result)
-        
+
+        _store_step_artifacts(
+            "assert_element_exists",
+            {"selector": selector, "text": text, "count_gte": count_gte, "context": context},
+            result,
+        )
+
         return result
-        
+
     except Exception as e:
         error_result = {
             "selector": selector,
@@ -1412,29 +1461,33 @@ def assert_element_exists(selector: Optional[str] = None, text: Optional[str] = 
             "error": str(e),
             "engine": getattr(engine, 'name', 'unknown') if 'engine' in locals() else 'unknown'
         }
-        _store_step_artifacts("assert_element_exists", {"selector": selector, "text": text, "count_gte": count_gte, "context": context}, error_result)
+        _store_step_artifacts(
+            "assert_element_exists",
+            {"selector": selector, "text": text, "count_gte": count_gte, "context": context},
+            error_result,
+        )
         return error_result
 
 
 def capture_screen_schema(where: str = "web", context: str = "default", **kwargs) -> Dict[str, Any]:
     """
     Capture screen schema using the configured engine.
-    
+
     Args:
         where: Schema location type ("web" for DOM schema)
         context: Browser context name
         **kwargs: Additional engine-specific options
-        
+
     Returns:
         Dict with schema capture result
     """
     from ..web.engine import get_web_engine
     import datetime
-    
+
     try:
         if where == "web":
             engine = get_web_engine()
-            
+
             # Generate DOM schema
             if hasattr(engine, '__class__') and 'Extension' in engine.__class__.__name__:
                 # Extension engine - use RPC call
@@ -1456,7 +1509,7 @@ def capture_screen_schema(where: str = "web", context: str = "default", **kwargs
                     "nodes": [],
                     "engine": "playwright"
                 }
-            
+
             result = {
                 "status": "success",
                 "schema": schema,
@@ -1467,11 +1520,11 @@ def capture_screen_schema(where: str = "web", context: str = "default", **kwargs
             # Non-web schema (existing OS adapter logic)
             from ..screen import capture_screen_schema as capture_os_schema
             result = capture_os_schema()
-        
+
         _store_step_artifacts("capture_screen_schema", {"where": where, "context": context}, result)
-        
+
         return result
-        
+
     except Exception as e:
         error_result = {
             "where": where,
@@ -1486,7 +1539,7 @@ def capture_screen_schema(where: str = "web", context: str = "default", **kwargs
 def _store_step_artifacts(action: str, params: Dict[str, Any], result: Dict[str, Any]) -> None:
     """
     Store step artifacts (screenshots, DOM schemas) for later review.
-    
+
     Args:
         action: Action name
         params: Action parameters
@@ -1497,21 +1550,21 @@ def _store_step_artifacts(action: str, params: Dict[str, Any], result: Dict[str,
     import json
     import os
     from datetime import datetime
-    
+
     try:
         config = get_config()
         web_config = config.get('web_engine', {})
         metrics_config = web_config.get('metrics', {})
-        
+
         if not metrics_config.get('store_artifacts', False):
             return
-        
+
         artifacts_dir = metrics_config.get('artifacts_directory', './artifacts')
         os.makedirs(artifacts_dir, exist_ok=True)
-        
+
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         base_filename = f"{timestamp}_{action}"
-        
+
         # Store screenshot if applicable
         if action in ['open_browser', 'click_by_text', 'fill_by_label', 'upload_file']:
             try:
@@ -1521,7 +1574,7 @@ def _store_step_artifacts(action: str, params: Dict[str, Any], result: Dict[str,
                 result['screenshot_path'] = screenshot_path
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot for {action}: {e}")
-        
+
         # Store DOM schema for web actions
         if action in ['open_browser', 'click_by_text', 'fill_by_label'] and params.get('context') != 'os':
             try:
@@ -1533,7 +1586,7 @@ def _store_step_artifacts(action: str, params: Dict[str, Any], result: Dict[str,
                     result['schema_path'] = schema_path
             except Exception as e:
                 logger.warning(f"Failed to capture DOM schema for {action}: {e}")
-        
+
         # Store step metadata
         metadata_path = os.path.join(artifacts_dir, f"{base_filename}_metadata.json")
         metadata = {
@@ -1543,10 +1596,10 @@ def _store_step_artifacts(action: str, params: Dict[str, Any], result: Dict[str,
             "timestamp": timestamp,
             "engine": result.get('engine', 'unknown')
         }
-        
+
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
-            
+
     except Exception as e:
         logger.warning(f"Failed to store artifacts for {action}: {e}")
 
@@ -1554,23 +1607,23 @@ def _store_step_artifacts(action: str, params: Dict[str, Any], result: Dict[str,
 def _is_sensitive_field(selector: Optional[str], label: Optional[str]) -> bool:
     """Check if field contains sensitive data based on selector or label."""
     from ..config import get_config
-    
+
     try:
         config = get_config()
         web_config = config.get('web_engine', {})
         security_config = web_config.get('common', {}).get('security', {})
-        
+
         if not security_config.get('mask_sensitive_data', True):
             return False
-        
+
         sensitive_patterns = security_config.get('sensitive_patterns', [
             'password', 'passwd', 'pwd', 'secret', 'token', 'key',
             'credit', 'card', 'ccv', 'cvv', 'ssn', 'social', 'pin', 'otp'
         ])
-        
+
         text_to_check = f"{selector or ''} {label or ''}".lower()
         return any(pattern in text_to_check for pattern in sensitive_patterns)
-        
+
     except Exception:
         return True  # Err on the side of caution
 
