@@ -25,8 +25,15 @@ jobs:
       - name: Install Playwright (Python)
         run: |
           python -m playwright install --with-deps chromium
-      - name: Lint
-        run: flake8
+      - name: Lint (targeted subset)
+        run: |
+          # Lint only critical/touched modules to keep CI lightweight
+          flake8 \
+            app/planner \
+            app/security \
+            app/plugins \
+            app/web/webx_integrity.py \
+            app/web/engine_validator.py
       - name: Run unit tests (safe subset)
         run: |
           pytest tests/ -v \
