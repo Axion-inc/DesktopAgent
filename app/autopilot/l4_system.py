@@ -146,6 +146,13 @@ class L4AutopilotSystem:
         monitor = ExecutionMonitor(execution_id, expected_steps)
         self.active_monitors[execution_id] = monitor
 
+        # Record L4 autorun metric (approximation)
+        try:
+            from app.metrics import get_metrics_collector
+            get_metrics_collector().mark_l4_autorun()
+        except Exception:
+            pass
+
         logger.info(f"Started execution monitoring for {execution_id}")
         return monitor
 
@@ -189,6 +196,11 @@ class L4AutopilotSystem:
             from app.metrics import get_metrics_collector
             metrics = get_metrics_collector()
             metrics.increment_counter('autopilot_safe_fail_24h')
+            # Phase 7 deviation stop metric
+            try:
+                metrics.mark_deviation_stop()
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"Failed to record safe-fail metrics: {e}")
 

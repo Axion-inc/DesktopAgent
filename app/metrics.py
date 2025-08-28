@@ -26,6 +26,22 @@ class MetricsCollector:
         """Reset counter to zero"""
         self.counters[counter_name] = 0
 
+    # Phase 7 helpers
+    def mark_l4_autorun(self):
+        self.increment_counter("l4_autoruns_24h", 1)
+
+    def mark_policy_block(self):
+        self.increment_counter("policy_blocks_24h", 1)
+
+    def mark_deviation_stop(self):
+        self.increment_counter("deviation_stops_24h", 1)
+
+    def mark_webx_frame_switch(self):
+        self.increment_counter("webx_frame_switches_24h", 1)
+
+    def mark_webx_shadow_hit(self):
+        self.increment_counter("webx_shadow_hits_24h", 1)
+
 
 _metrics_collector_instance = None
 
