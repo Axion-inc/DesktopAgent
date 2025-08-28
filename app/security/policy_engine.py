@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
+from ..metrics import get_metrics_collector
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -118,7 +119,6 @@ class PolicyEngine:
         # Grace period handling
         if allow_until:
             try:
-from datetime import datetime
                 until = datetime.strptime(str(allow_until), "%Y-%m-%d")
                 now = datetime.now()
                 if now <= until:
@@ -512,8 +512,6 @@ def verify_template_before_execution(template_path: Path) -> Tuple[bool, PolicyD
 
     # Verify signature
     verification_result = policy_engine.verify_template_signature(template_path)
-
-from ..metrics import get_metrics_collector
     # Evaluate execution policy
     decision = policy_engine.evaluate_execution_policy(template_path, verification_result)
 
