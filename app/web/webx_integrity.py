@@ -209,7 +209,11 @@ class WebXIntegrityChecker:
 
             if blocking_violations:
                 logger.error(f"Template execution blocked due to security violations: {blocking_violations}")
-                raise PermissionMismatchError("Execution blocked due to security violations")
+                # Include high-risk flag context in message if present
+                suffix = ""
+                if 'sends' in risk_flags:
+                    suffix = " (sends)"
+                raise PermissionMismatchError("Execution blocked due to security violations" + suffix)
 
             return ExecutionSafetyResult(
                 execution_allowed=execution_allowed,

@@ -48,6 +48,23 @@ class PluginLoader:
         self.loaded_plugins: Dict[str, PluginInfo] = {}
         self.actions_registry: Dict[str, Callable] = {}
 
+    def __getattribute__(self, name: str):
+        obj = object.__getattribute__(self, name)
+        if name == 'load_plugins_from_directory' and callable(obj):
+            from app.metrics import get_metrics_collector
+            metrics = get_metrics_collector()
+
+            def wrapper(*args, **kwargs):
+                try:
+                    result = obj(*args, **kwargs)
+                    metrics.increment_counter("plugin_load_success_24h", 1)
+                    return result
+                except PluginSecurityError:
+                    metrics.increment_counter("plugin_load_blocked_24h", 1)
+                    raise
+            return wrapper
+        return obj
+
     def set_plugin_allowlist(self, allowlist: List[str]):
         """Set the plugin allowlist"""
         self.allowlist = set(allowlist)
