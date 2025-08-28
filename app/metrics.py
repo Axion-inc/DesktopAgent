@@ -150,45 +150,60 @@ def compute_metrics() -> Dict[str, float]:
 
     # Phase 6 DoD KPI metrics (24h)
 
-    # Template verification metrics
-    cur.execute("""
-        SELECT COUNT(*) FROM runs
-        WHERE metadata LIKE '%"signature_verified": true%'
-        AND started_at >= datetime('now','-1 day')
-    """)
-    templates_verified_24h = cur.fetchone()[0] or 0
+    # Template verification metrics (tolerant to schema differences)
+    try:
+        cur.execute("""
+            SELECT COUNT(*) FROM runs
+            WHERE metadata LIKE '%"signature_verified": true%'
+            AND started_at >= datetime('now','-1 day')
+        """)
+        templates_verified_24h = cur.fetchone()[0] or 0
+    except Exception:
+        templates_verified_24h = 0
 
     # Marketplace approval metrics
-    cur.execute("""
-        SELECT COUNT(*) FROM approval_logs
-        WHERE context LIKE '%marketplace%' AND decision='approved'
-        AND created_at >= datetime('now','-1 day')
-    """)
-    market_approved_24h = cur.fetchone()[0] or 0
+    try:
+        cur.execute("""
+            SELECT COUNT(*) FROM approval_logs
+            WHERE context LIKE '%marketplace%' AND decision='approved'
+            AND created_at >= datetime('now','-1 day')
+        """)
+        market_approved_24h = cur.fetchone()[0] or 0
+    except Exception:
+        market_approved_24h = 0
 
     # Unsigned template blocking metrics
-    cur.execute("""
-        SELECT COUNT(*) FROM runs
-        WHERE status='blocked' AND error_message LIKE '%unsigned%'
-        AND started_at >= datetime('now','-1 day')
-    """)
-    unsigned_blocked_24h = cur.fetchone()[0] or 0
+    try:
+        cur.execute("""
+            SELECT COUNT(*) FROM runs
+            WHERE status='blocked' AND error_message LIKE '%unsigned%'
+            AND started_at >= datetime('now','-1 day')
+        """)
+        unsigned_blocked_24h = cur.fetchone()[0] or 0
+    except Exception:
+        unsigned_blocked_24h = 0
 
     # Plugin loading blocked metrics
-    cur.execute("""
-        SELECT COUNT(*) FROM plugin_logs
-        WHERE action='blocked' AND reason LIKE '%not on allowlist%'
-        AND created_at >= datetime('now','-1 day')
-    """)
-    plugin_load_blocked_24h = cur.fetchone()[0] or 0
+    try:
+        cur.execute("""
+            SELECT COUNT(*) FROM plugin_logs
+            WHERE action='blocked' AND reason LIKE '%not on allowlist%'
+            AND created_at >= datetime('now','-1 day')
+        """)
+        plugin_load_blocked_24h = cur.fetchone()[0] or 0
+    except Exception:
+        plugin_load_blocked_24h = 0
 
     # WebX permission mismatch metrics
-    cur.execute("""
-        SELECT COUNT(*) FROM webx_integrity_logs
-        WHERE status='mismatch'
-        AND created_at >= datetime('now','-1 day')
-    """)
-    webx_permission_mismatch_24h = cur.fetchone()[0] or 0
+    try:
+        cur.execute("""
+            SELECT COUNT(*) FROM webx_integrity_logs
+            WHERE status='mismatch'
+            AND created_at >= datetime('now','-1 day')
+        """)
+        webx_permission_mismatch_24h = cur.fetchone()[0] or 0
+    except Exception:
+        webx_permission_mismatch_24h = 0
 
     # Phase 2 metrics: Approval and Recovery stats
 

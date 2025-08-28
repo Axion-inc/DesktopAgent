@@ -50,40 +50,65 @@ class DeviationDetector:
         expected_sequence: List[str],
         actual_sequence: List[str]
     ) -> List[Deviation]:
-        """Analyze sequence deviation between expected and actual execution"""
-        deviations = []
+        """Analyze sequence deviation with insertion-aware alignment.
 
-        # Find unexpected steps (present in actual but not in expected at same position)
-        max_len = max(len(expected_sequence), len(actual_sequence))
+        Reports an unexpected_step when an insertion occurs and avoids
+        cascading sequence_deviation reports due to simple shifts.
+        """
+        deviations: List[Deviation] = []
+        e_idx = 0
+        a_idx = 0
+        while a_idx < len(actual_sequence) and e_idx < len(expected_sequence):
+            a_step = actual_sequence[a_idx]
+            e_step = expected_sequence[e_idx]
 
-        for i in range(max_len):
-            expected_step = expected_sequence[i] if i < len(expected_sequence) else None
-            actual_step = actual_sequence[i] if i < len(actual_sequence) else None
+            if a_step == e_step:
+                a_idx += 1
+                e_idx += 1
+                continue
 
-            if actual_step and actual_step not in expected_sequence:
-                # Completely unexpected step
+            # If actual step isn't part of expected at all, treat as insertion
+            if a_step not in expected_sequence:
                 deviation = Deviation(
                     type="unexpected_step",
                     severity="high",
-                    step_name=actual_step,
-                    step_index=i,
-                    details=f"Step '{actual_step}' not found in expected sequence"
+                    step_name=a_step,
+                    step_index=a_idx,
+                    details=f"Step '{a_step}' not found in expected sequence"
                 )
                 deviations.append(deviation)
                 self._record_deviation(deviation)
+                a_idx += 1
+                # Do not advance e_idx; re-align on next actual step
+                continue
 
-            elif expected_step and actual_step and expected_step != actual_step:
-                # Out of order execution
-                if actual_step in expected_sequence:
-                    deviation = Deviation(
-                        type="sequence_deviation",
-                        severity="medium",
-                        step_name=actual_step,
-                        step_index=i,
-                        details=f"Expected '{expected_step}' but got '{actual_step}'"
-                    )
-                    deviations.append(deviation)
-                    self._record_deviation(deviation)
+            # Otherwise, it's a reordering deviation
+            deviation = Deviation(
+                type="sequence_deviation",
+                severity="medium",
+                step_name=a_step,
+                step_index=a_idx,
+                details=f"Expected '{e_step}' but got '{a_step}'"
+            )
+            deviations.append(deviation)
+            self._record_deviation(deviation)
+            a_idx += 1
+            e_idx += 1
+
+        # Any trailing actual steps beyond expected are unexpected insertions
+        while a_idx < len(actual_sequence):
+            a_step = actual_sequence[a_idx]
+            if a_step not in expected_sequence:
+                deviation = Deviation(
+                    type="unexpected_step",
+                    severity="high",
+                    step_name=a_step,
+                    step_index=a_idx,
+                    details=f"Step '{a_step}' not found in expected sequence"
+                )
+                deviations.append(deviation)
+                self._record_deviation(deviation)
+            a_idx += 1
 
         return deviations
 

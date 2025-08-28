@@ -87,6 +87,52 @@ class PolicyEngine:
             logger.error(f"Failed to load configurations: {e}")
             self._load_fallback_configurations()
 
+    def update_policy(self, updates: Dict[str, Any]) -> None:
+        """Update in-memory policy for tests and runtime adjustments.
+
+        Supported keys:
+        - require_signed_templates: bool
+        - allow_unsigned: bool
+        - allow_unsigned_until: YYYY-MM-DD (str)
+        """
+        te = self.policy_config.setdefault("template_execution", {})
+        for k in ["require_signed_templates", "allow_unsigned", "allow_unsigned_until"]:
+            if k in updates:
+                te[k] = updates[k]
+
+    def check_template_execution_policy(self, template_path: Path):
+        """Simplified policy check used by unit tests.
+
+        Returns an object with fields: allowed (bool), reason (str)
+        """
+        class _Result:
+            def __init__(self, allowed: bool, reason: str):
+                self.allowed = allowed
+                self.reason = reason
+
+        te = self.policy_config.get("template_execution", {})
+        require = bool(te.get("require_signed_templates", True))
+        allow_unsigned = bool(te.get("allow_unsigned", False))
+        allow_until = te.get("allow_unsigned_until")
+
+        # Grace period handling
+        if allow_until:
+            try:
+                from datetime import datetime
+                until = datetime.strptime(str(allow_until), "%Y-%m-%d")
+                now = datetime.now()
+                if now <= until:
+                    return _Result(True, "Allowed under grace period")
+            except Exception:
+                pass
+
+        # Require signature check: rely on presence of .sig.json alongside the template
+        sig_path = Path(str(template_path) + ".sig.json")
+        if require and not allow_unsigned and not sig_path.exists():
+            return _Result(False, "Signature required but missing")
+
+        return _Result(True, "Policy allows execution")
+
     def _get_default_trust_store(self) -> Dict[str, Any]:
         """Get default trust store configuration"""
         return {

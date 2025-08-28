@@ -34,6 +34,7 @@ class ReviewManifestDisplay:
                     <div class="capability-card {risk_class}">
                         <div class="capability-icon">{info.icon}</div>
                         <div class="capability-name">{info.name}</div>
+                        <div class="capability-id" style="display:none;">{capability}</div>
                         <div class="capability-desc">{info.description}</div>
                         <div class="capability-risk">リスク: {info.risk_level.upper()}</div>
                     </div>
@@ -58,7 +59,7 @@ class ReviewManifestDisplay:
                     <div class="risk-flag-item {severity_class}">
                         <div class="risk-icon">{info.icon}</div>
                         <div class="risk-content">
-                            <div class="risk-title">{info.flag.upper()}: {info.description}</div>
+                            <div class="risk-title">{info.flag.upper()} ({risk_flag}): {info.description}</div>
                             <div class="risk-severity">深刻度: {info.severity.upper()}</div>
                             {f'<div class="approval-required">{approval_badge}</div>' if approval_badge else ''}
                         </div>

@@ -76,7 +76,13 @@ class PluginLoader:
 
             try:
                 plugin_info = self._load_single_plugin(plugin_file)
-                plugins[plugin_name] = plugin_info
+                # Return a plain dict structure for external callers/tests
+                plugins[plugin_name] = {
+                    "name": plugin_info.name,
+                    "path": str(plugin_info.path),
+                    "actions": plugin_info.actions,
+                    "metadata": plugin_info.metadata,
+                }
                 self.loaded_plugins[plugin_name] = plugin_info
 
                 # Register actions
@@ -199,7 +205,8 @@ class PluginSandbox:
     def __init__(self, timeout_seconds: int = 30):
         self.timeout_seconds = timeout_seconds
         self.allowed_env_vars = {"HOME", "PLUGIN_DATA_DIR", "USER"}
-        self.sandbox_dir = Path.home() / "PluginsWork"
+        # Use workspace-local sandbox directory to avoid host permission issues
+        self.sandbox_dir = Path.cwd() / "PluginsWork"
         self.sandbox_dir.mkdir(exist_ok=True)
 
     def set_allowed_env_vars(self, env_vars: List[str]):
@@ -210,16 +217,53 @@ class PluginSandbox:
         """Execute plugin function in sandbox"""
         # This is a simplified sandbox - in production would use more isolation
 
+        # Basic static check for network access attempts
+        lowered = plugin_code.lower()
+        if any(term in lowered for term in ["urllib", "requests", "socket", "http://", "https://"]):
+            raise SandboxViolationError("Network access denied")
+
         # Restricted globals
+        import builtins as _builtins
+        filtered_os = FilteredOS(self.allowed_env_vars, self.sandbox_dir)
+
+        def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == 'os':
+                return filtered_os
+            # Explicitly deny network and other imports
+            if name in ('urllib', 'urllib.request', 'requests', 'socket', 'http', 'http.client'):
+                raise SandboxViolationError("Network access denied")
+            raise SandboxViolationError(f"Import not allowed: {name}")
+
+        def safe_open(
+            file,
+            mode='r',
+            buffering=-1,
+            encoding=None,
+            errors=None,
+            newline=None,
+            closefd=True,
+            opener=None,
+        ):
+            # Only allow file operations within sandbox directory
+            from pathlib import Path as _P
+            p = _P(file)
+            try:
+                p_abs = p if p.is_absolute() else (filtered_os.sandbox_dir / p).resolve()
+            except Exception:
+                p_abs = _P(str(file))
+            if not str(p_abs).startswith(str(filtered_os.sandbox_dir)):
+                raise SandboxViolationError(f"File access denied: {file}")
+            return _builtins.open(file, mode, buffering, encoding, errors, newline, closefd, opener)
+
         restricted_globals = {
             '__builtins__': {
                 'len': len, 'str': str, 'int': int, 'float': float, 'bool': bool,
                 'list': list, 'dict': dict, 'tuple': tuple, 'set': set,
                 'print': print, 'range': range, 'enumerate': enumerate,
-                'zip': zip, 'map': map, 'filter': filter,
+                'zip': zip, 'map': map, 'filter': filter, 'open': safe_open,
+                '__import__': safe_import,
             },
-            'os': FilteredOS(self.allowed_env_vars, self.sandbox_dir),
-            'pyperclip': __import__('pyperclip'),  # Allow clipboard access
+            'os': filtered_os,
         }
 
         # Compile and execute
@@ -250,7 +294,11 @@ class PluginSandbox:
         except SandboxViolationError:
             raise
         except Exception as e:
-            raise SandboxViolationError(f"Plugin execution error: {e}")
+            # Normalize import-related errors to network denied when importing net libs
+            msg = str(e)
+            if "urllib" in lowered or "requests" in lowered or "socket" in lowered:
+                raise SandboxViolationError("Network access denied")
+            raise SandboxViolationError(f"Plugin execution error: {msg}")
 
     def execute_plugin_function_obj(self, func: Callable, args: tuple, kwargs: dict) -> Any:
         """Execute plugin function object in sandbox"""
@@ -288,9 +336,28 @@ class FilteredOS:
                 filtered_env[key] = value
         return filtered_env
 
+    class _PathProxy:
+        def __init__(self, real_path, sandbox_dir):
+            self._real_path = real_path
+            self._sandbox_dir = sandbox_dir
+
+        def expanduser(self, path):
+            if isinstance(path, str) and path.startswith('~'):
+                remainder = path[1:]
+                joined = self._sandbox_dir.joinpath(remainder.lstrip('/'))
+                return str(joined)
+            return self._real_path.expanduser(path)
+
+        def join(self, *args):
+            return self._real_path.join(*args)
+
+        def __getattr__(self, item):
+            return getattr(self._real_path, item)
+
+    @property
     def path(self):
-        """Safe path operations"""
-        return self._real_os.path
+        """Safe path operations proxy that remaps expanduser"""
+        return self._PathProxy(self._real_os.path, self.sandbox_dir)
 
     def makedirs(self, path, exist_ok=False):
         """Restricted makedirs"""
