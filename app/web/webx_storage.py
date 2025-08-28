@@ -4,8 +4,7 @@ Advanced cookie and storage management for WebX contexts
 """
 
 import logging
-import json
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -34,7 +33,7 @@ class CookieInfo:
     http_only: bool = True
     same_site: str = "Strict"  # "Strict", "Lax", "None"
     expires: Optional[datetime] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert cookie to dictionary"""
         cookie_dict = {
@@ -46,19 +45,19 @@ class CookieInfo:
             "httpOnly": self.http_only,
             "sameSite": self.same_site
         }
-        
+
         if self.expires:
             cookie_dict["expires"] = self.expires.timestamp()
-        
+
         return cookie_dict
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CookieInfo':
         """Create cookie from dictionary"""
         expires = None
         if "expires" in data and data["expires"]:
             expires = datetime.fromtimestamp(data["expires"], tz=timezone.utc)
-        
+
         return cls(
             name=data["name"],
             value=data["value"],
@@ -77,7 +76,7 @@ class StorageData:
     storage_type: str  # "localStorage" or "sessionStorage"
     domain: str
     data: Dict[str, str] = field(default_factory=dict)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert storage data to dictionary"""
         return {
@@ -89,13 +88,13 @@ class StorageData:
 
 class WebXStorageManager:
     """Manages cookies and browser storage across WebX contexts"""
-    
+
     def __init__(self, browser_context=None):
         """Initialize storage manager"""
         self.browser_context = browser_context
         self.cookie_operations_count = 0
         self.storage_operations_count = 0
-        
+
         # Security policy for cookie operations
         self.security_policy = {
             "require_secure_cookies": True,
@@ -105,9 +104,9 @@ class WebXStorageManager:
             "blocked_domains": ["ads.example.com", "tracking.example.com"],
             "max_cookie_value_length": 4096
         }
-        
+
         logger.info("WebX Storage Manager initialized")
-    
+
     def set_cookie(
         self,
         name: str,
@@ -121,17 +120,17 @@ class WebXStorageManager:
     ) -> Dict[str, Any]:
         """
         Set cookie with security validation
-        
+
         Args:
             name: Cookie name
-            value: Cookie value  
+            value: Cookie value
             domain: Cookie domain
             path: Cookie path
             secure: Secure flag
             http_only: HttpOnly flag
             same_site: SameSite attribute
             expires: Expiration datetime
-        
+
         Returns:
             Dict with operation result
         """
@@ -140,12 +139,12 @@ class WebXStorageManager:
             security_result = self._validate_cookie_security(
                 name, value, domain, secure, http_only, same_site
             )
-            
+
             if not security_result["valid"]:
                 raise CookieTransferError(
                     f"Cookie security validation failed: {security_result['error']}"
                 )
-            
+
             # Create cookie info
             cookie = CookieInfo(
                 name=name,
@@ -157,15 +156,15 @@ class WebXStorageManager:
                 same_site=same_site,
                 expires=expires
             )
-            
+
             # Set cookie in browser context
             set_result = self._set_browser_cookie(cookie.to_dict())
-            
+
             if set_result["success"]:
                 self.cookie_operations_count += 1
-                
+
                 logger.info(f"Cookie set successfully: {name} for {domain}")
-                
+
                 return {
                     "success": True,
                     "cookie_name": name,
@@ -174,11 +173,11 @@ class WebXStorageManager:
                 }
             else:
                 raise CookieTransferError(f"Failed to set cookie: {set_result.get('error', 'Unknown error')}")
-                
+
         except Exception as e:
             logger.error(f"Cookie set operation failed: {e}")
             raise CookieTransferError(str(e))
-    
+
     def get_cookies(
         self,
         domain: Optional[str] = None,
@@ -186,46 +185,46 @@ class WebXStorageManager:
     ) -> Dict[str, Any]:
         """
         Get cookies filtered by domain and/or name
-        
+
         Args:
             domain: Filter by domain (optional)
             name: Filter by specific cookie name (optional)
-        
+
         Returns:
             Dict with cookies list
         """
         try:
             # Get all cookies from browser context
             all_cookies = self._get_browser_cookies()
-            
+
             # Apply filters
             filtered_cookies = []
-            
+
             for cookie_data in all_cookies:
                 # Domain filter
                 if domain and not self._domain_matches(cookie_data.get("domain", ""), domain):
                     continue
-                
+
                 # Name filter
                 if name and cookie_data.get("name") != name:
                     continue
-                
+
                 filtered_cookies.append(cookie_data)
-            
+
             self.cookie_operations_count += 1
-            
+
             logger.info(f"Retrieved {len(filtered_cookies)} cookies (domain: {domain}, name: {name})")
-            
+
             return {
                 "success": True,
                 "cookies": filtered_cookies,
                 "total_count": len(filtered_cookies)
             }
-            
+
         except Exception as e:
             logger.error(f"Cookie get operation failed: {e}")
             return {"success": False, "error": str(e), "cookies": []}
-    
+
     def transfer_cookies(
         self,
         from_domain: str,
@@ -235,53 +234,53 @@ class WebXStorageManager:
     ) -> Dict[str, Any]:
         """
         Transfer cookies between domains or contexts
-        
+
         Args:
             from_domain: Source domain
             to_domain: Target domain
             cookie_names: Specific cookies to transfer (optional)
             context_switch: Whether this is a context switch operation
-        
+
         Returns:
             Dict with transfer results
         """
         try:
             # Get source cookies
             source_cookies = self.get_cookies(domain=from_domain)
-            
+
             if not source_cookies["success"]:
                 raise CookieTransferError(f"Failed to get source cookies from {from_domain}")
-            
+
             cookies_to_transfer = source_cookies["cookies"]
-            
+
             # Filter by specific cookie names if provided
             if cookie_names:
                 cookies_to_transfer = [
-                    cookie for cookie in cookies_to_transfer 
+                    cookie for cookie in cookies_to_transfer
                     if cookie.get("name") in cookie_names
                 ]
-            
+
             # Transfer each cookie
             transferred_count = 0
             transfer_errors = []
-            
+
             for cookie_data in cookies_to_transfer:
                 try:
                     # Update cookie domain
                     cookie_data["domain"] = to_domain
-                    
+
                     # Set cookie in target domain
                     self._set_browser_cookie(cookie_data)
                     transferred_count += 1
-                    
+
                 except Exception as e:
                     transfer_errors.append(f"Cookie {cookie_data.get('name', 'unknown')}: {str(e)}")
-            
+
             success = transferred_count > 0
-            
+
             if success:
                 logger.info(f"Transferred {transferred_count} cookies from {from_domain} to {to_domain}")
-            
+
             return {
                 "success": success,
                 "transferred_count": transferred_count,
@@ -290,11 +289,11 @@ class WebXStorageManager:
                 "from_domain": from_domain,
                 "to_domain": to_domain
             }
-            
+
         except Exception as e:
             logger.error(f"Cookie transfer failed: {e}")
             raise CookieTransferError(str(e))
-    
+
     def set_local_storage(
         self,
         domain: str,
@@ -309,19 +308,19 @@ class WebXStorageManager:
                 "value": value,
                 "storage_type": "localStorage"
             }
-            
+
             result = self._set_browser_storage(storage_data)
-            
+
             if result["success"]:
                 self.storage_operations_count += 1
                 logger.info(f"localStorage set: {key} for {domain}")
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"localStorage set failed: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def get_local_storage(
         self,
         domain: str,
@@ -330,7 +329,7 @@ class WebXStorageManager:
         """Get localStorage items for domain"""
         try:
             storage_data = self._get_browser_storage(domain, "localStorage")
-            
+
             if key:
                 # Return specific key
                 value = storage_data.get(key)
@@ -348,11 +347,11 @@ class WebXStorageManager:
                     "domain": domain,
                     "keys_count": len(storage_data)
                 }
-                
+
         except Exception as e:
             logger.error(f"localStorage get failed: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def clear_storage(
         self,
         domain: str,
@@ -361,14 +360,14 @@ class WebXStorageManager:
         """Clear storage for domain"""
         if storage_types is None:
             storage_types = ["cookies", "localStorage", "sessionStorage"]
-        
+
         try:
             cleared_items = {
                 "cookies": 0,
                 "localStorage": 0,
                 "sessionStorage": 0
             }
-            
+
             for storage_type in storage_types:
                 if storage_type == "cookies":
                     # Clear cookies for domain
@@ -376,27 +375,27 @@ class WebXStorageManager:
                     for cookie in cookies.get("cookies", []):
                         self._delete_browser_cookie(cookie["name"], domain)
                         cleared_items["cookies"] += 1
-                
+
                 elif storage_type in ["localStorage", "sessionStorage"]:
                     # Clear browser storage
                     self._clear_browser_storage(domain, storage_type)
                     cleared_items[storage_type] = 1  # Mark as cleared
-            
+
             total_cleared = sum(cleared_items.values())
-            
+
             logger.info(f"Cleared storage for {domain}: {cleared_items}")
-            
+
             return {
                 "success": True,
                 "domain": domain,
                 "cleared_items": cleared_items,
                 "total_cleared": total_cleared
             }
-            
+
         except Exception as e:
             logger.error(f"Storage clear failed: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def _validate_cookie_security(
         self,
         name: str,
@@ -407,74 +406,74 @@ class WebXStorageManager:
         same_site: str
     ) -> Dict[str, Any]:
         """Validate cookie against security policy"""
-        
+
         # Check blocked domains
         if domain in self.security_policy["blocked_domains"]:
             return {"valid": False, "error": f"Domain {domain} is blocked"}
-        
+
         # Check allowed domains (if specified)
         allowed_domains = self.security_policy["allowed_domains"]
         if allowed_domains and not any(domain.endswith(allowed) for allowed in allowed_domains):
             return {"valid": False, "error": f"Domain {domain} not in allowed list"}
-        
+
         # Security requirements
         if self.security_policy["require_secure_cookies"] and not secure:
             return {"valid": False, "error": "Secure flag required but not set"}
-        
+
         if self.security_policy["require_http_only"] and not http_only:
             return {"valid": False, "error": "HttpOnly flag required but not set"}
-        
+
         # Value length check
         max_length = self.security_policy["max_cookie_value_length"]
         if len(value) > max_length:
             return {"valid": False, "error": f"Cookie value exceeds maximum length {max_length}"}
-        
+
         return {"valid": True}
-    
+
     def _domain_matches(self, cookie_domain: str, target_domain: str) -> bool:
         """Check if cookie domain matches target domain"""
         if cookie_domain == target_domain:
             return True
-        
+
         # Handle subdomain matching
         if cookie_domain.startswith('.') and target_domain.endswith(cookie_domain[1:]):
             return True
-        
+
         return False
-    
+
     def _set_browser_cookie(self, cookie_data: Dict[str, Any]) -> Dict[str, Any]:
         """Set cookie in browser context (mock implementation)"""
         # Mock implementation - in real usage would interact with browser
         return {"success": True}
-    
+
     def _get_browser_cookies(self) -> List[Dict[str, Any]]:
         """Get cookies from browser context (mock implementation)"""
         # Mock implementation - in real usage would query browser
         if hasattr(self, '_mock_cookies'):
             return self._mock_cookies
-        
+
         return []
-    
+
     def _delete_browser_cookie(self, name: str, domain: str) -> Dict[str, Any]:
         """Delete cookie from browser context (mock implementation)"""
         # Mock implementation
         return {"success": True}
-    
+
     def _set_browser_storage(self, storage_data: Dict[str, Any]) -> Dict[str, Any]:
         """Set browser storage item (mock implementation)"""
         # Mock implementation
         return {"success": True}
-    
+
     def _get_browser_storage(self, domain: str, storage_type: str) -> Dict[str, Any]:
         """Get browser storage items (mock implementation)"""
         # Mock implementation
         return {}
-    
+
     def _clear_browser_storage(self, domain: str, storage_type: str) -> Dict[str, Any]:
         """Clear browser storage (mock implementation)"""
         # Mock implementation
         return {"success": True}
-    
+
     def get_storage_metrics(self) -> Dict[str, Any]:
         """Get storage operation metrics"""
         return {
@@ -499,7 +498,7 @@ def get_storage_manager() -> WebXStorageManager:
 def webx_set_cookie(name: str, value: str, domain: str, **kwargs) -> Dict[str, Any]:
     """
     Convenience function for cookie setting
-    
+
     Usage:
         webx_set_cookie("session", "abc123", "example.com", secure=True)
         webx_set_cookie("token", "xyz789", "app.com", http_only=True)
@@ -511,7 +510,7 @@ def webx_set_cookie(name: str, value: str, domain: str, **kwargs) -> Dict[str, A
 def webx_get_cookies(domain: Optional[str] = None, **kwargs) -> Dict[str, Any]:
     """
     Convenience function for cookie retrieval
-    
+
     Usage:
         webx_get_cookies(domain="example.com")
         webx_get_cookies(name="session_token")

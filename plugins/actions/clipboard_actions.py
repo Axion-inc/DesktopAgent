@@ -17,17 +17,17 @@ def register(actions_registry):
 def copy_to_clipboard(text: str) -> dict:
     """
     Copy text to system clipboard
-    
+
     Args:
         text: Text to copy to clipboard
-        
+
     Returns:
         dict: Result with success status and message
     """
     try:
         import pyperclip
         pyperclip.copy(text)
-        
+
         return {
             "success": True,
             "message": f"Copied {len(text)} characters to clipboard",
@@ -50,14 +50,14 @@ def copy_to_clipboard(text: str) -> dict:
 def paste_from_clipboard() -> dict:
     """
     Paste text from system clipboard
-    
+
     Returns:
         dict: Result with clipboard text content
     """
     try:
         import pyperclip
         clipboard_text = pyperclip.paste()
-        
+
         return {
             "success": True,
             "text": clipboard_text,
@@ -83,14 +83,14 @@ def paste_from_clipboard() -> dict:
 def clear_clipboard() -> dict:
     """
     Clear system clipboard content
-    
+
     Returns:
         dict: Result with success status
     """
     try:
         import pyperclip
         pyperclip.copy("")  # Clear clipboard by setting empty string
-        
+
         return {
             "success": True,
             "message": "Clipboard cleared successfully"
@@ -113,19 +113,19 @@ def clear_clipboard() -> dict:
 if __name__ == "__main__":
     # Test clipboard operations
     print("Testing clipboard operations...")
-    
+
     # Test copy
     copy_result = copy_to_clipboard("Hello, Desktop Agent!")
     print(f"Copy result: {copy_result}")
-    
+
     # Test paste
     paste_result = paste_from_clipboard()
     print(f"Paste result: {paste_result}")
-    
+
     # Test clear
     clear_result = clear_clipboard()
     print(f"Clear result: {clear_result}")
-    
+
     # Verify clear worked
     verify_result = paste_from_clipboard()
     print(f"Verify clear: {verify_result}")
