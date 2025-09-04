@@ -7,7 +7,6 @@ mss
 pyyaml
 pytest
 flake8
-playwright
 python-multipart
 cryptography
 croniter

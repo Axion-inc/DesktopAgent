@@ -1,8 +1,8 @@
 # Web Engine Configuration for Desktop Agent
-# Phase 5: Chrome Extension + Native Messaging implementation
+# Phase 6: Chrome DevTools Protocol (CDP) implementation
 
-# Engine selection: "extension" or "playwright"
-engine: "extension"          # Default to new extension engine
+# Engine selection: "cdp" (recommended), "extension", or "playwright"
+engine: "cdp"                # Default to new CDP engine
 
 # Playwright engine configuration (existing)
 playwright:
@@ -14,9 +14,39 @@ playwright:
     height: 720
   user_agent: "Desktop Agent WebX/1.0"
   
-# Extension engine configuration (Phase 5)
-extension:
+# CDP engine configuration (Phase 6 - Primary)
+cdp:
   # Extension ID - set after installation
+  extension_id: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  
+  # Chrome DevTools Protocol configuration
+  timeout: 30000                # CDP operation timeout (ms)
+  dom_cache_ttl: 5000          # DOM tree cache TTL (ms)
+  max_concurrent_operations: 5  # Max parallel CDP operations
+  
+  # Element interaction settings
+  interaction:
+    click_delay: 100           # Delay between click and next action (ms)
+    fill_delay: 50             # Delay between keystrokes (ms)
+    scroll_behavior: "smooth"   # Scroll behavior: "auto" | "smooth"
+    highlight_duration: 2000    # Element highlight duration (ms)
+  
+  # Screenshot settings
+  screenshot:
+    format: "png"              # "png" | "jpeg"
+    quality: 90                # 1-100 for JPEG
+    viewport_only: true        # false for full page screenshots
+  
+  # DOM tree building options
+  dom_tree:
+    max_depth: 10              # Maximum DOM traversal depth
+    include_invisible: false    # Include hidden elements
+    include_text_nodes: false  # Include text-only nodes
+    label_interactive_only: true # Only label interactive elements
+
+# Extension engine configuration (Legacy - Phase 5)
+extension:
+  # Extension ID - set after installation  
   id: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   
   # Native messaging host configuration

@@ -86,10 +86,10 @@ class PluginLoader:
 
             plugin_name = plugin_file.stem
 
-            # Check allowlist
+            # Check allowlist - skip disallowed plugins without failing the whole load
             if plugin_name not in self.allowlist:
                 logger.warning(f"Plugin {plugin_name} not on allowlist, skipping")
-                raise PluginSecurityError(f"Plugin {plugin_name} not on allowlist")
+                continue
 
             try:
                 plugin_info = self._load_single_plugin(plugin_file)

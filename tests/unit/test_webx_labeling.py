@@ -5,7 +5,7 @@ Tests the label matching, synonym support, and element finding algorithms
 
 import pytest
 from unittest.mock import patch
-from app.web.engine import ExtensionEngine, get_web_engine
+from app.web.engine import CDPEngine, get_web_engine
 from app.actions.web_actions import _is_sensitive_field
 
 
@@ -360,7 +360,8 @@ class TestWebXEngineIntegration:
             }
 
             engine = get_web_engine()
-            assert engine.__class__.__name__ == 'ExtensionEngine'
+            # 'extension' maps to CDPEngine in current implementation
+            assert engine.__class__.__name__ == 'CDPEngine'
 
     def test_fallback_to_playwright(self):
         """Test fallback to Playwright engine"""
@@ -374,7 +375,7 @@ class TestWebXEngineIntegration:
 
     def test_engine_method_delegation(self):
         """Test that engine methods are properly delegated"""
-        engine = ExtensionEngine()
+        engine = CDPEngine()
 
         # Test that all required methods exist
         required_methods = [
@@ -388,11 +389,11 @@ class TestWebXEngineIntegration:
 
     def test_engine_error_propagation(self):
         """Test that engine errors are properly propagated"""
-        engine = ExtensionEngine()
+        engine = CDPEngine()
 
         # Mock a failed operation
-        with patch.object(engine, '_send_rpc') as mock_rpc:
-            mock_rpc.side_effect = Exception("Native messaging failed")
+        with patch.object(engine, '_send_cdp_message') as mock_cdp:
+            mock_cdp.side_effect = Exception("Native messaging failed")
 
             try:
                 result = engine.fill_by_label("test", "value")
@@ -451,7 +452,7 @@ class TestWebXPerformanceOptimizations:
 
     def test_memory_cleanup(self):
         """Test memory cleanup in engine operations"""
-        engine = ExtensionEngine()
+        engine = CDPEngine()
 
         # Test that cleanup method exists and is callable
         assert hasattr(engine, 'close')

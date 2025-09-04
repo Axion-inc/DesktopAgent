@@ -1,19 +1,21 @@
 {
   "name": "desktopagent",
-  "version": "1.0.0",
-  "description": "Desktop Agent (Phase 2)",
+  "version": "2.0.0",
+  "description": "Desktop Agent (Phase 6 - CDP Implementation)",
   "main": "index.js",
   "directories": {
     "doc": "docs",
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build-extension": "echo \"Building CDP extension...\" && cp -r webx-extension/* dist/",
+    "install-extension": "echo \"Install Chrome extension from dist/ directory\""
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["automation", "cdp", "chrome-extension", "desktop-agent"],
+  "author": "Desktop Agent Team",
   "license": "ISC",
-  "dependencies": {
-    "playwright": "^1.54.2"
+  "devDependencies": {
+    "typescript": "^5.0.0"
   }
 }
