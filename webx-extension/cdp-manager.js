@@ -418,6 +418,39 @@ class CDPManager {
     }
   }
 
+  // Precise actions via CDP input domain
+  async clickByCoordinates(tabId, x, y, options = {}) {
+    try {
+      await this.attachToTab(tabId);
+      const click = async (type) => {
+        await this.sendCommand(tabId, 'Input.dispatchMouseEvent', {
+          type,
+          x: Math.round(x),
+          y: Math.round(y),
+          button: 'left',
+          clickCount: 1,
+        });
+      };
+      await click('mousePressed');
+      await click('mouseReleased');
+      return { success: true, x, y, action: 'click_coordinates' };
+    } catch (error) {
+      console.error('Failed to click by coordinates:', error);
+      throw error;
+    }
+  }
+
+  async insertText(tabId, text) {
+    try {
+      await this.attachToTab(tabId);
+      await this.sendCommand(tabId, 'Input.insertText', { text });
+      return { success: true, text };
+    } catch (error) {
+      console.error('Failed to insert text:', error);
+      throw error;
+    }
+  }
+
   // Event handling for DOM changes
   onDocumentUpdated(tabId) {
     console.log(`Document updated in tab ${tabId}, rebuilding DOM tree...`);

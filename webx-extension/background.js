@@ -189,22 +189,52 @@ class WebXBackground {
         return { status: 'success', url };
       }
       case 'fill_by_label': {
-        const { label, text, selector } = action;
+        const { label, text, selector, frame } = action;
         if (!label && !selector) throw new Error('fill_by_label requires label or selector');
-        const res = await this.callContentRPC(tabId, 'fill_input', { label, selector, text });
+        let res;
+        try {
+          res = await this.callContentRPC(tabId, 'fill_input', { label, selector, text, frame });
+        } catch (e) {
+          // Fallback: CDP fill
+          res = await this.cdpManager.fillInput(tabId, selector || null, { text, label });
+        }
         return { status: 'success', result: res };
       }
       case 'click_by_text': {
-        const { text, role, selector } = action;
+        const { text, role, selector, frame } = action;
         if (!text && !selector) throw new Error('click_by_text requires text or selector');
-        const res = await this.callContentRPC(tabId, 'click_element', { text, role, selector });
+        let res;
+        try {
+          res = await this.callContentRPC(tabId, 'click_element', { text, role, selector, frame });
+        } catch (e) {
+          // Fallback: try CDP click (by selector or text/role)
+          res = await this.cdpManager.clickElement(tabId, selector || null, { text, role });
+        }
         return { status: 'success', result: res };
       }
       case 'wait_for_text': {
-        const { contains, role, timeoutMs = 8000 } = action;
+        const { contains, role, timeoutMs = 8000, frame } = action;
         if (!contains) throw new Error('wait_for_text requires contains');
-        const res = await this.callContentRPC(tabId, 'wait_for_element', { text: contains, role, timeout: timeoutMs });
+        const res = await this.callContentRPC(tabId, 'wait_for_element', { text: contains, role, timeout: timeoutMs, frame });
         if (!res?.found) throw new Error('Text not found');
+        return { status: 'success', result: res };
+      }
+      case 'precise_click': {
+        const { x, y } = action;
+        if (typeof x !== 'number' || typeof y !== 'number') throw new Error('precise_click requires numeric x,y');
+        const res = await this.cdpManager.clickByCoordinates(tabId, x, y);
+        return { status: 'success', result: res };
+      }
+      case 'insert_text': {
+        const { text } = action;
+        if (typeof text !== 'string') throw new Error('insert_text requires text');
+        const res = await this.cdpManager.insertText(tabId, text);
+        return { status: 'success', result: res };
+      }
+      case 'set_file_input_files': {
+        const { selector, files } = action;
+        if (!selector || !files) throw new Error('set_file_input_files requires selector and files');
+        const res = await this.cdpManager.uploadFile(tabId, selector, files);
         return { status: 'success', result: res };
       }
       default:
