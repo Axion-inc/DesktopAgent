@@ -1,0 +1,19 @@
+name: "Desktop Inspect E2E (Mac)"
+description: "Capture desktop screenshot and AX schema with HITL confirmations"
+variables:
+  target: frontmost
+  message_start: "Start desktop inspection?"
+  message_finish: "Check artifacts directory for screenshot/schema. Continue?"
+
+steps:
+  - human_confirm:
+      message: "{{ message_start }}"
+      timeout_ms: 120000
+
+  - capture_screen_schema:
+      target: "{{ target }}"
+
+  - human_confirm:
+      message: "{{ message_finish }}"
+      timeout_ms: 120000
+

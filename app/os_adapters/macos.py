@@ -64,12 +64,17 @@ class MacOSAdapter(OSAdapter):
         """Capture accessibility hierarchy using macOS Accessibility.
 
         Priority:
-          1) PyObjC (if available) for AX API (not bundled here)
+          1) PyObjC (if available) for AX API (Quartz/AppKit)
           2) JXA (JavaScript for Automation) via osascript to query System Events
 
         Returns a structured schema with limited depth/children for performance.
         """
-        # Attempt JXA first (robust JSON output)
+        # Try PyObjC (Quartz AX) first
+        try:
+            return self._capture_via_pyobjc(target=target, max_depth=2, max_children=25)
+        except Exception:
+            pass
+        # Fallback to JXA
         try:
             return self._capture_via_jxa(target=target, max_depth=2, max_children=25)
         except Exception as e:
@@ -84,8 +89,88 @@ class MacOSAdapter(OSAdapter):
                 "timestamp": ts,
                 "elements": [],
                 "error": f"AX capture failed: {e}",
-                "implementation_note": "Using fallback; ensure System Events accessibility and screen recording permissions are granted."
+                "implementation_note": "Ensure Accessibility (System Events) permission is granted."
             }
+
+    def _capture_via_pyobjc(self, target: str, max_depth: int = 2, max_children: int = 25) -> Dict[str, Any]:
+        try:
+            from AppKit import NSWorkspace
+            from Quartz import (
+                AXUIElementCreateSystemWide,
+                AXUIElementCopyAttributeValue,
+                kAXFocusedApplicationAttribute,
+                kAXWindowsAttribute,
+                kAXRoleAttribute,
+                kAXSubroleAttribute,
+                kAXTitleAttribute,
+                kAXChildrenAttribute,
+                kAXPositionAttribute,
+                kAXSizeAttribute,
+            )
+            import Quartz
+        except Exception as e:
+            raise RuntimeError(f"PyObjC not available: {e}")
+
+        def _to_rect(ax_elem):
+            try:
+                pos = AXUIElementCopyAttributeValue(ax_elem, kAXPositionAttribute)
+                size = AXUIElementCopyAttributeValue(ax_elem, kAXSizeAttribute)
+                if pos is not None and size is not None:
+                    return {
+                        'x': float(pos.x), 'y': float(pos.y),
+                        'width': float(size.width), 'height': float(size.height)
+                    }
+            except Exception:
+                return None
+            return None
+
+        def _attr(ax_elem, attr):
+            try:
+                return AXUIElementCopyAttributeValue(ax_elem, attr)
+            except Exception:
+                return None
+
+        def _node(ax_elem, depth):
+            node: Dict[str, Any] = {}
+            role = _attr(ax_elem, kAXRoleAttribute)
+            subrole = _attr(ax_elem, kAXSubroleAttribute)
+            title = _attr(ax_elem, kAXTitleAttribute)
+            node['role'] = str(role) if role is not None else 'UIElement'
+            if subrole: node['subrole'] = str(subrole)
+            if title: node['label'] = str(title)
+            rect = _to_rect(ax_elem)
+            if rect: node['bounds'] = rect
+            if depth <= 0:
+                return node
+            # Children
+            try:
+                children = _attr(ax_elem, kAXChildrenAttribute) or []
+                kids = []
+                for i, child in enumerate(children):
+                    if i >= max_children: break
+                    kids.append(_node(child, depth-1))
+                if kids: node['children'] = kids
+            except Exception:
+                pass
+            return node
+
+        system = AXUIElementCreateSystemWide()
+        focused_app = AXUIElementCopyAttributeValue(system, kAXFocusedApplicationAttribute)
+        app_name = NSWorkspace.sharedWorkspace().frontmostApplication().localizedName() if NSWorkspace.sharedWorkspace().frontmostApplication() else ''
+
+        windows = _attr(focused_app, kAXWindowsAttribute) if focused_app else []
+        root_kids = []
+        for i, w in enumerate(windows or []):
+            if i >= 5: break
+            root_kids.append(_node(w, max_depth))
+
+        return {
+            'platform': 'macos',
+            'target': target,
+            'app': str(app_name or ''),
+            'timestamp': subprocess.run(["date", "+%Y-%m-%dT%H:%M:%S"], capture_output=True, text=True).stdout.strip(),
+            'elements': [{ 'role': 'AXApplication', 'label': str(app_name or ''), 'children': root_kids }]
+        }
 
     def _capture_via_jxa(self, target: str, max_depth: int = 2, max_children: int = 25) -> Dict[str, Any]:
         """Capture UI tree using JXA and System Events, returning parsed JSON."""
