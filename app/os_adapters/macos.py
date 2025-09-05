@@ -61,21 +61,97 @@ class MacOSAdapter(OSAdapter):
             raise RuntimeError(f"Screenshot failed: {e}")
 
     def capture_screen_schema(self, target: str = "frontmost") -> Dict[str, Any]:
-        """Capture accessibility hierarchy using macOS AX API.
+        """Capture accessibility hierarchy using macOS Accessibility.
 
-        Note: This is a placeholder implementation. Full AX API integration
-        would require PyObjC and Cocoa/ApplicationServices frameworks.
+        Priority:
+          1) PyObjC (if available) for AX API (not bundled here)
+          2) JXA (JavaScript for Automation) via osascript to query System Events
+
+        Returns a structured schema with limited depth/children for performance.
         """
-        # TODO: Implement full AX API integration
-        # For now, return a basic structure that can be expanded
-        return {
-            "platform": "macos",
-            "target": target,
-            "timestamp": subprocess.run(["date", "+%Y-%m-%dT%H:%M:%S"],
-                                        capture_output=True, text=True).stdout.strip(),
-            "elements": [],
-            "implementation_note": "Placeholder - requires PyObjC for full AX API access"
-        }
+        # Attempt JXA first (robust JSON output)
+        try:
+            return self._capture_via_jxa(target=target, max_depth=2, max_children=25)
+        except Exception as e:
+            # Fallback: minimal AppleScript metadata
+            try:
+                ts = subprocess.run(["date", "+%Y-%m-%dT%H:%M:%S"], capture_output=True, text=True).stdout.strip()
+            except Exception:
+                ts = ""
+            return {
+                "platform": "macos",
+                "target": target,
+                "timestamp": ts,
+                "elements": [],
+                "error": f"AX capture failed: {e}",
+                "implementation_note": "Using fallback; ensure System Events accessibility and screen recording permissions are granted."
+            }
+
+    def _capture_via_jxa(self, target: str, max_depth: int = 2, max_children: int = 25) -> Dict[str, Any]:
+        """Capture UI tree using JXA and System Events, returning parsed JSON."""
+        jxa = f'''(function() {{
+          ObjC.import('stdlib');
+          const se = Application('System Events');
+          se.includeStandardAdditions = true;
+          function boundsOf(ui) {{
+            try { const p = ui.position(); const s = ui.size(); return {{} , x:p[0], y:p[1], width:s[0], height:s[1] }; } catch (e) { return null; }
+          }
+          function node(ui, depth) {{
+            var obj = {{} };
+            try { obj.role = ui.role(); } catch (e) { obj.role = 'UIElement'; }
+            try { obj.subrole = ui.subrole(); } catch (e) {}
+            try { obj.label = ui.name(); } catch (e) {}
+            try { obj.value = ui.value(); } catch (e) {}
+            try { obj.description = ui.description(); } catch (e) {}
+            obj.bounds = boundsOf(ui);
+            if (depth <= 0) return obj;
+            var kids = [];
+            try {
+              const children = ui.UIElements();
+              const n = Math.min(children.length, {max_children});
+              for (var i=0;i<n;i++) { kids.push(node(children[i], depth-1)); }
+            } catch (e) {}
+            if (kids.length) obj.children = kids;
+            return obj;
+          }
+          var appName = '';
+          var windows = [];
+          try {
+            const proc = se.processes.whose({{ frontmost: {{ _equals: true }} }}).first();
+            appName = proc.name();
+            const wins = proc.windows();
+            const limit = Math.min(wins.length, 5);
+            for (var i=0;i<limit;i++) {
+              const w = wins[i];
+              var wobj = {{} };
+              try { wobj.role = w.role(); } catch (e) { wobj.role = 'AXWindow'; }
+              try { wobj.label = w.name(); } catch (e) {}
+              try { const p = w.position(); const s = w.size(); wobj.bounds = {{} , x:p[0], y:p[1], width:s[0], height:s[1] }; } catch (e) {}
+              // children
+              try {
+                const elems = w.UIElements();
+                const n = Math.min(elems.length, {max_children});
+                var kids = [];
+                for (var j=0;j<n;j++) { kids.push(node(elems[j], {max_depth})); }
+                if (kids.length) wobj.children = kids;
+              } catch (e) {}
+              windows.push(wobj);
+            }
+          } catch (e) {}
+          const out = {{
+            platform: 'macos',
+            target: '{target}',
+            app: appName,
+            timestamp: (new Date()).toISOString(),
+            elements: [ {{ role: 'AXApplication', label: appName, children: windows }} ]
+          }};
+          return JSON.stringify(out);
+        }})()'''
+        proc = subprocess.run(["osascript", "-l", "JavaScript", "-e", jxa], capture_output=True, text=True, timeout=15)
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip() or "JXA failed")
+        import json as _json
+        return _json.loads(proc.stdout.strip() or "{}")
 
     def compose_mail_draft(self, to: Iterable[str], subject: str, body: str,
                            attachments: Optional[List[str]] = None) -> Dict[str, Any]:

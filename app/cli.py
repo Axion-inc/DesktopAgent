@@ -601,6 +601,11 @@ def main():
     # List capabilities command
     manifest_subparsers.add_parser("capabilities", help="List available capabilities")
 
+    # Desktop inspect (Phase 4 helper)
+    insp = subparsers.add_parser("desktop-inspect", help="Capture desktop screenshot and schema")
+    insp.add_argument("--output-dir", dest="output_dir", help="Directory to save artifacts")
+    insp.add_argument("--target", dest="target", default="frontmost", choices=["frontmost", "screen"], help="Schema target")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -742,6 +747,17 @@ def main():
                 print(f"   {cap['description']}")
                 print(f"   Actions: {', '.join(cap['actions'])}")
                 print()
+
+    elif args.command == "desktop-inspect":
+        from .desktop.inspect import desktop_inspect
+        try:
+            res = desktop_inspect(output_dir=args.output_dir, target=args.target)
+            print("✅ Desktop inspection captured")
+            print(f"  Dir: {res['dir']}")
+            print(f"  Screenshot: {res['screenshot']}")
+            print(f"  Schema: {res['schema']}")
+        except Exception as e:
+            print(f"❌ Desktop inspection failed: {e}")
 
 
 if __name__ == "__main__":
