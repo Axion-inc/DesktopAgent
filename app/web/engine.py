@@ -80,6 +80,14 @@ class WebEngine(ABC):
         """Clean up resources"""
         pass
 
+    # Extension-first batch execution (JSON-RPC style)
+    @abstractmethod
+    def exec_batch(self, guards: Dict[str, Any], actions: List[Dict[str, Any]],
+                   evidence: Optional[Dict[str, Any]] = None,
+                   context: str = "default", **kwargs) -> Dict[str, Any]:
+        """Execute a batch of actions via engine-native transport"""
+        pass
+
 
 class PlaywrightEngine(WebEngine):
     """Playwright-based web automation engine (existing implementation)"""
@@ -155,6 +163,16 @@ class PlaywrightEngine(WebEngine):
     def close(self) -> None:
         logger.info("PlaywrightEngine: Closing web session")
         self._close_session()
+
+    def exec_batch(self, guards: Dict[str, Any], actions: List[Dict[str, Any]],
+                   evidence: Optional[Dict[str, Any]] = None,
+                   context: str = "default", **kwargs) -> Dict[str, Any]:
+        # Not supported in Playwright engine; extension-first path only
+        return {
+            "status": "error",
+            "error": "exec_batch not supported by PlaywrightEngine",
+            "engine": "playwright"
+        }
 
 
 class CDPEngine(WebEngine):
@@ -251,6 +269,25 @@ class CDPEngine(WebEngine):
                     'dataUrl': f'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jINKxgAAAABJRU5ErkJggg==',
                     'path': f.name
                 }
+        elif method == 'exec_batch':
+            # Simulate batch execution: echo back each action as success
+            actions = params.get('actions', [])
+            steps = []
+            for idx, act in enumerate(actions, start=1):
+                steps.append({
+                    'id': act.get('id', f's{idx}'),
+                    'type': act.get('type'),
+                    'status': 'success',
+                    'details': {k: v for k, v in act.items() if k not in ('id', 'type')}
+                })
+            return {
+                'batch': {
+                    'guards': params.get('guards', {}),
+                    'evidence': params.get('evidence', {}),
+                    'steps': steps
+                }
+            }
+
         else:
             return {'success': True, 'action': method}
 
@@ -597,6 +634,38 @@ class CDPEngine(WebEngine):
         
         self.active_tabs.clear()
 
+    def exec_batch(self, guards: Dict[str, Any], actions: List[Dict[str, Any]],
+                   evidence: Optional[Dict[str, Any]] = None,
+                   context: str = "default", **kwargs) -> Dict[str, Any]:
+        """Execute action batch via extension/CDP transport"""
+        try:
+            payload = {
+                'guards': guards or {},
+                'actions': actions or [],
+                'evidence': evidence or {},
+                'context': context
+            }
+            resp = self._send_cdp_message('exec_batch', payload)
+            if resp.get('success'):
+                return {
+                    'status': 'success',
+                    'engine': 'cdp',
+                    'result': resp.get('result')
+                }
+            else:
+                return {
+                    'status': 'error',
+                    'engine': 'cdp',
+                    'error': resp.get('error', 'Unknown error')
+                }
+        except Exception as e:
+            logger.error(f"CDPEngine exec_batch failed: {e}")
+            return {
+                'status': 'error',
+                'engine': 'cdp',
+                'error': str(e)
+            }
+
 
 # Engine factory and management
 
@@ -734,6 +803,14 @@ def wait_for_selector(selector: str, timeout_ms: Optional[int] = None, context: 
     """Wait for selector using current or specified engine"""
     web_engine = get_web_engine(engine)
     return web_engine.wait_for_selector(selector, timeout_ms, context, **kwargs)
+
+
+def exec_batch(guards: Dict[str, Any], actions: List[Dict[str, Any]],
+               evidence: Optional[Dict[str, Any]] = None, context: str = "default",
+               engine: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """Execute a batch of web actions via current or specified engine"""
+    web_engine = get_web_engine(engine)
+    return web_engine.exec_batch(guards, actions, evidence, context, **kwargs)
 
 
 # Migration compatibility: provide same interface as existing web_actions
