@@ -135,9 +135,40 @@ class MacOSAdapter(OSAdapter):
             role = _attr(ax_elem, kAXRoleAttribute)
             subrole = _attr(ax_elem, kAXSubroleAttribute)
             title = _attr(ax_elem, kAXTitleAttribute)
+            # Additional attributes (best-effort)
+            try:
+                from Quartz import (
+                    kAXValueAttribute, kAXEnabledAttribute, kAXFocusedAttribute,
+                    kAXHelpAttribute, kAXRoleDescriptionAttribute
+                )
+            except Exception:
+                kAXValueAttribute = kAXEnabledAttribute = kAXFocusedAttribute = None
+                kAXHelpAttribute = kAXRoleDescriptionAttribute = None
             node['role'] = str(role) if role is not None else 'UIElement'
             if subrole: node['subrole'] = str(subrole)
             if title: node['label'] = str(title)
+            if kAXRoleDescriptionAttribute:
+                rd = _attr(ax_elem, kAXRoleDescriptionAttribute)
+                if rd: node['roleDescription'] = str(rd)
+            if kAXValueAttribute:
+                val = _attr(ax_elem, kAXValueAttribute)
+                if val is not None:
+                    try:
+                        node['value'] = str(val)
+                    except Exception:
+                        pass
+            if kAXEnabledAttribute:
+                en = _attr(ax_elem, kAXEnabledAttribute)
+                if en is not None:
+                    node['enabled'] = bool(en)
+            if kAXFocusedAttribute:
+                foc = _attr(ax_elem, kAXFocusedAttribute)
+                if foc is not None:
+                    node['focused'] = bool(foc)
+            if kAXHelpAttribute:
+                hp = _attr(ax_elem, kAXHelpAttribute)
+                if hp:
+                    node['help'] = str(hp)
             rect = _to_rect(ax_elem)
             if rect: node['bounds'] = rect
             if depth <= 0:
@@ -187,6 +218,9 @@ class MacOSAdapter(OSAdapter):
             try { obj.subrole = ui.subrole(); } catch (e) {}
             try { obj.label = ui.name(); } catch (e) {}
             try { obj.value = ui.value(); } catch (e) {}
+            try { obj.enabled = ui.enabled(); } catch (e) {}
+            try { obj.focused = ui.focused(); } catch (e) {}
+            try { obj.help = ui.help(); } catch (e) {}
             try { obj.description = ui.description(); } catch (e) {}
             obj.bounds = boundsOf(ui);
             if (depth <= 0) return obj;

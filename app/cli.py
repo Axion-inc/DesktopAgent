@@ -605,6 +605,12 @@ def main():
     insp = subparsers.add_parser("desktop-inspect", help="Capture desktop screenshot and schema")
     insp.add_argument("--output-dir", dest="output_dir", help="Directory to save artifacts")
     insp.add_argument("--target", dest="target", default="frontmost", choices=["frontmost", "screen"], help="Schema target")
+    # Desktop watch
+    watchp = subparsers.add_parser("desktop-watch", help="Poll desktop schema/screenshot and report changes")
+    watchp.add_argument("--interval", type=float, default=2.0, help="Seconds between captures")
+    watchp.add_argument("--iterations", type=int, default=10, help="Number of captures")
+    watchp.add_argument("--output-dir", dest="output_dir", help="Directory to save artifacts")
+    watchp.add_argument("--target", dest="target", default="frontmost", choices=["frontmost", "screen"], help="Schema target")
 
     args = parser.parse_args()
 
@@ -758,6 +764,13 @@ def main():
             print(f"  Schema: {res['schema']}")
         except Exception as e:
             print(f"❌ Desktop inspection failed: {e}")
+
+    elif args.command == "desktop-watch":
+        from .desktop.watch import desktop_watch
+        try:
+            desktop_watch(interval_sec=args.interval, iterations=args.iterations, target=args.target, output_dir=args.output_dir)
+        except Exception as e:
+            print(f"❌ Desktop watch failed: {e}")
 
 
 if __name__ == "__main__":
