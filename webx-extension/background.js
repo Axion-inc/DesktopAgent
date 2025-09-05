@@ -131,7 +131,33 @@ class WebXBackground {
     }
 
     const results = [];
-    for (const action of actions) {
+    const state = { currentFrame: null, pierceShadow: true };
+    for (const _action of actions) {
+      const action = { ..._action };
+
+      // Stateful directives
+      if (action.type === 'frame_select') {
+        const frame = action.frame || (typeof action.index !== 'undefined' ? { index: action.index } : null);
+        if (!frame) throw new Error('frame_select requires frame selector or index');
+        state.currentFrame = frame;
+        results.push({ id: action.id, type: action.type, status: 'success', frame });
+        continue;
+      }
+      if (action.type === 'frame_clear') {
+        state.currentFrame = null;
+        results.push({ id: action.id, type: action.type, status: 'success' });
+        continue;
+      }
+      if (action.type === 'pierce_shadow') {
+        state.pierceShadow = true;
+        results.push({ id: action.id, type: action.type, status: 'success' });
+        continue;
+      }
+
+      // Default frame propagation
+      if (state.currentFrame && typeof action.frame === 'undefined') {
+        action.frame = state.currentFrame;
+      }
       let attempt = 0;
       let stepResult;
       while (true) {
