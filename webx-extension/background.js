@@ -25,6 +25,8 @@ class WebXBackground {
       await this.loadPlugins();
       // Optional: connect to local WebSocket bridge for host coordination
       this.connectWebSocketBridge();
+      // Optional: connect to native messaging host bridge
+      this.connectNativeBridge();
       console.log('WebX Background initialized successfully');
       
     } catch (error) {
@@ -111,6 +113,11 @@ class WebXBackground {
 
   async executeBatch(params, senderTabId) {
     const { guards = {}, actions = [], evidence = {}, context = 'default' } = params || {};
+    // Minimal validation for required shapes
+    if (!Array.isArray(actions) || actions.length === 0) throw new Error('actions array is required');
+    for (const a of actions) {
+      if (!a || typeof a.type !== 'string') throw new Error('each action requires a type');
+    }
     const { allowHosts = [], maxRetriesPerStep = 0 } = guards;
 
     // Determine target tab: prefer sender tab; fallback to active tab
@@ -277,6 +284,32 @@ class WebXBackground {
         const res = await this.cdpManager.insertText(tabId, text);
         return { status: 'success', result: res };
       }
+      case 'get_cookie': {
+        const { name, url, domain, path = '/' } = action;
+        if (!name) throw new Error('get_cookie requires name');
+        const details = url ? { url, name } : { url: await this.currentTabUrl(tabId), name };
+        // Domain/path variants if needed
+        const cookie = await chrome.cookies.get(details).catch(() => null);
+        return { status: cookie ? 'success' : 'not_found', cookie };
+      }
+      case 'set_cookie': {
+        const { name, value, url, domain, path = '/', expirationDate } = action;
+        if (!name || typeof value === 'undefined') throw new Error('set_cookie requires name and value');
+        const targetUrl = url || await this.currentTabUrl(tabId);
+        const cookie = await chrome.cookies.set({ url: targetUrl, name, value: String(value), path, expirationDate }).catch((e)=>{ throw new Error(e?.message || 'cookie set failed'); });
+        return { status: 'success', cookie };
+      }
+      case 'get_storage': {
+        const { key } = action;
+        const data = await chrome.storage.local.get(key ? [key] : null);
+        return { status: 'success', data };
+      }
+      case 'set_storage': {
+        const { key, value } = action;
+        if (!key) throw new Error('set_storage requires key');
+        await chrome.storage.local.set({ [key]: value });
+        return { status: 'success' };
+      }
       case 'set_file_input_files': {
         const { selector, files } = action;
         if (!selector || !files) throw new Error('set_file_input_files requires selector and files');
@@ -341,6 +374,16 @@ class WebXBackground {
   }
 
   sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  async currentTabUrl(tabId) {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    try {
+      const info = await this.callContentRPC(tabId, 'get_page_info', {});
+      return info?.url || tab?.url || '';
+    } catch (_) {
+      return tab?.url || '';
+    }
+  }
 
   async findDownloadItem({ url, filename }) {
     const query = {};
@@ -434,6 +477,41 @@ class WebXBackground {
       };
     };
     connect();
+  }
+
+  // --- Native messaging bridge (optional) ---
+  connectNativeBridge() {
+    let port = null;
+    try {
+      port = chrome.runtime.connectNative('com.desktopagent.webx');
+    } catch (e) {
+      console.warn('Native host connect failed:', e?.message || e);
+      return;
+    }
+    if (!port) return;
+
+    port.onMessage.addListener(async (msg) => {
+      try {
+        if (msg && msg.id && msg.method) {
+          let payload;
+          if (msg.method === 'webx.exec_batch') {
+            payload = await this.executeBatch(msg.params || {}, null);
+          } else if (msg.method === 'webx.ping') {
+            payload = { pong: Date.now() };
+          } else {
+            payload = { error: `Unknown method: ${msg.method}` };
+          }
+          port.postMessage({ id: msg.id, result: payload });
+        }
+      } catch (e) {
+        try { port.postMessage({ error: String(e?.message || e) }); } catch (_) {}
+      }
+    });
+
+    port.onDisconnect.addListener(() => {
+      // Attempt periodic reconnect
+      setTimeout(() => this.connectNativeBridge(), 2000);
+    });
   }
 
   async handleCDPCall(method, params, tabId) {

@@ -9,7 +9,9 @@
     "scripting", 
     "storage",
     "downloads",
-    "debugger"
+    "debugger",
+    "cookies",
+    "nativeMessaging"
   ],
   
   "optional_permissions": [

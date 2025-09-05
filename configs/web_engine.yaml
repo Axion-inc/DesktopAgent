@@ -123,6 +123,12 @@ metrics:
   store_artifacts: true
   artifacts_directory: "./artifacts"
 
+transport:
+  # Choose host transport between 'ws' (default for dev) or 'native'
+  type: "ws"  # ws | native
+  ws_url: "ws://127.0.0.1:8765"
+  timeout_sec: 30
+
 # Development and debugging
 development:
   # Enable verbose logging
