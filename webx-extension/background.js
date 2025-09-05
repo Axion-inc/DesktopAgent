@@ -70,6 +70,10 @@ class WebXBackground {
         case 'cdp_call':
           result = await this.handleCDPCall(method, params, sender.tab?.id);
           break;
+        
+        case 'exec_batch':
+          result = await this.executeBatch(params, sender.tab?.id);
+          break;
           
         case 'plugin_call':
           result = await this.handlePluginCall(method, params, sender);
@@ -102,6 +106,163 @@ class WebXBackground {
       });
     }
   }
+
+  async executeBatch(params, senderTabId) {
+    const { guards = {}, actions = [], evidence = {}, context = 'default' } = params || {};
+    const { allowHosts = [], maxRetriesPerStep = 0 } = guards;
+
+    // Determine target tab: prefer sender tab; fallback to active tab
+    const tabId = await this.resolveTargetTabId(senderTabId);
+    if (!tabId) throw new Error('No target tab available');
+
+    // Host guard check (if allowHosts specified)
+    if (allowHosts.length > 0) {
+      const info = await this.callContentRPC(tabId, 'get_page_info', {});
+      try {
+        const url = new URL(info.url);
+        if (!allowHosts.some(h => url.hostname.endsWith(h))) {
+          throw new Error(`Host not allowed: ${url.hostname}`);
+        }
+      } catch (e) {
+        throw new Error(`Invalid page URL for host guard: ${(e && e.message) || e}`);
+      }
+    }
+
+    const results = [];
+    for (const action of actions) {
+      let attempt = 0;
+      let stepResult;
+      while (true) {
+        try {
+          stepResult = await this.executeSingleAction(tabId, action);
+          break;
+        } catch (err) {
+          if (attempt < maxRetriesPerStep) {
+            attempt += 1;
+            await this.sleep(200 + 200 * attempt);
+            continue;
+          }
+          stepResult = { status: 'error', error: err?.message || String(err) };
+          break;
+        }
+      }
+
+      // Evidence capture
+      if (evidence && evidence.screenshotEach === true) {
+        try {
+          const shot = await this.cdpManager.takeScreenshot(tabId, { format: 'png' });
+          stepResult.evidence = stepResult.evidence || {};
+          stepResult.evidence.screenshot = shot?.dataUrl || shot;
+        } catch (e) {
+          // Non-fatal
+        }
+      }
+      if (evidence && evidence.domSchemaEach === true) {
+        try {
+          const schema = await this.callContentRPC(tabId, 'get_dom_schema', {});
+          stepResult.evidence = stepResult.evidence || {};
+          stepResult.evidence.domSchema = schema?.schema || schema;
+        } catch (e) {
+          // Non-fatal
+        }
+      }
+
+      results.push({ id: action.id, type: action.type, ...stepResult });
+    }
+
+    return {
+      context,
+      steps: results,
+      finishedAt: Date.now()
+    };
+  }
+
+  async executeSingleAction(tabId, action) {
+    const type = action?.type;
+    switch (type) {
+      case 'goto': {
+        const url = action.url;
+        if (!url) throw new Error('goto requires url');
+        await this.navigateTab(tabId, url);
+        return { status: 'success', url };
+      }
+      case 'fill_by_label': {
+        const { label, text, selector } = action;
+        if (!label && !selector) throw new Error('fill_by_label requires label or selector');
+        const res = await this.callContentRPC(tabId, 'fill_input', { label, selector, text });
+        return { status: 'success', result: res };
+      }
+      case 'click_by_text': {
+        const { text, role, selector } = action;
+        if (!text && !selector) throw new Error('click_by_text requires text or selector');
+        const res = await this.callContentRPC(tabId, 'click_element', { text, role, selector });
+        return { status: 'success', result: res };
+      }
+      case 'wait_for_text': {
+        const { contains, role, timeoutMs = 8000 } = action;
+        if (!contains) throw new Error('wait_for_text requires contains');
+        const res = await this.callContentRPC(tabId, 'wait_for_element', { text: contains, role, timeout: timeoutMs });
+        if (!res?.found) throw new Error('Text not found');
+        return { status: 'success', result: res };
+      }
+      default:
+        throw new Error(`Unsupported action type: ${type}`);
+    }
+  }
+
+  async callContentRPC(tabId, method, params) {
+    return new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(tabId, { type: 'execute_rpc', method, params }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (!response) {
+          reject(new Error('No response from content script'));
+          return;
+        }
+        if (response.error) {
+          reject(new Error(response.error));
+        } else {
+          resolve(response.result);
+        }
+      });
+    });
+  }
+
+  async navigateTab(tabId, url) {
+    await chrome.tabs.update(tabId, { url });
+    // Wait for complete
+    await this.waitForTabComplete(tabId, 20000);
+  }
+
+  async resolveTargetTabId(senderTabId) {
+    if (senderTabId) return senderTabId;
+    const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return active?.id || null;
+  }
+
+  async waitForTabComplete(tabId, timeoutMs = 20000) {
+    const start = Date.now();
+    return new Promise((resolve, reject) => {
+      const listener = (updatedTabId, changeInfo) => {
+        if (updatedTabId === tabId && changeInfo.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(listener);
+          resolve(true);
+        }
+      };
+      chrome.tabs.onUpdated.addListener(listener);
+      const timer = setInterval(() => {
+        if (Date.now() - start > timeoutMs) {
+          try { chrome.tabs.onUpdated.removeListener(listener); } catch (e) {}
+          clearInterval(timer);
+          reject(new Error('Navigation timeout'));
+        }
+      }, 500);
+    });
+  }
+
+  sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   async handleCDPCall(method, params, tabId) {
     // Validate security permissions
