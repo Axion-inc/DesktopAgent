@@ -245,6 +245,26 @@ class WebXBackground {
         if (!res?.found) throw new Error('Text not found');
         return { status: 'success', result: res };
       }
+      case 'download_file': {
+        const { url, filename } = action;
+        if (!url) throw new Error('download_file requires url');
+        const id = await chrome.downloads.download({ url, filename });
+        return { status: 'success', downloadId: id };
+      }
+      case 'wait_for_download': {
+        const { url, filename, timeoutMs = 30000 } = action;
+        const item = await this.waitForDownloadComplete({ url, filename, timeoutMs });
+        if (!item) throw new Error('Download not completed within timeout');
+        return { status: 'success', item };
+      }
+      case 'assert_file_exists': {
+        const { url, filename } = action;
+        const item = await this.findDownloadItem({ url, filename });
+        if (!item || item.state !== 'complete') {
+          throw new Error(`Downloaded file not found or incomplete: ${filename || url || ''}`);
+        }
+        return { status: 'success', item };
+      }
       case 'precise_click': {
         const { x, y } = action;
         if (typeof x !== 'number' || typeof y !== 'number') throw new Error('precise_click requires numeric x,y');
@@ -321,6 +341,58 @@ class WebXBackground {
   }
 
   sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  async findDownloadItem({ url, filename }) {
+    const query = {};
+    if (url) query.urlRegex = this.escapeRegex(url);
+    const items = await chrome.downloads.search(query);
+    if (filename) {
+      const matched = items.find(i => (i.filename || '').toLowerCase().includes(String(filename).toLowerCase()));
+      return matched || null;
+    }
+    return items[0] || null;
+  }
+
+  async waitForDownloadComplete({ url, filename, timeoutMs = 30000 }) {
+    const start = Date.now();
+    // First, try current items
+    const existing = await this.findDownloadItem({ url, filename });
+    if (existing && existing.state === 'complete') return existing;
+
+    return new Promise((resolve, reject) => {
+      const onChanged = async (delta) => {
+        try {
+          if (!delta || !delta.id) return;
+          const items = await chrome.downloads.search({ id: delta.id });
+          const item = items && items[0];
+          if (!item) return;
+          const nameMatch = filename ? (item.filename || '').toLowerCase().includes(String(filename).toLowerCase()) : true;
+          const urlMatch = url ? String(item.url || '').includes(url) : true;
+          if (nameMatch && urlMatch && item.state === 'complete') {
+            cleanup();
+            resolve(item);
+          }
+        } catch (e) {
+          // ignore
+        }
+      };
+      const timer = setInterval(async () => {
+        if (Date.now() - start > timeoutMs) {
+          cleanup();
+          resolve(null);
+        }
+      }, 500);
+      const cleanup = () => {
+        try { chrome.downloads.onChanged.removeListener(onChanged); } catch (_) {}
+        clearInterval(timer);
+      };
+      chrome.downloads.onChanged.addListener(onChanged);
+    });
+  }
+
+  escapeRegex(s) {
+    try { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); } catch (_) { return s; }
+  }
 
   // --- WebSocket bridge to DesktopAgent host (optional) ---
   connectWebSocketBridge() {
