@@ -273,9 +273,15 @@ class WebXBackground {
         return { status: 'success', item };
       }
       case 'precise_click': {
-        const { x, y } = action;
-        if (typeof x !== 'number' || typeof y !== 'number') throw new Error('precise_click requires numeric x,y');
-        const res = await this.cdpManager.clickByCoordinates(tabId, x, y);
+        const { x, y, selector, text, role, frame } = action;
+        let res;
+        if (typeof x === 'number' && typeof y === 'number') {
+          res = await this.cdpManager.clickByCoordinates(tabId, x, y);
+        } else if (selector || text) {
+          res = await this.cdpManager.clickElementCenter(tabId, selector || null, { text, role, frame });
+        } else {
+          throw new Error('precise_click requires x,y or selector/text');
+        }
         return { status: 'success', result: res };
       }
       case 'insert_text': {
@@ -287,27 +293,53 @@ class WebXBackground {
       case 'get_cookie': {
         const { name, url, domain, path = '/' } = action;
         if (!name) throw new Error('get_cookie requires name');
-        const details = url ? { url, name } : { url: await this.currentTabUrl(tabId), name };
-        // Domain/path variants if needed
+        let targetUrl = url;
+        if (!targetUrl) {
+          if (domain) {
+            const scheme = 'https://';
+            targetUrl = scheme + (domain.startsWith('.') ? domain.slice(1) : domain) + path;
+          } else {
+            targetUrl = await this.currentTabUrl(tabId);
+          }
+        }
+        const details = { url: targetUrl, name };
         const cookie = await chrome.cookies.get(details).catch(() => null);
         return { status: cookie ? 'success' : 'not_found', cookie };
       }
       case 'set_cookie': {
-        const { name, value, url, domain, path = '/', expirationDate } = action;
+        const { name, value, url, domain, path = '/', expirationDate, httpOnly, secure, sameSite } = action;
         if (!name || typeof value === 'undefined') throw new Error('set_cookie requires name and value');
-        const targetUrl = url || await this.currentTabUrl(tabId);
-        const cookie = await chrome.cookies.set({ url: targetUrl, name, value: String(value), path, expirationDate }).catch((e)=>{ throw new Error(e?.message || 'cookie set failed'); });
+        let targetUrl = url;
+        if (!targetUrl) {
+          const base = await this.currentTabUrl(tabId);
+          try {
+            const u = new URL(base);
+            const host = domain || u.hostname;
+            targetUrl = `${u.protocol}//${host}${path}`;
+          } catch (_) {
+            targetUrl = 'https://' + (domain || 'localhost') + path;
+          }
+        }
+        const details = { url: targetUrl, name, value: String(value), path };
+        if (typeof expirationDate === 'number') details.expirationDate = expirationDate;
+        if (typeof httpOnly === 'boolean') details.httpOnly = httpOnly;
+        if (typeof secure === 'boolean') details.secure = secure;
+        if (typeof sameSite === 'string') details.sameSite = sameSite;
+        if (domain) details.domain = domain;
+        const cookie = await chrome.cookies.set(details).catch((e)=>{ throw new Error(e?.message || 'cookie set failed'); });
         return { status: 'success', cookie };
       }
       case 'get_storage': {
-        const { key } = action;
-        const data = await chrome.storage.local.get(key ? [key] : null);
+        const { key, area = 'local' } = action;
+        const store = (area === 'sync' ? chrome.storage.sync : chrome.storage.local);
+        const data = await store.get(key ? [key] : null);
         return { status: 'success', data };
       }
       case 'set_storage': {
-        const { key, value } = action;
+        const { key, value, area = 'local' } = action;
         if (!key) throw new Error('set_storage requires key');
-        await chrome.storage.local.set({ [key]: value });
+        const store = (area === 'sync' ? chrome.storage.sync : chrome.storage.local);
+        await store.set({ [key]: value });
         return { status: 'success' };
       }
       case 'set_file_input_files': {

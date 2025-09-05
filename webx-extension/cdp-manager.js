@@ -451,6 +451,25 @@ class CDPManager {
     }
   }
 
+  async clickElementCenter(tabId, selector, options = {}) {
+    try {
+      await this.attachToTab(tabId);
+      const element = await this.findElement(tabId, selector, options);
+      if (!element) throw new Error(`Element not found: ${JSON.stringify({ selector, ...options })}`);
+      const box = await this.sendCommand(tabId, 'DOM.getBoxModel', { nodeId: element.nodeId });
+      const quad = (box && (box.content || box.margin || box.border)) || null;
+      if (!quad || quad.length < 8) throw new Error('No box model');
+      const xs = [quad[0], quad[2], quad[4], quad[6]];
+      const ys = [quad[1], quad[3], quad[5], quad[7]];
+      const cx = Math.round(xs.reduce((a,b)=>a+b,0) / xs.length);
+      const cy = Math.round(ys.reduce((a,b)=>a+b,0) / ys.length);
+      return await this.clickByCoordinates(tabId, cx, cy);
+    } catch (error) {
+      console.error('Failed to click element center:', error);
+      throw error;
+    }
+  }
+
   // Event handling for DOM changes
   onDocumentUpdated(tabId) {
     console.log(`Document updated in tab ${tabId}, rebuilding DOM tree...`);
