@@ -23,6 +23,8 @@ class WebXBackground {
     try {
       await this.cdpManager.initialize();
       await this.loadPlugins();
+      // Optional: connect to local WebSocket bridge for host coordination
+      this.connectWebSocketBridge();
       console.log('WebX Background initialized successfully');
       
     } catch (error) {
@@ -263,6 +265,48 @@ class WebXBackground {
   }
 
   sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // --- WebSocket bridge to DesktopAgent host (optional) ---
+  connectWebSocketBridge() {
+    const url = (self.WEBX_WS_URL || 'ws://127.0.0.1:8765');
+    let ws;
+    const connect = () => {
+      try {
+        ws = new WebSocket(url);
+      } catch (e) {
+        setTimeout(connect, 1500);
+        return;
+      }
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'hello', role: 'extension' }));
+      };
+      ws.onmessage = async (event) => {
+        try {
+          const msg = JSON.parse(event.data || '{}');
+          if (msg && msg.id && msg.method) {
+            let payload;
+            if (msg.method === 'webx.exec_batch') {
+              payload = await this.executeBatch(msg.params || {}, null);
+            } else if (msg.method === 'webx.ping') {
+              payload = { pong: Date.now() };
+            } else {
+              payload = { error: `Unknown method: ${msg.method}` };
+            }
+            ws.send(JSON.stringify({ id: msg.id, result: payload }));
+          }
+        } catch (e) {
+          try { ws.send(JSON.stringify({ error: String(e?.message || e) })); } catch (_) {}
+        }
+      };
+      ws.onclose = () => {
+        setTimeout(connect, 1500);
+      };
+      ws.onerror = () => {
+        try { ws.close(); } catch (e) {}
+      };
+    };
+    connect();
+  }
 
   async handleCDPCall(method, params, tabId) {
     // Validate security permissions

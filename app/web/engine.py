@@ -212,6 +212,25 @@ class CDPEngine(WebEngine):
     def _send_cdp_message(self, method: str, params: Dict[str, Any], tab_id: Optional[int] = None) -> Dict[str, Any]:
         """Send message to Chrome extension via CDP bridge"""
         try:
+            # Optional WebSocket bridge to real extension
+            try:
+                import os
+                if os.environ.get('WEBX_WS_BRIDGE_ENABLE', '0') == '1':
+                    from .ws_bridge import start as ws_start, is_connected, send_request
+                    ws_start()
+                    if is_connected():
+                        payload = dict(params)
+                        if tab_id is not None:
+                            payload['tab_id'] = tab_id
+                        result = send_request(
+                            'webx.' + method if not method.startswith('webx.') else method,
+                            payload,
+                            timeout=float(os.environ.get('WEBX_WS_TIMEOUT', '30')),
+                        )
+                        return {'success': True, 'result': result, 'id': int(time.time()*1000), 'engine': 'cdp'}
+            except Exception:
+                # Fall back to mock if bridge not available
+                pass
             message = {
                 'type': 'cdp_call',
                 'method': method,
