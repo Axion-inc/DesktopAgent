@@ -139,6 +139,9 @@ class WebXBackground {
 
     const results = [];
     const state = { currentFrame: null, pierceShadow: true };
+    // Baseline page info for change detection
+    let baseline = null;
+    try { baseline = await this.callContentRPC(tabId, 'get_page_info', {}); } catch (_) {}
     for (const _action of actions) {
       const action = { ..._action };
 
@@ -203,6 +206,38 @@ class WebXBackground {
       }
 
       results.push({ id: action.id, type: action.type, ...stepResult });
+
+      // Page change detection: if URL changed, interrupt remaining steps
+      const maybeNavAction = (action.type === 'goto' || action.type === 'click_by_text' || action.type === 'precise_click');
+      let changed = false;
+      try {
+        // For actions that may navigate, allow short stabilization window
+        if (maybeNavAction && baseline && baseline.url) {
+          const nav = await this.waitForPossibleNavigation(tabId, baseline.url, 2000);
+          changed = nav?.changed || false;
+          if (changed) baseline = nav.info;
+        }
+        if (!changed) {
+          const info = await this.callContentRPC(tabId, 'get_page_info', {});
+          if (baseline && info && info.url && baseline.url && info.url !== baseline.url) {
+            changed = true;
+            baseline = info;
+          }
+        }
+      } catch (_) { /* ignore */ }
+
+      if (changed) {
+        return {
+          context,
+          steps: results,
+          interrupted: {
+            reason: 'page_changed',
+            atStepId: action.id,
+            toUrl: baseline?.url || null
+          },
+          finishedAt: Date.now()
+        };
+      }
     }
 
     return {
@@ -406,6 +441,22 @@ class WebXBackground {
   }
 
   sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  async waitForPossibleNavigation(tabId, prevUrl, timeoutMs = 2000) {
+    const start = Date.now();
+    let last = null;
+    while (Date.now() - start < timeoutMs) {
+      try {
+        const info = await this.callContentRPC(tabId, 'get_page_info', {});
+        last = info;
+        if (info && info.url && info.url !== prevUrl) {
+          return { changed: true, info };
+        }
+      } catch (_) {}
+      await this.sleep(150);
+    }
+    return { changed: false, info: last };
+  }
 
   async currentTabUrl(tabId) {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

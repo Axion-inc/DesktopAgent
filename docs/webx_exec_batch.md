@@ -30,6 +30,12 @@ This document describes the batch JSON used to drive Chrome extension execution 
 - `screenshotEach`: capture screenshot after each step
 - `domSchemaEach`: capture simplified DOM schema after each step
 
+## Early Interruption on Page Change
+- After each step, the extension checks if the page URL changed.
+- If a change is detected (including after `goto`, `click_by_text`, `precise_click`), the batch is interrupted and returns partial results with:
+  - `interrupted: { reason: 'page_changed', atStepId, toUrl }`
+- The desktop side should re-perceive and re-plan on interruption.
+
 ## Schema
 See `schemas/webx_exec_batch.schema.json` for a machine-readable JSON Schema.
 
@@ -45,4 +51,3 @@ See `schemas/webx_exec_batch.schema.json` for a machine-readable JSON Schema.
 export WEBX_WS_BRIDGE_ENABLE=1
 python scripts/webx_exec.py  # or provide --json PATH
 ```
-
