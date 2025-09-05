@@ -613,7 +613,7 @@ def get_web_engine(engine_type: Optional[str] = None) -> WebEngine:
         if engine_type is None:
             config = get_config()
             web_config = config.get('web_engine', {})
-            engine_type = web_config.get('engine', 'playwright')  # Default to playwright
+            engine_type = web_config.get('engine', 'cdp')  # Default to CDP/extension
 
         # Create engine if needed or type changed
         if (_current_engine is None or

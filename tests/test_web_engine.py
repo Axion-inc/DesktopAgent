@@ -666,10 +666,10 @@ class TestEngineFactory:
     """Test engine factory and management functions"""
 
     def test_get_web_engine_default(self):
-        """Test get_web_engine returns PlaywrightEngine by default"""
+        """Test get_web_engine returns CDPEngine by default"""
         with patch('app.web.engine.get_config', return_value={}):
             engine = get_web_engine()
-            assert isinstance(engine, PlaywrightEngine)
+            assert isinstance(engine, CDPEngine)
 
     def test_get_web_engine_playwright(self):
         """Test get_web_engine creates PlaywrightEngine when configured"""

@@ -22,9 +22,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Install Playwright (Python)
-        run: |
-          python -m playwright install --with-deps chromium
+      # Playwright is optional and not needed for unit tests
       - name: Lint (targeted subset)
         run: |
           # Lint only critical/touched modules to keep CI lightweight
