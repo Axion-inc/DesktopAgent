@@ -19,6 +19,7 @@ def _find_synonym(goal: str, present_labels: List[str]) -> tuple[str, float] | N
 
 def _collect_labels(schema: Dict[str, Any]) -> List[str]:
     labels: List[str] = []
+
     def walk(node: Dict[str, Any]):
         lbl = node.get('label') or node.get('text')
         if isinstance(lbl, str):

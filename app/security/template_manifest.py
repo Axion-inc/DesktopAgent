@@ -262,7 +262,11 @@ class ManifestManager:
             warnings=warnings,
         )
 
-    def check_capability_compliance(self, manifest: Dict[str, Any], template_content: str) -> Tuple[bool, List[str], List[str]]:
+    def check_capability_compliance(
+        self,
+        manifest: Dict[str, Any],
+        template_content: str,
+    ) -> Tuple[bool, List[str], List[str]]:
         """Check that declared capabilities/risk_flags match the template content.
 
         Returns:
