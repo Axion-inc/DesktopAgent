@@ -13,3 +13,6 @@ Adoption Policy:
 
 Execution remains DSL-only; no new dangerous steps are added automatically.
 
+Adoption Policy:
+- Default: `low_risk_auto=true`, `min_confidence=0.85` in memory; can be overridden via `configs/policy.yaml` under `adopt_policy`.
+- Auto-adopt edits result are persisted per-step as artifacts (`artifacts/patches/run_{id}_step_{idx}_patch.json`) and reflected in run step output.

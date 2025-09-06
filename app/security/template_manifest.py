@@ -8,7 +8,7 @@ import yaml
 import hashlib
 import re
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -214,6 +214,14 @@ class ManifestManager:
             logger.error(f"Failed to generate manifest for {template_path}: {e}")
             raise ManifestValidationError(f"Manifest generation failed: {e}")
 
+    def generate_manifest_from_template(self, template_path: Path) -> Tuple[bool, str, str]:
+        """Compatibility helper used by CLI: generate manifest and return (ok, msg, path)."""
+        try:
+            path = self.generate_manifest(template_path)
+            return True, "Generated manifest", str(path)
+        except Exception as e:
+            return False, str(e), ""
+
     def validate_manifest(self, manifest_data: Dict[str, Any]) -> ValidationResult:
         """Validate manifest against schema"""
         errors = []
@@ -253,6 +261,41 @@ class ManifestManager:
             error_message=error_message,
             warnings=warnings,
         )
+
+    def check_capability_compliance(self, manifest: Dict[str, Any], template_content: str) -> Tuple[bool, List[str], List[str]]:
+        """Check that declared capabilities/risk_flags match the template content.
+
+        Returns:
+            (compliant, violations, warnings)
+        """
+        violations: List[str] = []
+        warnings: List[str] = []
+
+        try:
+            actual_caps = set(self.capability_analyzer.detect_capabilities(template_content))
+        except Exception:
+            actual_caps = set()
+        declared_caps = set(manifest.get("required_capabilities", []))
+
+        missing_caps = actual_caps - declared_caps
+        extra_caps = declared_caps - actual_caps
+        for c in sorted(missing_caps):
+            violations.append(f"{c} capability required but not declared in manifest")
+        for c in sorted(extra_caps):
+            warnings.append(f"{c} capability declared but not used in template")
+
+        try:
+            actual_risks = set(self.capability_analyzer.detect_risk_flags(template_content))
+        except Exception:
+            actual_risks = set()
+        declared_risks = set(manifest.get("risk_flags", []))
+
+        missing_risks = actual_risks - declared_risks
+        for r in sorted(missing_risks):
+            violations.append(f"Risk flag '{r}' detected but not declared in manifest")
+
+        compliant = len(violations) == 0
+        return compliant, violations, warnings
 
     def validate_template_manifest_match(
         self, template_content: str, manifest_data: Dict[str, Any]
@@ -313,6 +356,18 @@ class ManifestManager:
     def _calculate_template_hash(self, template_content: str) -> str:
         """Calculate SHA256 hash of template content"""
         return hashlib.sha256(template_content.encode('utf-8')).hexdigest()
+
+
+# Singleton accessor for ManifestManager (used by CLI)
+_manifest_manager_instance: Optional[ManifestManager] = None
+
+
+def get_manifest_manager() -> ManifestManager:
+    """Return a process-wide singleton ManifestManager instance"""
+    global _manifest_manager_instance
+    if _manifest_manager_instance is None:
+        _manifest_manager_instance = ManifestManager()
+    return _manifest_manager_instance
 
 
 # CLI commands for manifest management

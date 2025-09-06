@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 from fastapi import FastAPI, Form, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from .utils import get_logger
 from .metrics import compute_metrics
 from .models import init_db
@@ -468,6 +468,73 @@ def plans_intent():
         """
     )
 
+@app.get("/mock/iframe", response_class=HTMLResponse)
+def mock_iframe_page():
+    html = """
+    <!DOCTYPE html>
+    <html lang=\"ja\">
+      <head>
+        <meta charset=\"utf-8\" />
+        <title>iframeデモ</title>
+        <style>body{font-family: system-ui; padding:16px}</style>
+      </head>
+      <body>
+        <h1>iframeデモ</h1>
+        <iframe src=\"/mock/iframe_inner\" width=\"600\" height=\"300\" title=\"inner\"></iframe>
+      </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
+
+@app.get("/mock/iframe_inner", response_class=HTMLResponse)
+def mock_iframe_inner():
+    html = """
+    <!DOCTYPE html>
+    <html lang=\"ja\">
+      <head>
+        <meta charset=\"utf-8\" />
+        <title>内側フレーム</title>
+      </head>
+      <body>
+        <div id=\"content\">内側フレームのコンテンツ</div>
+        <button id=\"go\" type=\"button\" onclick=\"document.getElementById('content').innerText='送信完了'; this.disabled=true;\">送信</button>
+      </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
+
+@app.get("/mock/shadow", response_class=HTMLResponse)
+def mock_shadow_page():
+    html = """
+    <!DOCTYPE html>
+    <html lang=\"ja\">
+      <head>
+        <meta charset=\"utf-8\" />
+        <title>Shadow DOM デモ</title>
+        <style>body{font-family: system-ui; padding:16px}</style>
+      </head>
+      <body>
+        <h1>Shadow DOM デモ</h1>
+        <div id=\"shadow-host\"></div>
+        <script>
+          const host = document.getElementById('shadow-host');
+          const root = host.attachShadow({mode: 'open'});
+          const btn = document.createElement('button');
+          btn.textContent = '送信';
+          btn.onclick = () => {
+            const msg = document.createElement('div');
+            msg.id = 'result';
+            msg.textContent = '送信完了';
+            root.appendChild(msg);
+            btn.disabled = true;
+          };
+          root.appendChild(btn);
+        </script>
+      </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
+
 
 @app.get("/public/dashboard", response_class=HTMLResponse)
 def public_dashboard():
@@ -579,3 +646,135 @@ def webx_marketplace(request: Request):
     """WebX Plugin Marketplace UI (legacy redirect)"""
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/market", status_code=301)
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard():
+    try:
+        metrics = compute_metrics()
+    except Exception:
+        metrics = {}
+    html = templates.TemplateResponse("dashboard.html", {"request": {}, "metrics": metrics})
+    return html
+
+
+@app.get("/runs/{run_id}", response_class=HTMLResponse)
+async def run_detail(run_id: int):
+    from .models import get_run, get_run_steps, list_deviations_for_run
+    run = get_run(run_id)
+    if not run:
+        return HTMLResponse(content=f"<h3>Run {run_id} not found</h3>", status_code=404)
+    steps = get_run_steps(run_id)
+    # Load planner patch artifacts if exist
+    import glob, json
+    artifacts = []
+    for p in glob.glob(f"artifacts/patches/run_{run_id}_step_*_patch.json"):
+        try:
+            with open(p, 'r', encoding='utf-8') as f:
+                artifacts.append(json.load(f))
+        except Exception:
+            continue
+    # Extract policy_guard summary
+    autopilot = False
+    pol_reason = None
+    try:
+        for s in steps:
+            if s["name"] == "policy_guard" and s["output_json"]:
+                pj = json.loads(s["output_json"]) if isinstance(s["output_json"], str) else s["output_json"]
+                autopilot = bool(pj.get("autopilot", False))
+                pol_reason = pj.get("reason")
+                break
+    except Exception:
+        pass
+    # Load policy details
+    policy = {}
+    try:
+        import yaml
+        from pathlib import Path as _P
+        pol_path = _P('configs/policy.yaml')
+        if pol_path.exists():
+            policy = yaml.safe_load(pol_path.read_text(encoding='utf-8')) or {}
+    except Exception:
+        policy = {}
+
+    # Load deviations for display
+    try:
+        deviations = [dict(d) for d in list_deviations_for_run(run_id)]
+    except Exception:
+        deviations = []
+
+    return templates.TemplateResponse("run_detail.html", {
+        "request": {},
+        "run": dict(run),
+        "steps": [dict(s) for s in steps],
+        "artifacts": artifacts,
+        "autopilot": autopilot,
+        "policy_reason": pol_reason,
+        "policy": policy,
+        "deviations": deviations,
+    })
+
+
+@app.get("/metrics", response_class=JSONResponse)
+async def metrics_endpoint():
+    try:
+        data = compute_metrics()
+        return JSONResponse(content=data)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@app.get("/paused", response_class=HTMLResponse)
+async def paused_runs():
+    try:
+        from app.orchestrator.resume import list_paused_runs_summary
+        paused = list_paused_runs_summary()
+    except Exception:
+        paused = []
+    html = """
+    <html><head><meta charset='utf-8'><title>Paused Runs</title></head>
+    <body><h2>Paused Runs</h2><ul>
+    {items}
+    </ul></body></html>
+    """.format(items=''.join(
+        f"<li>Run {p.get('run_id')} at step {p.get('step_index')} — reason: {p.get('reason')} — {p.get('created_at')}</li>"
+        for p in paused
+    ))
+    return HTMLResponse(content=html)
+
+# Phase 7: Deviations + Policy checks APIs
+
+@app.get("/api/runs/{run_id}/deviations")
+async def api_list_deviations(run_id: int, current_user: RBACUser = Depends(get_current_user)):
+    try:
+        from app.models import list_deviations_for_run
+        devs = list_deviations_for_run(run_id)
+        return {"run_id": run_id, "deviations": [dict(r) for r in devs]}
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/api/runs/{run_id}/policy-checks")
+async def api_policy_checks(run_id: int, current_user: RBACUser = Depends(get_current_user)):
+    try:
+        from app.models import get_conn
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT output_json FROM run_steps
+            WHERE run_id = ? AND name = 'policy_guard'
+            ORDER BY id DESC LIMIT 1
+            """,
+            (run_id,)
+        )
+        row = cur.fetchone()
+        conn.close()
+        if not row:
+            return {"run_id": run_id, "checks": {}}
+        import json
+        try:
+            data = json.loads(row[0] or "{}")
+        except Exception:
+            data = {}
+        return {"run_id": run_id, "checks": data.get("checks", {}), "raw": data}
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")

@@ -32,6 +32,24 @@ def _collect_labels(schema: Dict[str, Any]) -> List[str]:
     return labels
 
 
+def _similar(a: str, b: str) -> float:
+    """Compute a simple similarity score between two strings (0..1)."""
+    if not a or not b:
+        return 0.0
+    a = a.strip()
+    b = b.strip()
+    if a == b:
+        return 1.0
+    # normalized longest common substring length as proxy
+    best = 0
+    for i in range(len(a)):
+        for j in range(i + 1, len(a) + 1):
+            sub = a[i:j]
+            if sub and sub in b and len(sub) > best:
+                best = len(sub)
+    return best / max(len(a), len(b))
+
+
 def propose_patches(schema: Dict[str, Any], failure: Dict[str, Any]) -> Dict[str, Any]:
     goal = failure.get('goal') or failure.get('text') or ''
     role = failure.get('role')
@@ -46,6 +64,41 @@ def propose_patches(schema: Dict[str, Any], failure: Dict[str, Any]) -> Dict[str
             'role': role,
             'confidence': conf,
         }]
+    else:
+        # Fallback search: propose synonyms to try once
+        cands = SYNONYM_MAP.get(goal, [])
+        if cands:
+            patches['fallback_search'] = [{
+                'goal': goal,
+                'synonyms': cands,
+                'role': role,
+                'attempts': 1,
+                'confidence': 0.88,
+            }]
+        # If similar labels exist (partially matching), propose the closest as replacement
+        best_label = None
+        best_sim = 0.0
+        for lbl in labels:
+            sim = _similar(goal, lbl)
+            if sim > best_sim:
+                best_sim = sim
+                best_label = lbl
+        if best_label and best_sim >= 0.6:
+            patches.setdefault('replace_text', []).append({
+                'find': goal,
+                'with': best_label,
+                'role': role,
+                'confidence': round(0.85 + (best_sim - 0.6) * 0.25, 2)  # 0.85..1.0
+            })
+
+    # Wait tuning: if wait/assert failed, increase timeout modestly
+    if (failure.get('type') in ('wait_for_element', 'assert_text', 'assert_element') and
+            'wait_tuning' not in patches):
+        patches.setdefault('wait_tuning', []).append({
+            'step': 'wait_for_element',
+            'timeout_ms': 12000,
+            'confidence': 0.9,
+        })
     return patches
 
 

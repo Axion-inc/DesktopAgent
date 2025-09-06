@@ -16,3 +16,7 @@ require_capabilities: ["webx"]
 - Block behavior: stop before execution, show reason, increment `policy_blocks_24h`
 - Autopilot: only when `autopilot=true` and all checks pass
 
+Integration:
+- CLI pre-exec guard: `policy_guard` step is inserted with detailed `checks` in step output_json.
+- Audit: JSONL written to `logs/policy_audit.log` on every block (includes reasons and check results).
+- API: `/api/runs/{run_id}/policy-checks` returns the last `policy_guard` checks for a run.

@@ -275,9 +275,12 @@ def compute_metrics() -> Dict[str, float]:
         SELECT COUNT(*) FROM run_steps
         WHERE name IN ('wait_for_element', 'assert_element', 'assert_text',
                        'assert_file_exists', 'assert_pdf_pages')
-        AND (output_json LIKE '%"passed":true%' OR
+        AND (
+             status = 'success' OR
+             output_json LIKE '%"passed":true%' OR
              output_json LIKE '%"status":"PASS"%' OR
-             output_json LIKE '%"status":"RETRY"%')
+             output_json LIKE '%"status":"RETRY"%'
+        )
         AND finished_at >= datetime('now','-1 day')
     """)
     verifier_steps_passed = cur.fetchone()[0] or 0
@@ -534,6 +537,18 @@ def compute_metrics() -> Dict[str, float]:
     try:
         metrics_collector = get_metrics_collector()
         l4_autoruns_24h = metrics_collector.get_counter('l4_autoruns_24h')
+        if not l4_autoruns_24h:
+            # Fallback: derive from DB policy_guard steps in last 24h with autopilot true
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM run_steps
+                WHERE name = 'policy_guard'
+                  AND status = 'success'
+                  AND output_json LIKE '%"autopilot":true%'
+                  AND finished_at >= datetime('now','-1 day')
+                """
+            )
+            l4_autoruns_24h = cur.fetchone()[0] or 0
         out["l4_autoruns_24h"] = l4_autoruns_24h
     except Exception:
         out["l4_autoruns_24h"] = 0
@@ -735,6 +750,29 @@ def compute_metrics() -> Dict[str, float]:
             "github_patch_proposals_24h": 0,
             "github_workflow_runs_24h": 0
         })
+
+    # Trends (last 24h runs per hour)
+    try:
+        cur.execute(
+            """
+            SELECT strftime('%H', started_at) as hh, COUNT(*)
+            FROM runs
+            WHERE started_at >= datetime('now','-1 day')
+            GROUP BY hh
+            ORDER BY hh
+            """
+        )
+        rows = cur.fetchall()
+        counts_by_h = {int(r[0]): int(r[1]) for r in rows if r[0] is not None}
+        trend = []
+        # Use local clock hours from now-23 .. now
+        now_h = int(datetime.now().strftime('%H'))
+        for i in range(24):
+            h = (now_h - (23 - i)) % 24
+            trend.append(counts_by_h.get(h, 0))
+        out['trend_runs_24h'] = trend
+    except Exception:
+        out['trend_runs_24h'] = [0]*24
 
     conn.close()
     return out

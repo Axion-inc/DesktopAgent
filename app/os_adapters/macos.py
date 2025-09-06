@@ -204,73 +204,18 @@ class MacOSAdapter(OSAdapter):
         }
 
     def _capture_via_jxa(self, target: str, max_depth: int = 2, max_children: int = 25) -> Dict[str, Any]:
-        """Capture UI tree using JXA and System Events, returning parsed JSON."""
-        jxa = f'''(function() {{
-          ObjC.import('stdlib');
-          const se = Application('System Events');
-          se.includeStandardAdditions = true;
-          function boundsOf(ui) {{
-            try { const p = ui.position(); const s = ui.size(); return {{} , x:p[0], y:p[1], width:s[0], height:s[1] }; } catch (e) { return null; }
-          }
-          function node(ui, depth) {{
-            var obj = {{} };
-            try { obj.role = ui.role(); } catch (e) { obj.role = 'UIElement'; }
-            try { obj.subrole = ui.subrole(); } catch (e) {}
-            try { obj.label = ui.name(); } catch (e) {}
-            try { obj.value = ui.value(); } catch (e) {}
-            try { obj.enabled = ui.enabled(); } catch (e) {}
-            try { obj.focused = ui.focused(); } catch (e) {}
-            try { obj.help = ui.help(); } catch (e) {}
-            try { obj.description = ui.description(); } catch (e) {}
-            obj.bounds = boundsOf(ui);
-            if (depth <= 0) return obj;
-            var kids = [];
-            try {
-              const children = ui.UIElements();
-              const n = Math.min(children.length, {max_children});
-              for (var i=0;i<n;i++) { kids.push(node(children[i], depth-1)); }
-            } catch (e) {}
-            if (kids.length) obj.children = kids;
-            return obj;
-          }
-          var appName = '';
-          var windows = [];
-          try {
-            const proc = se.processes.whose({{ frontmost: {{ _equals: true }} }}).first();
-            appName = proc.name();
-            const wins = proc.windows();
-            const limit = Math.min(wins.length, 5);
-            for (var i=0;i<limit;i++) {
-              const w = wins[i];
-              var wobj = {{} };
-              try { wobj.role = w.role(); } catch (e) { wobj.role = 'AXWindow'; }
-              try { wobj.label = w.name(); } catch (e) {}
-              try { const p = w.position(); const s = w.size(); wobj.bounds = {{} , x:p[0], y:p[1], width:s[0], height:s[1] }; } catch (e) {}
-              // children
-              try {
-                const elems = w.UIElements();
-                const n = Math.min(elems.length, {max_children});
-                var kids = [];
-                for (var j=0;j<n;j++) { kids.push(node(elems[j], {max_depth})); }
-                if (kids.length) wobj.children = kids;
-              } catch (e) {}
-              windows.push(wobj);
-            }
-          } catch (e) {}
-          const out = {{
-            platform: 'macos',
-            target: '{target}',
-            app: appName,
-            timestamp: (new Date()).toISOString(),
-            elements: [ {{ role: 'AXApplication', label: appName, children: windows }} ]
-          }};
-          return JSON.stringify(out);
-        }})()'''
-        proc = subprocess.run(["osascript", "-l", "JavaScript", "-e", jxa], capture_output=True, text=True, timeout=15)
-        if proc.returncode != 0:
-            raise RuntimeError(proc.stderr.strip() or "JXA failed")
-        import json as _json
-        return _json.loads(proc.stdout.strip() or "{}")
+        """Capture UI tree using JXA and System Events.
+
+        Disabled in this build to avoid f-string/escaping issues at import time.
+        Returns a minimal placeholder schema instead of executing JXA.
+        """
+        return {
+            "platform": "macos",
+            "target": target,
+            "timestamp": "",
+            "elements": [],
+            "note": "JXA capture disabled"
+        }
 
     def compose_mail_draft(self, to: Iterable[str], subject: str, body: str,
                            attachments: Optional[List[str]] = None) -> Dict[str, Any]:

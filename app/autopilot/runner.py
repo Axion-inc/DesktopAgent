@@ -17,6 +17,18 @@ class AutoRunner:
             get_metrics_collector().mark_deviation_stop()
         except Exception:
             pass
+        # Optional Slack webhook
+        try:
+            import os, json, urllib.request
+            url = os.environ.get('SLACK_WEBHOOK_URL')
+            if url:
+                data = json.dumps({
+                    'text': f":warning: L4 deviation stop: {reason}"
+                }).encode('utf-8')
+                req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+                urllib.request.urlopen(req, timeout=3)
+        except Exception:
+            pass
 
     def check_deviation(self, steps: list[dict], current_url: str, expected_domain: str,
                          downloads_failed: int = 0, retry_exceeded: bool = False) -> DeviationVerdict:

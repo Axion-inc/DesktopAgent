@@ -90,6 +90,17 @@ def init_db() -> None:
             FOREIGN KEY(plan_id) REFERENCES plans(id),
             FOREIGN KEY(run_id) REFERENCES runs(id)
         );
+
+        -- L4 deviations classification log
+        CREATE TABLE IF NOT EXISTS l4_deviations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id INTEGER NOT NULL,
+            step_index INTEGER NOT NULL,
+            deviation_type TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(run_id) REFERENCES runs(id)
+        );
         """
     )
     conn.commit()
@@ -328,3 +339,37 @@ def is_plan_approved(plan_id: int) -> bool:
     """Check if a plan has been approved."""
     approval = get_plan_approval(plan_id)
     return approval and approval['approval_status'] == 'approved'
+
+
+def insert_deviation(run_id: int, step_index: int, deviation_type: str, reason: str) -> int:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO l4_deviations (run_id, step_index, deviation_type, reason)
+        VALUES (?, ?, ?, ?)
+        """,
+        (run_id, step_index, deviation_type, reason),
+    )
+    dev_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return dev_id
+
+
+def list_deviations_for_run(run_id: int, limit: int = 100) -> List[sqlite3.Row]:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, run_id, step_index, deviation_type, reason, created_at
+        FROM l4_deviations
+        WHERE run_id = ?
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (run_id, limit),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return list(rows)

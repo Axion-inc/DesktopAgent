@@ -215,7 +215,11 @@ class CDPEngine(WebEngine):
             # Optional WebSocket bridge to real extension
             try:
                 import os
-                if os.environ.get('WEBX_WS_BRIDGE_ENABLE', '0') == '1':
+                transport = os.environ.get('WEBX_TRANSPORT')
+                # Default based on config: use ws when enabled via env
+                if transport is None and os.environ.get('WEBX_WS_BRIDGE_ENABLE', '0') == '1':
+                    transport = 'ws'
+                if transport == 'ws':
                     from .ws_bridge import start as ws_start, is_connected, send_request
                     ws_start()
                     if is_connected():
@@ -228,6 +232,7 @@ class CDPEngine(WebEngine):
                             timeout=float(os.environ.get('WEBX_WS_TIMEOUT', '30')),
                         )
                         return {'success': True, 'result': result, 'id': int(time.time()*1000), 'engine': 'cdp'}
+                # Native transport placeholder: extension initiates connection; no active push from app here
             except Exception:
                 # Fall back to mock if bridge not available
                 pass

@@ -12,3 +12,6 @@ Notify: hook in `app/autopilot/runner.AutoRunner.notify()` (extend to Slack/Webh
 
 Metrics: `l4_autoruns_24h`, `deviation_stops_24h`
 
+Classification & Audit:
+- DB table: `l4_deviations` persists each stop with `step_index`, `deviation_type` (verifier|domain|download|retry), and `reason`.
+- API: `/api/runs/{run_id}/deviations` returns deviation list for a run (for Run画面やダッシュボード連携に利用)。

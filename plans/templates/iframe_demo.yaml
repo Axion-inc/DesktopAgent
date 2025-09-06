@@ -1,0 +1,20 @@
+dsl_version: "1.1"
+name: "Iframe Demo"
+description: "Navigate to iframe page and interact with inner frame button"
+variables:
+  url: "http://localhost:8000/mock/iframe"
+steps:
+  - open_browser:
+      url: "{{url}}"
+      context: "iframe_session"
+  - wait_for_element:
+      text: "送信"
+      timeout_ms: 12000
+  - click_by_text:
+      text: "送信"
+      role: "button"
+  - wait_for_element:
+      text: "送信完了"
+      timeout_ms: 12000
+  - log:
+      message: "Iframe interaction completed"

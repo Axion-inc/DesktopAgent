@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Desktop Agent — Dashboard</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .card { padding: 16px; border: 1px solid #ddd; border-radius: 8px; }
+    .title { font-size: 14px; color: #666; }
+    .value { font-size: 22px; font-weight: 600; margin-top: 6px; }
+  </style>
+  </head>
+<body>
+  <h1>Dashboard</h1>
+  <div class="cards">
+    <div class="card"><div class="title">L4 Autoruns (24h)</div><div class="value">{{ metrics.get('l4_autoruns_24h', 0) }}</div></div>
+    <div class="card"><div class="title">Policy Blocks (24h)</div><div class="value">{{ metrics.get('policy_blocks_24h', 0) }}</div></div>
+    <div class="card"><div class="title">Deviation Stops (24h)</div><div class="value">{{ metrics.get('deviation_stops_24h', 0) }}</div></div>
+    <div class="card"><div class="title">Verifier Pass Rate (24h)</div><div class="value">{{ (metrics.get('verifier_pass_rate_24h', 0) * 100) | round(1) }}%</div></div>
+    <div class="card"><div class="title">WebX Frame Switches (24h)</div><div class="value">{{ metrics.get('webx_frame_switches_24h', 0) }}</div></div>
+    <div class="card"><div class="title">WebX Shadow Hits (24h)</div><div class="value">{{ metrics.get('webx_shadow_hits_24h', 0) }}</div></div>
+  </div>
+  <h3>Runs (last 24h)</h3>
+  {% set trend = metrics.get('trend_runs_24h', []) %}
+  <div style="display:flex;gap:2px;align-items:flex-end;height:60px;margin-top:8px;border:1px solid #eee;padding:6px 8px 0 8px;border-radius:6px;">
+    {% set maxv = (trend|max) if trend else 1 %}
+    {% for v in trend %}
+      {% set h = ( (v / (maxv or 1)) * 56 ) | round(0, 'floor') %}
+      <div title="{{v}}" style="width:8px;background:#7aa2f7;height:{{ h }}px"></div>
+    {% endfor %}
+  </div>
+</body>
+</html>

@@ -1,7 +1,40 @@
-autopilot: false
-allow_domains: ["partner.example.com"]
+autopilot: true
+allow_domains: ["localhost", "localhost:8000", "127.0.0.1", "partner.example.com"]
 allow_risks: ["sends"]
-window: "SAT 00:00-23:59 Asia/Tokyo"
+# Wide window to enable autoruns during development; tighten in prod
+window: "SAT 00:00-23:59 America/Los_Angeles"
 require_signed_templates: true
 require_capabilities: ["webx"]
 
+# Planner L2 adoption policy override (optional)
+adopt_policy:
+  low_risk_auto: true
+  min_confidence: 0.85
+
+# Security Policy (signature/trust-level execution)
+template_execution:
+  signature_required: true
+  allow_unsigned: false
+  grace_period:
+    enabled: false
+  trust_level_policies:
+    system:
+      execution: auto
+      confirmation_required: false
+      sandbox_level: standard
+      audit_level: standard
+    commercial:
+      execution: auto
+      confirmation_required: false
+      sandbox_level: standard
+      audit_level: standard
+    development:
+      execution: manual
+      confirmation_required: true
+      sandbox_level: standard
+      audit_level: detailed
+    community:
+      execution: manual
+      confirmation_required: true
+      sandbox_level: maximum
+      audit_level: detailed
