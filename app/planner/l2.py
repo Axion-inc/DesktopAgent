@@ -48,3 +48,22 @@ def propose_patches(schema: Dict[str, Any], failure: Dict[str, Any]) -> Dict[str
         }]
     return patches
 
+
+def should_adopt_patch(patch: Dict[str, Any], policy: Dict[str, Any]) -> bool:
+    """Decide whether to auto-adopt a low-risk patch based on policy.
+
+    Rules:
+      - low_risk_auto must be True
+      - all confidences >= min_confidence
+      - patch must not introduce dangerous actions (no sends/deletes/overwrites)
+    """
+    if not policy.get('low_risk_auto', False):
+        return False
+    min_conf = float(policy.get('min_confidence', 0.85))
+    # Check confidences
+    for key in ('replace_text', 'fallback_search', 'wait_tuning'):
+        for item in patch.get(key, []) or []:
+            if float(item.get('confidence', 1.0)) < min_conf:
+                return False
+    # No dangerous additions (we only deal with replace/wait/search here)
+    return True

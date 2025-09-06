@@ -22,3 +22,22 @@ def test_deviation_on_domain_drift():
     assert verdict.should_pause is True
     assert 'domain' in verdict.reason
 
+
+def test_deviation_on_download_failure():
+    runner = AutoRunner()
+    steps = [{"status": "success"}]
+    verdict = runner.check_deviation(steps, current_url="https://partner.example.com/",
+                                     expected_domain="partner.example.com",
+                                     downloads_failed=1)
+    assert verdict.should_pause is True
+    assert 'download' in verdict.reason
+
+
+def test_deviation_on_retry_exceeded():
+    runner = AutoRunner()
+    steps = [{"status": "success"}]
+    verdict = runner.check_deviation(steps, current_url="https://partner.example.com/",
+                                     expected_domain="partner.example.com",
+                                     retry_exceeded=True)
+    assert verdict.should_pause is True
+    assert 'retry' in verdict.reason

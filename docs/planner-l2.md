@@ -1,23 +1,15 @@
-# Planner L2 — Differential Patch Proposals
+# Planner L2 (Differential Patch)
 
-Planner L2 analyzes screen schemas and recent failures to propose small, safe patches that improve stability.
+Inputs: screen schema + failure context (e.g., assert_text goal)
 
-## Patch Schema
-```
-patch:
-  replace_text:
-    - { find: "送信", with: "提出", role: "button", confidence: 0.91 }
-  fallback_search:
-    - { goal: "提出ボタン", synonyms: ["確定","送出"], role: "button", attempts: 1, confidence: 0.88 }
-  wait_tuning:
-    - { step: "wait_for_element", timeout_ms: 12000 }
-adopt_policy:
-  low_risk_auto: true
-  min_confidence: 0.85
-```
+Proposals:
+- replace_text: UI vocabulary substitution (e.g., 送信→提出/確定)
+- fallback_search: near-synonym exploration (1 attempt)
+- wait_tuning: safe wait/verify adjustments
 
-Rules:
-- Never add destructive operations (sends/deletes/overwrites) automatically.
-- Patches are applied to DSL only; execution stays deterministic.
-- In L4 window and above `min_confidence`, auto-adopt is allowed per policy.
+Adoption Policy:
+- auto-adopt when `low_risk_auto=true` AND `confidence >= min_confidence` AND patch is low-risk
+- otherwise require HITL approval
+
+Execution remains DSL-only; no new dangerous steps are added automatically.
 

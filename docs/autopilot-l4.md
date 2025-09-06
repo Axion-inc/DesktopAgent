@@ -1,17 +1,14 @@
-# L4 Autopilot (Limited Full Automation)
+# Autopilot L4
 
-## Summary
-L4 enables unattended execution when policy permits. It must stop on deviations and notify for HITL resume.
+Enable autopilot by policy (autopilot=true) and policy compliance.
 
-## Enablement
-- `policy.autopilot=true`
-- Policy-compliant context: domain, time window, signature, capabilities, risks.
+Deviation detection stops runs immediately on:
+- Verifier failure (assert/wait)
+- Domain/tab drift
+- Download verification failure
+- Retry limit exceeded
 
-## Deviation Detection
-- Verifier failures, unexpected steps, unmet completion, domain drift, download verification failure, retry cap exceeded.
-- On deviation: pause run, record reason, notify (CLI/Slack), allow HITL resume.
+Notify: hook in `app/autopilot/runner.AutoRunner.notify()` (extend to Slack/Webhooks as needed)
 
-## Metrics
-- `l4_autoruns_24h`: number of unattended runs in last 24h
-- `deviation_stops_24h`: number of runs stopped by deviations in last 24h
+Metrics: `l4_autoruns_24h`, `deviation_stops_24h`
 
