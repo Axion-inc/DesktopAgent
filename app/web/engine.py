@@ -14,6 +14,7 @@ import tempfile
 
 from ..config import get_config
 from ..utils.logging import get_logger
+from ..os_adapters import get_os_adapter  # expose for test patching
 
 logger = get_logger(__name__)
 
@@ -489,9 +490,8 @@ class CDPEngine(WebEngine):
                 
         except Exception as e:
             logger.error(f"CDPEngine screenshot failed: {e}")
-            # Fallback to OS adapter
+            # Fallback to OS adapter (module-level alias for test patchability)
             try:
-                from ..os_adapters import get_os_adapter
                 adapter = get_os_adapter()
                 adapter.take_screenshot(path)
                 return path
@@ -566,76 +566,76 @@ class CDPEngine(WebEngine):
             }
 
     def download_file(self, to: str, context: str = "default", timeout: int = 30000, **kwargs) -> Dict[str, Any]:
-        """Handle file download via extension"""
-        logger.info(f"ExtensionEngine: Downloading file to {to}")
+        """Handle file download via CDP bridge (mocked)."""
+        logger.info(f"CDPEngine: Downloading file to {to}")
 
         try:
             return {
                 "to": to,
                 "status": "success",
-                "engine": "extension"
+                "engine": "cdp"
             }
         except Exception as e:
             return {
                 "to": to,
                 "status": "error",
                 "error": str(e),
-                "engine": "extension"
+                "engine": "cdp"
             }
 
     def wait_for_download(self, to: str, timeout_ms: int = 30000,
                           context: str = "default", **kwargs) -> Dict[str, Any]:
-        """Wait for download completion"""
-        logger.debug(f"ExtensionEngine: Waiting for download in {to}")
+        """Wait for download completion (mocked)."""
+        logger.debug(f"CDPEngine: Waiting for download in {to}")
 
         try:
             return {
                 "to": to,
                 "status": "success",
-                "engine": "extension"
+                "engine": "cdp"
             }
         except Exception as e:
             return {
                 "to": to,
                 "status": "error",
                 "error": str(e),
-                "engine": "extension"
+                "engine": "cdp"
             }
 
     def get_page_info(self, context: str = "default", **kwargs) -> Dict[str, Any]:
-        """Get current page information via extension"""
+        """Get current page information (mocked via CDP)."""
         try:
             return {
                 "url": "https://example.com",  # Extension would provide real URL
                 "title": "Example Page",       # Extension would provide real title
                 "context": context,
                 "status": "success",
-                "engine": "extension"
+                "engine": "cdp"
             }
         except Exception as e:
             return {
                 "context": context,
                 "status": "error",
                 "error": str(e),
-                "engine": "extension"
+                "engine": "cdp"
             }
 
     def wait_for_selector(self, selector: str, timeout_ms: Optional[int] = None,
                           context: str = "default", **kwargs) -> Dict[str, Any]:
-        """Wait for selector via extension"""
+        """Wait for selector (mocked via CDP)."""
         try:
             return {
                 "selector": selector,
                 "status": "visible",
                 "timeout_ms": timeout_ms,
-                "engine": "extension"
+                "engine": "cdp"
             }
         except Exception as e:
             return {
                 "selector": selector,
                 "status": "error",
                 "error": str(e),
-                "engine": "extension"
+                "engine": "cdp"
             }
 
     def close(self) -> None:
