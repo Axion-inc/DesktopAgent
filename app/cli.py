@@ -283,6 +283,39 @@ def run_plan(yaml_text: str, auto_approve: bool = False, template_path: str = No
         print("❌ Permission check failed. Cannot run plan.")
         return -1
 
+    # Phase 7: Policy evaluation (block-before-exec)
+    try:
+        from app.policy.engine import PolicyEngine
+        from app.metrics import get_metrics_collector
+        import yaml as _yaml
+        pol_path = Path('configs/policy.yaml')
+        pe = PolicyEngine.from_file(str(pol_path)) if pol_path.exists() else PolicyEngine({})
+        # Roughly estimate target URL/risks/capabilities from plan (best-effort)
+        url = ''
+        risks = set()
+        caps = set(['webx'])
+        for step in rendered_steps:
+            action, params = list(step.items())[0]
+            if action == 'open_browser':
+                url = str(params.get('url', url))
+            if action in ('click_by_text', 'download_file', 'upload_file'):
+                risks.add('sends')
+        # signature and capabilities (best-effort)
+        signed = True  # Assume templates are signed when run from repo (placeholder)
+        now_iso = datetime.now().astimezone().isoformat()
+        decision = pe.evaluate(url=url, risks=risks, now_iso=now_iso, signed=signed, capabilities=caps)
+        if not decision.allowed:
+            mc = get_metrics_collector()
+            mc.mark_policy_block()
+            update_run(run_id, status='blocked', error_message=f"policy_block:{decision.reason}")
+            print(f"❌ Blocked by policy: {decision.reason}")
+            set_run_finished_now(run_id)
+            return -1
+        if decision.autopilot:
+            get_metrics_collector().mark_l4_autorun()
+    except Exception as e:
+        logger.warning(f"Policy evaluation skipped due to error: {e}")
+
     # Execute the plan
     update_run(run_id, status="running")
     logger.info("run.start id=%s", run_id)
