@@ -34,3 +34,11 @@ node_modules/
 
 # Logs
 logs/
+
+# Local caches and artifacts
+.serena/
+artifacts/
+
+# Generated template sidecars
+plans/templates/*.sig.json
+plans/templates/*.manifest.json

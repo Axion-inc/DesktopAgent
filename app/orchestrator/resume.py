@@ -219,6 +219,29 @@ class ResumeManager:
 
         return False
 
+
+_resume_manager_singleton: ResumeManager | None = None
+
+
+def get_resume_manager(storage_path: Optional[str] = None) -> ResumeManager:
+    """Get singleton ResumeManager instance."""
+    global _resume_manager_singleton
+    if _resume_manager_singleton is None:
+        _resume_manager_singleton = ResumeManager(storage_path=storage_path)
+    return _resume_manager_singleton
+
+
+def list_paused_runs_summary(limit: int = 50) -> list[dict]:
+    """Return a basic list of paused runs and reasons for UI/API."""
+    rm = get_resume_manager()
+    with sqlite3.connect(rm.storage_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.execute(
+            "SELECT run_id, step_index, reason, created_at FROM resume_points ORDER BY created_at DESC LIMIT ?",
+            (limit,)
+        )
+        return [dict(r) for r in cur.fetchall()]
+
     def list_paused_runs(self, limit: int = 50) -> List[Dict[str, Any]]:
         """List all paused runs waiting for resume."""
         with sqlite3.connect(self.storage_path) as conn:
