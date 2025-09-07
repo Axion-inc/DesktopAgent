@@ -17,6 +17,10 @@ from ..utils.logging import get_logger
 # Import module to allow tests to patch app.os_adapters.get_os_adapter
 from .. import os_adapters as _os_adapters
 
+# Expose a module-level alias for tests that patch
+def get_os_adapter():  # pragma: no cover - thin alias for test patchability
+    return _os_adapters.get_os_adapter()
+
 logger = get_logger(__name__)
 
 
@@ -493,9 +497,9 @@ class CDPEngine(WebEngine):
                 
         except Exception as e:
             logger.error(f"CDPEngine screenshot failed: {e}")
-            # Fallback to OS adapter (resolve via module for patchability)
+            # Fallback to OS adapter (resolve via module-level alias for patchability)
             try:
-                adapter = _os_adapters.get_os_adapter()
+                adapter = get_os_adapter()
                 adapter.take_screenshot(path)
                 return path
             except Exception as fallback_error:
