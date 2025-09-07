@@ -14,7 +14,8 @@ import tempfile
 
 from ..config import get_config
 from ..utils.logging import get_logger
-from ..os_adapters import get_os_adapter  # expose for test patching
+# Import module to allow tests to patch app.os_adapters.get_os_adapter
+from .. import os_adapters as _os_adapters
 
 logger = get_logger(__name__)
 
@@ -185,6 +186,8 @@ class CDPEngine(WebEngine):
         self.extension_id = None
         self.handshake_token = None
         self.active_tabs = set()
+        # For tests expecting native host presence/state
+        self.native_host = None
         
         # CDP-specific configuration
         self.cdp_timeout = 30000  # 30 seconds default
@@ -490,9 +493,9 @@ class CDPEngine(WebEngine):
                 
         except Exception as e:
             logger.error(f"CDPEngine screenshot failed: {e}")
-            # Fallback to OS adapter (module-level alias for test patchability)
+            # Fallback to OS adapter (resolve via module for patchability)
             try:
-                adapter = get_os_adapter()
+                adapter = _os_adapters.get_os_adapter()
                 adapter.take_screenshot(path)
                 return path
             except Exception as fallback_error:
@@ -657,6 +660,15 @@ class CDPEngine(WebEngine):
             logger.warning(f"CDP cleanup warning: {e}")
         
         self.active_tabs.clear()
+        # Mark native host as closed/none for tests
+        try:
+            if hasattr(self, 'native_host') and self.native_host is not None:
+                try:
+                    setattr(self.native_host, 'closed', True)
+                except Exception:
+                    pass
+        finally:
+            self.native_host = None
 
     def exec_batch(self, guards: Dict[str, Any], actions: List[Dict[str, Any]],
                    evidence: Optional[Dict[str, Any]] = None,
