@@ -60,8 +60,9 @@ class TestL4AutopilotSystem:
             'signature_verified': True
         }
 
-        # Should not raise exception
-        decision = autopilot.validate_execution(template_manifest)
+        # Should not raise exception; provide deterministic time inside the window
+        inside_window_utc = datetime(2025, 1, 1, 1, 0, tzinfo=timezone.utc)  # 10:00 JST
+        decision = autopilot.validate_execution(template_manifest, current_time=inside_window_utc)
 
         assert decision.allowed is True
         assert decision.autopilot_enabled is True

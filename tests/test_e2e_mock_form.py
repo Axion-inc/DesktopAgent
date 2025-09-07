@@ -1,6 +1,9 @@
 import pytest
 import os
 import time
+
+# Skip this module entirely if Playwright is not installed
+pytest.importorskip("playwright", reason="E2E tests require Playwright; not needed for unit CI")
 from playwright.sync_api import sync_playwright, Page, BrowserContext
 
 

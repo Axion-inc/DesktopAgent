@@ -14,18 +14,22 @@ from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Legacy Playwright imports - now optional for backward compatibility
 try:
     from playwright.sync_api import (
         sync_playwright, Browser, BrowserContext, Page,
         TimeoutError as PlaywrightTimeoutError
     )
+    PLAYWRIGHT_AVAILABLE = True
 except ImportError:
-    # Graceful fallback if playwright not installed
+    # Playwright removed - provide fallback stubs
+    logger.info("Playwright not available - using CDP engine instead")
     sync_playwright = None
     Browser = None
     BrowserContext = None
     Page = None
     PlaywrightTimeoutError = Exception
+    PLAYWRIGHT_AVAILABLE = False
 
 
 class WebSession:

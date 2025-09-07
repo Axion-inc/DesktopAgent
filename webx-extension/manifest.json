@@ -1,19 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "Desktop Agent WebX",
-  "version": "1.0.0",
-  "description": "Native messaging bridge for Desktop Agent web automation",
+  "name": "Desktop Agent WebX CDP",
+  "version": "2.0.0",
+  "description": "Chrome DevTools Protocol-based web automation for Desktop Agent",
   
   "permissions": [
-    "nativeMessaging",
-    "activeTab", 
-    "scripting",
+    "activeTab",
+    "scripting", 
     "storage",
-    "downloads"
+    "downloads",
+    "debugger",
+    "cookies",
+    "nativeMessaging"
   ],
   
   "optional_permissions": [
-    "debugger"
+    "tabs"
   ],
   
   "host_permissions": [
@@ -35,7 +37,14 @@
   
   "web_accessible_resources": [
     {
-      "resources": ["rpc.js"],
+      "resources": [
+        "cdp-manager.js",
+        "dom-builder.js", 
+        "overlay-manager.js",
+        "rpc.js",
+        "plugins/*.js",
+        "sdk/*.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ],

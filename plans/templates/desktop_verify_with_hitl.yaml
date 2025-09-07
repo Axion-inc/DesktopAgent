@@ -1,0 +1,31 @@
+name: "Desktop Verify with HITL (Mac)"
+description: "Capture AX schema and verify presence of text/element with HITL checkpoints"
+variables:
+  target: frontmost
+  verify_text: "ファイル"
+  verify_role: "AXButton"
+  start_message: "デスクトップ検査を開始します。続行しますか？"
+  finish_message: "検査・検証が完了しました。成果物を確認しますか？"
+
+steps:
+  - human_confirm:
+      message: "{{ start_message }}"
+      timeout_ms: 120000
+
+  - capture_screen_schema:
+      target: "{{ target }}"
+
+  - assert_text:
+      contains: "{{ verify_text }}"
+      where: "screen"
+
+  - assert_element:
+      text: "{{ verify_text }}"
+      role: "{{ verify_role }}"
+      count_gte: 1
+      where: "screen"
+
+  - human_confirm:
+      message: "{{ finish_message }}"
+      timeout_ms: 120000
+

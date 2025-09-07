@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Run #{{ run.get('id') }} — Desktop Agent</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px; }
+    .badge.auto { background: #e6f4ea; color: #137333; }
+    .badge.blocked { background: #fce8e6; color: #c5221f; }
+    .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+    .panel { border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
+    .steps { max-height: 60vh; overflow:auto; }
+    .artifact { background: #fafafa; padding: 8px; border: 1px dashed #ccc; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Run #{{ run.get('id') }} — {{ run.get('plan_name') }}
+    {% if run.get('status') == 'paused' %}
+      <span class="badge blocked">PAUSED</span>
+    {% elif run.get('status') == 'blocked' %}
+      <span class="badge blocked">BLOCKED</span>
+    {% endif %}
+  </h1>
+  <div>Started: {{ run.get('started_at') or '-' }} | Finished: {{ run.get('finished_at') or '-' }}</div>
+  {% if autopilot %}<span class="badge auto">AUTOPILOT</span>{% endif %}
+  {% if policy_reason %}<div style="color:#c00">Policy: {{ policy_reason }}</div>{% endif %}
+  {% if policy %}
+  <div class="panel" style="margin-top:12px">
+    <h3>Applied Policy</h3>
+    <div>autopilot: {{ policy.get('autopilot') }}</div>
+    <div>allow_domains: {{ policy.get('allow_domains') }}</div>
+    <div>allow_risks: {{ policy.get('allow_risks') }}</div>
+    <div>window: {{ policy.get('window') }}</div>
+    <div>require_signed_templates: {{ policy.get('require_signed_templates') }}</div>
+    <div>require_capabilities: {{ policy.get('require_capabilities') }}</div>
+  </div>
+  {% endif %}
+  <div class="grid">
+    <div class="panel steps">
+      <h3>Steps</h3>
+      <ol>
+        {% for s in steps %}
+          <li>
+            {{ s.get('idx') }}. {{ s.get('name') }} — {{ s.get('status') }}
+            {% if s.get('error_message') %}<div style="color:#c00">{{ s.get('error_message') }}</div>{% endif %}
+            {% if s.get('name') == 'policy_guard' and s.get('output_json') %}
+              {% set _ = s.update({'_out': s.get('output_json') | safe}) %}
+              <details style="margin-top:6px"><summary>Policy Checks</summary>
+                <pre style="white-space:pre-wrap">{{ s.get('output_json') }}</pre>
+              </details>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ol>
+    </div>
+    <div class="panel">
+      <h3>Planner L2 — Patch Proposals</h3>
+      {% if artifacts and artifacts|length > 0 %}
+        {% for a in artifacts %}
+          <div class="artifact">
+            <div><strong>Step {{ a.get('step_index') }}</strong> — Adopt: {{ a.get('adopt') }}</div>
+            <pre style="white-space:pre-wrap">{{ a.get('proposal') | tojson(indent=2) }}</pre>
+            <div>Evidence:</div>
+            <ul>
+              <li>Screenshot: {{ a.get('evidence', {}).get('screenshot') }}</li>
+              <li>Schema: {{ a.get('evidence', {}).get('schema') }}</li>
+            </ul>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div>No patch artifacts.</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="panel" style="margin-top:12px">
+    <h3>L4 Deviations</h3>
+    {% if deviations and deviations|length > 0 %}
+      <ul>
+        {% for d in deviations %}
+          <li>Step {{ d.get('step_index') }} — {{ d.get('deviation_type') }} — {{ d.get('reason') }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div>No deviations recorded.</div>
+    {% endif %}
+  </div>
+</body>
+</html>

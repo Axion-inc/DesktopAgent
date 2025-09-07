@@ -1,0 +1,17 @@
+dsl_version: "1.1"
+name: "Verifier Timeout Tuning Example"
+description: "Increase waits/assert timeouts to improve PASS rate on slower sites"
+variables:
+  form_url: "http://localhost:8000/mock/form"
+steps:
+  - open_browser:
+      url: "{{form_url}}"
+      context: "tuning_session"
+  - wait_for_element:
+      label: "氏名"
+      timeout_ms: 12000
+  - assert_element:
+      label: "送信"
+      timeout_ms: 12000
+  - log:
+      message: "Verifier waits completed"

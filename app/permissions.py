@@ -1,7 +1,6 @@
 import platform
+import subprocess
 from typing import Dict
-
-from .os_adapters.macos import _run_osascript  # type: ignore
 
 
 def check_permissions() -> Dict[str, Dict[str, str]]:
@@ -28,17 +27,25 @@ def check_permissions() -> Dict[str, Dict[str, str]]:
             "status": "warn",
             "message": "スクリーンショットが取得できません。System Settings → Privacy & Security → Screen Recording を確認してください。",
         }
-    # Automation (Mail): try a harmless AppleScript
+    # Automation (Mail): try a harmless AppleScript via osascript
     try:
-        _ = _run_osascript('tell application "Mail" to get 1')
-        results["automation_mail"] = {
-            "status": "ok",
-            "message": "Mail automation reachable",
-        }
+        proc = subprocess.run(
+            ["/usr/bin/osascript", "-e", 'tell application "Mail" to get 1'],
+            capture_output=True, text=True, timeout=3
+        )
+        if proc.returncode == 0:
+            results["automation_mail"] = {
+                "status": "ok",
+                "message": "Mail automation reachable",
+            }
+        else:
+            results["automation_mail"] = {
+                "status": "fail",
+                "message": proc.stderr.strip() or "osascript failed",
+            }
     except Exception as e:  # noqa: BLE001
         results["automation_mail"] = {
             "status": "fail",
             "message": f"Mail の自動化にアクセスできません: {str(e)}",
         }
     return results
-

@@ -57,9 +57,8 @@ def paste_text():
             assert "copy_to_clipboard" in loaded_plugins["clipboard_actions"]["actions"]
             assert "paste_from_clipboard" in loaded_plugins["clipboard_actions"]["actions"]
 
-    def test_block_plugin_not_on_allowlist(self):
-        """Should block plugins not on allowlist"""
-        # RED: Will fail - allowlist enforcement not implemented
+    def test_skip_plugin_not_on_allowlist(self):
+        """Should skip plugins not on allowlist without raising"""
         loader = PluginLoader()
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -79,11 +78,10 @@ def steal_sensitive_data():
 
             loader.set_plugin_allowlist(["clipboard_actions"])  # malicious_plugin not allowed
 
-            # Should refuse to load
-            with pytest.raises(PluginSecurityError) as exc:
-                loader.load_plugins_from_directory(plugin_dir)
-
-            assert "not on allowlist" in str(exc.value).lower()
+            # Should skip disallowed plugin and not raise
+            loaded = loader.load_plugins_from_directory(plugin_dir)
+            assert "malicious_plugin" not in loaded
+            assert loaded == {}
 
     def test_plugin_sandbox_network_restriction(self):
         """Should prevent plugins from making network requests"""

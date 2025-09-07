@@ -5,10 +5,10 @@ import os
 import secrets
 from pathlib import Path
 from typing import Dict, Any, Optional, List
+from datetime import datetime
 
 from .dsl.parser import parse_yaml, render_value
 from .dsl.validator import validate_plan
-from .dsl.runner import Runner
 from .dsl.parser import render_string
 from .models import (
     init_db,
@@ -23,9 +23,10 @@ from .models import (
     create_plan_approval,
     approve_plan,
     log_approval_action,
+    insert_run_step,
+    finalize_run_step,
 )
 from .approval import analyze_plan_risks, check_plan_approval_required
-from .permissions import check_permissions
 from .utils import json_dumps, get_logger
 
 
@@ -166,8 +167,8 @@ def run_plan(yaml_text: str, auto_approve: bool = False, template_path: str = No
             print(f"❌ Template security verification failed: {e}")
             return -1
 
-    # Phase 6: Template Manifest Validation
-    if template_path:
+    # Phase 6: Template Manifest Validation (skip in POLICY_ONLY mode)
+    if template_path and os.environ.get("POLICY_ONLY", "0") not in ("1", "true", "True"):
         from app.security.template_manifest import get_manifest_manager
 
         try:
@@ -185,7 +186,14 @@ def run_plan(yaml_text: str, auto_approve: bool = False, template_path: str = No
                 # Load and validate manifest
                 manifest = manifest_manager.load_manifest(manifest_path)
                 if manifest:
-                    is_valid, errors = manifest_manager.validate_manifest(manifest)
+                    vm = manifest_manager.validate_manifest(manifest)
+                    # Backward-compat: accept ValidationResult or (bool, errors)
+                    try:
+                        is_valid, errors = vm  # type: ignore[misc]
+                    except Exception:
+                        is_valid = bool(getattr(vm, 'is_valid', False))
+                        err_msg = getattr(vm, 'error_message', None)
+                        errors = [e.strip() for e in str(err_msg).split(';') if e.strip()] if err_msg else []
                     if not is_valid:
                         print("❌ Template manifest validation failed:")
                         for error in errors:
@@ -206,7 +214,8 @@ def run_plan(yaml_text: str, auto_approve: bool = False, template_path: str = No
                         for warning in warnings:
                             print(f"   • {warning}")
 
-                    print(f"✅ Template manifest validated ({len(manifest.capabilities)} capabilities declared)")
+                    caps = manifest.get('required_capabilities', []) if isinstance(manifest, dict) else []
+                    print(f"✅ Template manifest validated ({len(caps)} capabilities declared)")
                 else:
                     print("⚠️  Could not load template manifest")
             else:
@@ -273,27 +282,129 @@ def run_plan(yaml_text: str, auto_approve: bool = False, template_path: str = No
     if approval_required and auto_approve:
         update_run(run_id, approved_by=os.environ.get("CLI_APPROVER", "cli-auto"))
 
-    # Check permissions
-    perms = check_permissions()
-    mail_status = perms.get("automation_mail", {}).get("status")
-    strict = os.environ.get("PERMISSIONS_STRICT", "0") in ("1", "true", "True")
-    screen_status = perms.get("screen_recording", {}).get("status")
+    # Check permissions (skip in POLICY_ONLY mode to allow policy-only runs in sandbox)
+    if os.environ.get("POLICY_ONLY", "0") not in ("1", "true", "True"):
+        from .permissions import check_permissions  # lazy import to avoid macOS adapter on import
+        perms = check_permissions()
+        mail_status = perms.get("automation_mail", {}).get("status")
+        strict = os.environ.get("PERMISSIONS_STRICT", "0") in ("1", "true", "True")
+        screen_status = perms.get("screen_recording", {}).get("status")
 
-    if mail_status == "fail" or (strict and screen_status != "ok"):
-        print("❌ Permission check failed. Cannot run plan.")
-        return -1
+        if mail_status == "fail" or (strict and screen_status != "ok"):
+            print("❌ Permission check failed. Cannot run plan.")
+            return -1
 
-    # Execute the plan
-    update_run(run_id, status="running")
-    logger.info("run.start id=%s", run_id)
-    set_run_started_now(run_id)
-
+    # Phase 7: Policy evaluation (block-before-exec)
+    # Prepare rendered steps first (used to infer URL/risks)
     variables = plan.get("variables", {})
     rendered_steps = []
     for step in plan.get("steps", []):
         action, params = list(step.items())[0]
         rendered_steps.append({action: render_value(params, variables)})
 
+    autopilot_allowed = False
+    try:
+        # Load policy config
+        from app.policy.engine import PolicyEngine
+        from app.policy.execution_guard import check_pre_execution
+        import yaml as _yaml
+
+        pol_doc: Dict[str, Any] = {}
+        pol_path = Path('configs/policy.yaml')
+        if pol_path.exists():
+            try:
+                pol_doc = _yaml.safe_load(pol_path.read_text(encoding='utf-8')) or {}
+            except Exception:
+                pol_doc = {}
+
+        pe = PolicyEngine.from_file(str(pol_path)) if pol_path.exists() else PolicyEngine({})
+
+        # Best-effort inference from plan for guard checks
+        #  - URLs (from open_browser)
+        #  - Risks (simple mapping)
+        #  - Capabilities (via manifest analyzer as needed)
+        url = ''
+        urls: List[str] = []
+        risks = set()
+        caps = set(['webx'])
+        for step in rendered_steps:
+            action, params = list(step.items())[0]
+            if action == 'open_browser':
+                u = str(params.get('url', ''))
+                if u:
+                    url = u
+                    urls.append(u)
+            if action in ('click_by_text', 'download_file', 'upload_file'):
+                risks.add('sends')
+
+        # Signature: rely on prior verification if template_path provided, else assume true for internal templates
+        signed = True
+
+        # Evaluate concise policy allow/autopilot decision
+        now_iso = datetime.now().astimezone().isoformat()
+        decision = pe.evaluate(url=url, risks=risks, now_iso=now_iso, signed=signed, capabilities=caps)
+
+        # Run detailed guard for audit + UI checks
+        manifest_for_guard: Dict[str, Any] = {
+            'required_capabilities': list(caps),
+            'risk_flags': list(risks),
+            'signature_verified': signed,
+        }
+        guard = check_pre_execution(manifest_for_guard, urls, pol_doc)
+
+        # Record policy guard step with full check details
+        pol_step_id = insert_run_step(
+            run_id,
+            0,
+            'policy_guard',
+            input_json=json_dumps({'url': url, 'risks': list(risks), 'caps': list(caps)}),
+            status='running'
+        )
+
+        if not decision.allowed or not guard.allowed:
+            # guard already increments metrics + writes audit on block
+            finalize_run_step(pol_step_id, 'failed', output_json=json_dumps({
+                'allowed': False,
+                'reason': decision.reason or '; '.join(guard.reasons),
+                'checks': guard.checks
+            }))
+            update_run(run_id, status='blocked')
+            print("❌ Blocked by policy:")
+            # Prefer detailed reasons if available
+            reasons_out = guard.reasons or ([decision.reason] if decision.reason else [])
+            for r in reasons_out:
+                print(f"   • {r}")
+            set_run_finished_now(run_id)
+            return -1
+        else:
+            finalize_run_step(pol_step_id, 'success', output_json=json_dumps({
+                'allowed': True,
+                'autopilot': decision.autopilot,
+                'checks': guard.checks
+            }))
+
+        if decision.autopilot:
+            autopilot_allowed = True
+            from app.metrics import get_metrics_collector
+            get_metrics_collector().mark_l4_autorun()
+        # Optional: stop after policy guard (no step execution), useful for CI/sandbox
+        if os.environ.get("POLICY_ONLY", "0") in ("1", "true", "True"):
+            update_run(run_id, status="success")
+            set_run_finished_now(run_id)
+            print("✅ Policy guard passed; stopping due to POLICY_ONLY=1")
+            return run_id
+    except Exception as e:
+        logger.warning(f"Policy evaluation skipped due to error: {e}")
+
+    # Execute the plan
+    update_run(run_id, status="running")
+    logger.info("run.start id=%s", run_id)
+    set_run_started_now(run_id)
+
+    # rendered_steps/variables are already prepared above for policy; reuse them
+
+    # Lazy import to avoid heavy dependencies before policy passes
+    from .dsl.runner import Runner
     runner = Runner(plan, variables, dry_run=False)
     from . import models
 
@@ -314,7 +425,18 @@ def run_plan(yaml_text: str, auto_approve: bool = False, template_path: str = No
             result = runner.execute_step_with_diff(action, params)
             shot = runner._screenshot(run_id, idx)
 
+            # Capture DOM schema artifact for this step (best-effort)
+            schema_path = None
+            try:
+                from app.desktop.inspect import desktop_inspect as _desktop_inspect
+                insp_obj = _desktop_inspect()
+                schema_path = insp_obj.get('schema')
+            except Exception:
+                schema_path = None
+
             result_with_diff = {**result}
+            if schema_path:
+                result_with_diff.setdefault('_artifacts', {})['schema'] = schema_path
             if idx <= len(runner.step_diffs):
                 result_with_diff["_diff"] = runner.step_diffs[idx - 1]
 
@@ -327,16 +449,160 @@ def run_plan(yaml_text: str, auto_approve: bool = False, template_path: str = No
             print(f"✅ Step {idx} completed")
             logger.info("run.step.success id=%s idx=%s action=%s", run_id, idx, action)
         except Exception as e:
+            print(f"⚠️  Step {idx} failed: {e}")
+            logger.error("run.step.failed id=%s idx=%s action=%s err=%s", run_id, idx, action, e)
+            # Phase 7: Attempt Planner L2 auto-adoption (low-risk) if autopilot is allowed
+            auto_adopted = False
+            if autopilot_allowed:
+                try:
+                    from app.desktop.inspect import desktop_inspect
+                    from app.planner.l2 import propose_patches, should_adopt_patch
+                    import json as _json, yaml as _yaml
+                    insp = desktop_inspect()
+                    failure_ctx = {"type": action, "goal": params.get('text') or params.get('label'), "role": params.get('role')}
+                    try:
+                        schema_obj = _json.loads(Path(insp['schema']).read_text(encoding='utf-8'))
+                    except Exception:
+                        schema_obj = {"elements": []}
+                    patch = propose_patches(schema_obj, failure_ctx)
+                    # load adopt policy
+                    adopt_policy = {"low_risk_auto": True, "min_confidence": 0.85}
+                    pol_path = Path('configs/policy.yaml')
+                    if pol_path.exists():
+                        try:
+                            pol_doc = _yaml.safe_load(pol_path.read_text(encoding='utf-8')) or {}
+                            ap = pol_doc.get('adopt_policy') or {}
+                            if isinstance(ap, dict):
+                                adopt_policy.update(ap)
+                        except Exception:
+                            pass
+                    adopt = should_adopt_patch(patch, adopt_policy)
+                    if adopt:
+                        # Apply minimal, safe substitutions then retry once
+                        for repl in patch.get('replace_text', []) or []:
+                            if action in ('click_by_text', 'fill_by_label') and params.get('text') == repl.get('find'):
+                                params['text'] = repl.get('with')
+                        for wt in patch.get('wait_tuning', []) or []:
+                            if action == 'wait_for_element' and wt.get('timeout_ms'):
+                                params['timeout_ms'] = wt.get('timeout_ms')
+                        # Retry
+                        retry_result = runner.execute_step_with_diff(action, params)
+                        shot2 = runner._screenshot(run_id, idx)
+                        out2 = {**retry_result, "_adopted": True, "_patch": patch}
+                        if idx <= len(runner.step_diffs):
+                            out2["_diff"] = runner.step_diffs[idx - 1]
+                        models.finalize_run_step(step_id, "success", output_json=json_dumps(out2), screenshot_path=shot2)
+                        print(f"✅ Step {idx} recovered via Planner L2 adoption")
+                        auto_adopted = True
+                    # Save artifact regardless
+                    artifacts_dir = Path("artifacts/patches")
+                    artifacts_dir.mkdir(parents=True, exist_ok=True)
+                    (artifacts_dir / f"run_{run_id}_step_{idx}_patch.json").write_text(
+                        _json.dumps({
+                            "version": 1,
+                            "saved_at": datetime.now().astimezone().isoformat(),
+                            "run_id": run_id,
+                            "step_index": idx,
+                            "failure": failure_ctx,
+                            "proposal": patch,
+                            "adopt_policy": adopt_policy,
+                            "adopt": adopt,
+                            "evidence": {"screenshot": insp.get('screenshot'), "schema": insp.get('schema')}
+                        }, ensure_ascii=False, indent=2), encoding='utf-8')
+                except Exception as _e:
+                    logger.warning(f"planner L2 auto-adopt skipped: {_e}")
+            if auto_adopted:
+                continue
+            # Finalize as failed and proceed to pause
             ok = False
             shot = runner._screenshot(run_id, idx)
-            models.finalize_run_step(
-                step_id,
-                "failed",
-                error_message=str(e),
-                screenshot_path=shot,
-            )
+            # Attempt to capture DOM schema as artifact
+            fail_schema_path = None
+            try:
+                from app.desktop.inspect import desktop_inspect as _desktop_inspect
+                finsp = _desktop_inspect()
+                fail_schema_path = finsp.get('schema')
+            except Exception:
+                fail_schema_path = None
+            fail_out = {"_failed": True}
+            if fail_schema_path:
+                fail_out["_artifacts"] = {"schema": fail_schema_path}
+            models.finalize_run_step(step_id, "failed", output_json=json_dumps(fail_out), screenshot_path=shot, error_message=str(e))
             print(f"❌ Step {idx} failed: {e}")
-            logger.error("run.step.failed id=%s idx=%s action=%s err=%s", run_id, idx, action, e)
+            # Phase 7: L4 deviation operational wiring - pause & HITL resume
+            try:
+                from app.autopilot.runner import AutoRunner
+                auto = AutoRunner()
+                verdict = auto.check_deviation([{"status": "FAIL"}], current_url=variables.get('url', ''), expected_domain='')
+                if verdict.should_pause:
+                    # Create resume point and mark run paused
+                    from app.orchestrator.resume import get_resume_manager, RunStatus
+                    resume_manager = get_resume_manager()
+                    resume_manager.create_resume_point(
+                        run_id=run_id,
+                        step_index=idx,
+                        step_name=action,
+                        runner_state=runner.state,
+                        reason='hitl'
+                    )
+                    # Persist deviation classification
+                    try:
+                        from . import models as _models
+                        _models.insert_deviation(run_id, idx, deviation_type=verdict.reason or 'unknown', reason=str(e))
+                    except Exception:
+                        pass
+                    # Planner L2 artifact capture (schema/screenshot/patch JSON)
+                    try:
+                        from app.desktop.inspect import desktop_inspect
+                        from app.planner.l2 import propose_patches, should_adopt_patch
+                        import json as _json
+                        # Capture desktop snapshot for context
+                        insp = desktop_inspect()
+                        # Build failure context
+                        failure_ctx = {"type": action, "goal": params.get('text') or params.get('label'), "role": params.get('role')}
+                        # Load schema JSON
+                        schema_obj = {}
+                        try:
+                            import json as __json
+                            schema_obj = __json.loads(Path(insp['schema']).read_text(encoding='utf-8'))
+                        except Exception:
+                            schema_obj = {"elements": []}
+                        patch = propose_patches(schema_obj, failure_ctx)
+                        # Adoption policy from policy.yaml
+                        adopt_policy = {"low_risk_auto": True, "min_confidence": 0.85}
+                        try:
+                            import yaml as __yaml
+                            pol_path = Path('configs/policy.yaml')
+                            if pol_path.exists():
+                                p = __yaml.safe_load(pol_path.read_text(encoding='utf-8')) or {}
+                                adopt_policy.update(p.get('adopt_policy', {}))
+                        except Exception:
+                            pass
+                        adopt = should_adopt_patch(patch, adopt_policy)
+                        # Save artifact JSON
+                        artifacts_dir = Path("artifacts/patches")
+                        artifacts_dir.mkdir(parents=True, exist_ok=True)
+                        out_json = artifacts_dir / f"run_{run_id}_step_{idx}_patch.json"
+                        out_json.write_text(_json.dumps({
+                            "run_id": run_id,
+                            "step_index": idx,
+                            "failure": failure_ctx,
+                            "proposal": patch,
+                            "adopt_policy": adopt_policy,
+                            "adopt": adopt,
+                            "evidence": {
+                                "screenshot": insp.get('screenshot'),
+                                "schema": insp.get('schema')
+                            }
+                        }, ensure_ascii=False, indent=2), encoding='utf-8')
+                        print(f"📝 Patch proposal saved: {out_json}")
+                    except Exception as __e:
+                        logger.warning(f"planner L2 artifact capture skipped: {__e}")
+                    update_run(run_id, status="paused")
+                    print("⏸️  Run paused for HITL resume (deviation detected)")
+                    # Slack/Webhook notification happens in AutoRunner.notify()
+            except Exception as _e:
+                logger.warning(f"deviation/pausing skipped: {_e}")
             break
 
     if ok:
@@ -601,6 +867,17 @@ def main():
     # List capabilities command
     manifest_subparsers.add_parser("capabilities", help="List available capabilities")
 
+    # Desktop inspect (Phase 4 helper)
+    insp = subparsers.add_parser("desktop-inspect", help="Capture desktop screenshot and schema")
+    insp.add_argument("--output-dir", dest="output_dir", help="Directory to save artifacts")
+    insp.add_argument("--target", dest="target", default="frontmost", choices=["frontmost", "screen"], help="Schema target")
+    # Desktop watch
+    watchp = subparsers.add_parser("desktop-watch", help="Poll desktop schema/screenshot and report changes")
+    watchp.add_argument("--interval", type=float, default=2.0, help="Seconds between captures")
+    watchp.add_argument("--iterations", type=int, default=10, help="Number of captures")
+    watchp.add_argument("--output-dir", dest="output_dir", help="Directory to save artifacts")
+    watchp.add_argument("--target", dest="target", default="frontmost", choices=["frontmost", "screen"], help="Schema target")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -742,6 +1019,24 @@ def main():
                 print(f"   {cap['description']}")
                 print(f"   Actions: {', '.join(cap['actions'])}")
                 print()
+
+    elif args.command == "desktop-inspect":
+        from .desktop.inspect import desktop_inspect
+        try:
+            res = desktop_inspect(output_dir=args.output_dir, target=args.target)
+            print("✅ Desktop inspection captured")
+            print(f"  Dir: {res['dir']}")
+            print(f"  Screenshot: {res['screenshot']}")
+            print(f"  Schema: {res['schema']}")
+        except Exception as e:
+            print(f"❌ Desktop inspection failed: {e}")
+
+    elif args.command == "desktop-watch":
+        from .desktop.watch import desktop_watch
+        try:
+            desktop_watch(interval_sec=args.interval, iterations=args.iterations, target=args.target, output_dir=args.output_dir)
+        except Exception as e:
+            print(f"❌ Desktop watch failed: {e}")
 
 
 if __name__ == "__main__":

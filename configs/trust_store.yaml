@@ -52,8 +52,8 @@ trusted_keys:
     key_type: "ed25519"
     issuer: "Desktop Agent Core Team"
     purpose: "System template signing"
-    valid_from: "2025-01-01T00:00:00+09:00"
-    valid_until: "2026-12-31T23:59:59+09:00"
+    valid_from: "2025-01-01T00:00:00"
+    valid_until: "2026-12-31T23:59:59"
     trust_level: "system"
     description: "Primary signing key for system templates"
     contact: "security@desktopagent.dev"
@@ -95,6 +95,18 @@ trusted_keys:
     trust_level: "community"
     description: "Community developer - beta testing"
     contact: "john@communitydev.org"
+    revoked: false
+
+  "da:2025:test_dod":
+    public_key: "j8GR2AhO+YFaCP4OyUvYS842SVjZOdjtyFhWVIYbE3I="
+    key_type: "ed25519"
+    issuer: "DoD Test Key"
+    purpose: "DoD acceptance testing"
+    valid_from: "2025-01-01T00:00:00"
+    valid_until: "2026-12-31T23:59:59"
+    trust_level: "development"
+    description: "DoD Test Key (development)"
+    contact: "test@desktopagent.dev"
     revoked: false
 
 # Certificate Authorities (future extension point)
