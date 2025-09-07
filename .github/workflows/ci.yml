@@ -2,16 +2,34 @@ name: CI
 
 on:
   push:
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - 'requirements.txt'
+      - 'setup.cfg'
+      - '.github/workflows/ci.yml'
   pull_request:
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - 'requirements.txt'
+      - 'setup.cfg'
+      - '.github/workflows/ci.yml'
   schedule:
     # Run marketplace nightly tests at 2 AM UTC daily
     - cron: '0 2 * * *'
   workflow_dispatch:
     # Allow manual triggering of marketplace tests
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -46,6 +64,7 @@ jobs:
     # Run E2E only on manual dispatch to avoid flakiness on push
     if: github.event_name == 'workflow_dispatch'
     needs: test
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
