@@ -52,6 +52,9 @@ class MetricsCollector:
     def mark_planner_draft(self):
         self.increment_counter("planner_draft_count_24h", 1)
 
+    def mark_navigator_batch(self, count: int = 1):
+        self.increment_counter("navigator_batch_sum_24h", max(0, int(count)))
+
 
 _metrics_collector_instance = None
 
@@ -362,6 +365,25 @@ def compute_metrics() -> Dict[str, float]:
                                              (web_upload_total or 1), 2),
         "os_capability_miss_24h": os_capability_miss_24h,
     }
+
+    # Phase 8 KPI (lightweight, counter-based until DB events are wired)
+    try:
+        mc = get_metrics_collector()
+        planning_runs = mc.get_counter("planning_runs_24h")
+        batch_sum = mc.get_counter("navigator_batch_sum_24h")
+        out.update({
+            "planning_runs_24h": planning_runs,
+            "page_change_interrupts_24h": mc.get_counter("page_change_interrupts_24h"),
+            "planner_draft_count_24h": mc.get_counter("planner_draft_count_24h"),
+            "navigator_avg_batch": round((batch_sum / (planning_runs or 1)), 2),
+        })
+    except Exception:
+        out.update({
+            "planning_runs_24h": 0,
+            "page_change_interrupts_24h": 0,
+            "planner_draft_count_24h": 0,
+            "navigator_avg_batch": 0.0,
+        })
 
     # Phase 4 metrics integration
     try:

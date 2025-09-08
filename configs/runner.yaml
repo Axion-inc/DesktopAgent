@@ -1,0 +1,12 @@
+planning_interval_steps: 5
+navigator_batch_limit: 3
+retry:
+  max_attempts: 1
+  backoff_ms: 800
+deviation:
+  stop_on_domain_drift: true
+  assert_failures_threshold: 1
+artifacts:
+  screenshot_every_step: true
+  capture_dom_schema_every_step: true
+

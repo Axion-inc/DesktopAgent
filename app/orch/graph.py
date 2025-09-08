@@ -25,7 +25,7 @@ class Orchestrator:
 
     def _policy_gate(self, instruction: str) -> None:
         # Allow by default; integrate with PolicyEngine's validate_execution API for future
-        self.metrics.increment_counter('planning_runs_24h')
+        self.metrics.mark_planning_run()
 
     def _plan(self, dom: Dict[str, Any], instruction: str) -> Dict[str, Any]:
         req = {"instruction": instruction, "dom": dom, "history": [], "capabilities": ["webx"]}
@@ -50,11 +50,12 @@ class Orchestrator:
         })
 
         if simulate_interrupt:
-            self.metrics.increment_counter('page_change_interrupts_24h')
+            self.metrics.mark_page_change_interrupt()
             return {"status": "interrupted", "reason": "page_change"}
 
         # Navigate (simulated as success, limited batch size)
-        self.metrics.increment_counter('navigator_avg_batch')
+        # Simulated single-batch execute; record batch size for average metric
+        self.metrics.mark_navigator_batch(1)
 
         # Verify - treat planner done as candidate; require verifier to pass
         verify = aggregate_verification([{"name": "wait_for_text", "status": "success"}], planner_done=plan.get('done', False))
@@ -78,4 +79,3 @@ class Orchestrator:
             self.ck.clear(thread_id)
             return {"status": "completed"}
         return {"status": "planned"}
-

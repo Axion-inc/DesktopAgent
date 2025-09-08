@@ -20,6 +20,9 @@
     <div class="card"><div class="title">Verifier Pass Rate (24h)</div><div class="value">{{ (metrics.get('verifier_pass_rate_24h', 0) * 100) | round(1) }}%</div></div>
     <div class="card"><div class="title">WebX Frame Switches (24h)</div><div class="value">{{ metrics.get('webx_frame_switches_24h', 0) }}</div></div>
     <div class="card"><div class="title">WebX Shadow Hits (24h)</div><div class="value">{{ metrics.get('webx_shadow_hits_24h', 0) }}</div></div>
+    <div class="card"><div class="title">Planning Runs (24h)</div><div class="value">{{ metrics.get('planning_runs_24h', 0) }}</div></div>
+    <div class="card"><div class="title">Page Change Interrupts (24h)</div><div class="value">{{ metrics.get('page_change_interrupts_24h', 0) }}</div></div>
+    <div class="card"><div class="title">Planner Drafts (24h)</div><div class="value">{{ metrics.get('planner_draft_count_24h', 0) }}</div></div>
   </div>
   <h3>Runs (last 24h)</h3>
   {% set trend = metrics.get('trend_runs_24h', []) %}
