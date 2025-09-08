@@ -23,6 +23,8 @@
     <div class="card"><div class="title">Planning Runs (24h)</div><div class="value">{{ metrics.get('planning_runs_24h', 0) }}</div></div>
     <div class="card"><div class="title">Page Change Interrupts (24h)</div><div class="value">{{ metrics.get('page_change_interrupts_24h', 0) }}</div></div>
     <div class="card"><div class="title">Planner Drafts (24h)</div><div class="value">{{ metrics.get('planner_draft_count_24h', 0) }}</div></div>
+    <div class="card"><div class="title">Navigator Avg Batch</div><div class="value">{{ metrics.get('navigator_avg_batch', 0.0) }}</div></div>
+    <div class="card"><div class="title">Draft Signoff Rate (7d)</div><div class="value">{{ (metrics.get('draft_signoff_rate_7d', 0) * 100) | round(1) }}%</div></div>
   </div>
   <h3>Runs (last 24h)</h3>
   {% set trend = metrics.get('trend_runs_24h', []) %}

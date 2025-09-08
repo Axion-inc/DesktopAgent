@@ -366,16 +366,65 @@ def compute_metrics() -> Dict[str, float]:
         "os_capability_miss_24h": os_capability_miss_24h,
     }
 
-    # Phase 8 KPI (lightweight, counter-based until DB events are wired)
+    # Phase 8 KPI
     try:
+        # navigator_avg_batch (24h): average exec_batch steps per run (with any batches)
+        cur.execute(
+            """
+            SELECT COUNT(*) FROM run_steps
+            WHERE name='exec_batch' AND finished_at >= datetime('now','-1 day')
+            """
+        )
+        exec_batches_24h = cur.fetchone()[0] or 0
+
+        cur.execute(
+            """
+            SELECT COUNT(DISTINCT run_id) FROM run_steps
+            WHERE name='exec_batch' AND finished_at >= datetime('now','-1 day')
+            """
+        )
+        runs_with_batches_24h = cur.fetchone()[0] or 0
+
+        navigator_avg_batch = (
+            float(exec_batches_24h) / float(runs_with_batches_24h or 1)
+        )
+
+        # planner_draft_count_24h (counter-based fallback)
         mc = get_metrics_collector()
-        planning_runs = mc.get_counter("planning_runs_24h")
-        batch_sum = mc.get_counter("navigator_batch_sum_24h")
+        planner_draft_count_24h = mc.get_counter("planner_draft_count_24h")
+
+        # planning_runs_24h and page_change_interrupts_24h (counter-based for now)
+        planning_runs_24h = mc.get_counter("planning_runs_24h")
+        page_change_interrupts_24h = mc.get_counter("page_change_interrupts_24h")
+
+        # draft_signoff_rate_7d: approvals in last 7 days / total approvals created in last 7 days
+        try:
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM plan_approvals
+                WHERE created_at >= datetime('now','-7 day')
+                """
+            )
+            total_approvals_7d = cur.fetchone()[0] or 0
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM plan_approvals
+                WHERE approval_status='approved'
+                AND approved_at IS NOT NULL
+                AND approved_at >= datetime('now','-7 day')
+                """
+            )
+            approved_7d = cur.fetchone()[0] or 0
+            draft_signoff_rate_7d = round((approved_7d / (total_approvals_7d or 1)), 2)
+        except Exception:
+            draft_signoff_rate_7d = 0.0
+
         out.update({
-            "planning_runs_24h": planning_runs,
-            "page_change_interrupts_24h": mc.get_counter("page_change_interrupts_24h"),
-            "planner_draft_count_24h": mc.get_counter("planner_draft_count_24h"),
-            "navigator_avg_batch": round((batch_sum / (planning_runs or 1)), 2),
+            "planning_runs_24h": planning_runs_24h,
+            "page_change_interrupts_24h": page_change_interrupts_24h,
+            "planner_draft_count_24h": planner_draft_count_24h,
+            "navigator_avg_batch": round(navigator_avg_batch, 2),
+            "draft_signoff_rate_7d": draft_signoff_rate_7d,
         })
     except Exception:
         out.update({
@@ -383,6 +432,7 @@ def compute_metrics() -> Dict[str, float]:
             "page_change_interrupts_24h": 0,
             "planner_draft_count_24h": 0,
             "navigator_avg_batch": 0.0,
+            "draft_signoff_rate_7d": 0.0,
         })
 
     # Phase 4 metrics integration
