@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
+import json
 
 from ..metrics import get_metrics_collector
 from ..policy.engine import PolicyEngine, PolicyViolation
@@ -9,6 +10,16 @@ from ..web.dom_snapshot import capture_dom_snapshot
 from ..planner.api import plan_with_llm_stub
 from ..verify.core import aggregate_verification
 from .checkpoint import MemoryCheckpointer
+from ..models import (
+    init_db,
+    insert_plan,
+    insert_run,
+    update_run,
+    set_run_started_now,
+    set_run_finished_now,
+    insert_run_step,
+    finalize_run_step,
+)
 
 
 class Orchestrator:
@@ -79,3 +90,65 @@ class Orchestrator:
             self.ck.clear(thread_id)
             return {"status": "completed"}
         return {"status": "planned"}
+
+    # Recorded variants for UI/metrics: persist a run and steps to DB
+    def run_recorded(self, thread_id: str, instruction: str, simulate_interrupt: bool = False) -> Dict[str, Any]:
+        init_db()
+        plan_id = insert_plan("Phase8 Orchestrated Run", yaml="name: phase8\n")
+        run_id = insert_run(plan_id, status="running")
+        set_run_started_now(run_id)
+
+        # policy gate step
+        pol_step = insert_run_step(run_id, 1, "policy_guard", input_json=json.dumps({"instruction": instruction}), status="running")
+        self._policy_gate(instruction)
+        finalize_run_step(pol_step, status="success", output_json=json.dumps({"allowed": True}))
+
+        # snapshot
+        dom = capture_dom_snapshot()
+
+        # plan step (draft)
+        plan_step = insert_run_step(run_id, 2, "planner_draft", input_json=json.dumps({"dom": "captured"}), status="running")
+        plan = self._plan(dom, instruction)
+        finalize_run_step(plan_step, status="success", output_json=json.dumps({"patch": plan.get("patch"), "draft": True}))
+
+        # checkpoint
+        self.ck.save(thread_id, {"phase": "after_plan", "instruction": instruction, "plan": plan, "dom": dom, "run_id": run_id, "plan_id": plan_id})
+
+        # navigate (exec_batch)
+        nav_step = insert_run_step(run_id, 3, "exec_batch", input_json=json.dumps({"batch": 1}), status="running")
+        if simulate_interrupt:
+            self.metrics.mark_page_change_interrupt()
+            finalize_run_step(nav_step, status="failed", error_message="page_change_interrupt")
+            update_run(run_id, status="paused")
+            return {"status": "interrupted", "run_id": run_id}
+        else:
+            self.metrics.mark_navigator_batch(1)
+            finalize_run_step(nav_step, status="success", output_json=json.dumps({"steps": 1}))
+
+        # verify
+        ver_step = insert_run_step(run_id, 4, "verify", input_json=json.dumps({"checks": 1}), status="running")
+        verify = aggregate_verification([{"name": "wait_for_text", "status": "success"}], planner_done=plan.get("done", False))
+        finalize_run_step(ver_step, status="success" if verify.get("passed") else "failed", output_json=json.dumps(verify))
+
+        set_run_finished_now(run_id)
+        update_run(run_id, status="success")
+        self.ck.clear(thread_id)
+        return {"status": "completed", "run_id": run_id}
+
+    def resume_recorded(self, thread_id: str) -> Dict[str, Any]:
+        st = self.ck.get(thread_id)
+        if not st:
+            return {"status": "noop"}
+        run_id = st.get("run_id")
+        if not run_id:
+            return {"status": "noop"}
+
+        # resume with verify step
+        ver_step = insert_run_step(run_id, 5, "verify", input_json=json.dumps({"checks": 1}), status="running")
+        plan = st.get("plan") or {}
+        verify = aggregate_verification([{"name": "wait_for_text", "status": "success"}], planner_done=plan.get("done", False))
+        finalize_run_step(ver_step, status="success" if verify.get("passed") else "failed", output_json=json.dumps(verify))
+        set_run_finished_now(run_id)
+        update_run(run_id, status="success" if verify.get("passed") else "failed")
+        self.ck.clear(thread_id)
+        return {"status": "completed", "run_id": run_id}
