@@ -42,6 +42,16 @@ class MetricsCollector:
     def mark_webx_shadow_hit(self):
         self.increment_counter("webx_shadow_hits_24h", 1)
 
+    # Phase 8 counters (lightweight)
+    def mark_planning_run(self):
+        self.increment_counter("planning_runs_24h", 1)
+
+    def mark_page_change_interrupt(self):
+        self.increment_counter("page_change_interrupts_24h", 1)
+
+    def mark_planner_draft(self):
+        self.increment_counter("planner_draft_count_24h", 1)
+
 
 _metrics_collector_instance = None
 
