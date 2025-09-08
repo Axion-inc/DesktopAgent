@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
+from ..metrics import get_metrics_collector
 
 
 def _mask_pii(text: str) -> str:
@@ -46,10 +47,15 @@ def plan_with_llm_stub(request: Dict[str, Any]) -> Dict[str, Any]:
         "signature_verified": False,
     }
 
+    # Count planner draft generation
+    try:
+        get_metrics_collector().mark_planner_draft()
+    except Exception:
+        pass
+
     return {
         "patch": patch,
         "draft_template": draft_template,
         "done": False,
         "_confidence": conf,
     }
-
