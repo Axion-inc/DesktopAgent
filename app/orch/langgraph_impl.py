@@ -11,6 +11,7 @@ except Exception:
 
 from .graph import Orchestrator as _FallbackOrchestrator
 from .checkpoint import MemoryCheckpointer
+from .langgraph_graph import LangGraphRuntime
 
 
 class LangGraphOrchestrator:
@@ -21,10 +22,13 @@ class LangGraphOrchestrator:
     """
 
     def __init__(self):
+        # Prefer LangGraph runtime if available; otherwise fallback
         if _HAS_LANGGRAPH:
-            # Here we would wire actual LangGraph nodes and checkpointer.
-            # For now, use fallback orchestrator to keep behavior consistent.
-            pass
+            try:
+                self._fb = LangGraphRuntime()
+                return
+            except Exception:
+                pass
         self._fb = _FallbackOrchestrator(MemoryCheckpointer())
 
     def run(self, thread_id: str, instruction: str, simulate_interrupt: bool = False) -> Dict[str, Any]:
@@ -32,4 +36,3 @@ class LangGraphOrchestrator:
 
     def resume(self, thread_id: str) -> Dict[str, Any]:
         return self._fb.resume(thread_id)
-
