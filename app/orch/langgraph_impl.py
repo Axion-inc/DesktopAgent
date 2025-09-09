@@ -36,3 +36,15 @@ class LangGraphOrchestrator:
 
     def resume(self, thread_id: str) -> Dict[str, Any]:
         return self._fb.resume(thread_id)
+
+    # Recorded variants are supported when LangGraphRuntime is used; fallback orchestrator also supports them
+    def run_recorded(self, thread_id: str, instruction: str, simulate_interrupt: bool = False) -> Dict[str, Any]:
+        if hasattr(self._fb, 'run_recorded'):
+            return self._fb.run_recorded(thread_id, instruction, simulate_interrupt=simulate_interrupt)  # type: ignore[attr-defined]
+        # Fallback to non-recorded if unavailable
+        return self.run(thread_id, instruction, simulate_interrupt=simulate_interrupt)
+
+    def resume_recorded(self, thread_id: str) -> Dict[str, Any]:
+        if hasattr(self._fb, 'resume_recorded'):
+            return self._fb.resume_recorded(thread_id)  # type: ignore[attr-defined]
+        return self.resume(thread_id)

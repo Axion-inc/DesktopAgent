@@ -851,6 +851,13 @@ def main():
     # List command
     subparsers.add_parser("list", help="List all runs")
 
+    # LangGraph demo run (Phase 8)
+    lg_run = subparsers.add_parser("lg-run", help="Run LangGraph runtime once (optionally interrupt + resume)")
+    lg_run.add_argument("--thread-id", dest="thread_id", default=None, help="Thread ID for checkpointing")
+    lg_run.add_argument("--instruction", dest="instruction", default="フォーム送信して受付完了まで。", help="Instruction to execute")
+    lg_run.add_argument("--interrupt", dest="interrupt", action="store_true", help="Simulate an interrupt before navigation")
+    lg_run.add_argument("--recorded", dest="recorded", action="store_true", help="Use recorded (DB-backed) variant")
+
     # Manifest commands
     manifest_parser = subparsers.add_parser("manifest", help="Template manifest operations")
     manifest_subparsers = manifest_parser.add_subparsers(dest="manifest_command", help="Manifest commands")
@@ -924,6 +931,30 @@ def main():
             return
 
         yaml_text = Path(args.file).read_text(encoding="utf-8")
+
+        # Feature flag: route via LangGraph runtime orchestrator (recorded) when enabled
+        if os.environ.get("LANGGRAPH_ENABLED", "0") in ("1", "true", "True"):
+            try:
+                from app.orch.langgraph_impl import LangGraphOrchestrator
+                import secrets as _secrets
+                tid = f"lg-main-{_secrets.token_hex(4)}"
+                # Use plan name or filename as instruction surrogate
+                try:
+                    plan_obj = parse_yaml(yaml_text)
+                    instr = plan_obj.get("name") or f"Run: {Path(args.file).name}"
+                except Exception:
+                    instr = f"Run: {Path(args.file).name}"
+                print(f"▶️  LANGGRAPH_ENABLED=1 → routing 'run' via LangGraph runtime (recorded)")
+                orch = LangGraphOrchestrator()
+                res = orch.run_recorded(tid, instr, simulate_interrupt=False)
+                print(f"   status={res.get('status')}")
+                if res.get('run_id'):
+                    print(f"\n🔗 Run ID: {res.get('run_id')}")
+                return
+            except Exception as e:
+                print(f"⚠️  LangGraph runtime routing failed, falling back: {e}")
+
+        # Normal path (default): execute the DSL plan
         # Extract template filename for signature verification
         template_path = Path(args.file).name if "plans/templates" in args.file else args.file
         run_id = run_plan(yaml_text, args.auto_approve, template_path)
@@ -940,6 +971,34 @@ def main():
         run_id = run_csv_form(yaml_text, args.auto_approve, args.limit)
         if run_id > 0:
             print(f"\n🔗 Run ID: {run_id}")
+
+    elif args.command == "lg-run":
+        # Minimal demo runner for Phase 8 LangGraph runtime with checkpointing
+        from app.orch.langgraph_impl import LangGraphOrchestrator
+        import secrets as _secrets
+
+        tid = args.thread_id or f"lg-{_secrets.token_hex(4)}"
+        instr = args.instruction
+        print(f"▶️  LangGraph run: thread_id={tid}")
+        rt = LangGraphOrchestrator()
+        if args.recorded:
+            res = rt.run_recorded(tid, instr, simulate_interrupt=args.interrupt)
+        else:
+            res = rt.run(tid, instr, simulate_interrupt=args.interrupt)
+        print(f"   status={res.get('status')}")
+        if res.get('run_id'):
+            print(f"   run_id={res.get('run_id')}")
+
+        if res.get("status") == "interrupted":
+            print("⏸️  Interrupted; attempting resume…")
+            if args.recorded:
+                r2 = rt.resume_recorded(tid)
+            else:
+                r2 = rt.resume(tid)
+            print(f"   resume_status={r2.get('status')}")
+            if r2.get('run_id'):
+                print(f"   run_id={r2.get('run_id')}")
+        return
 
     elif args.command == "show":
         show_run_details(args.run_id)

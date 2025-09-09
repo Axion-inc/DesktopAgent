@@ -20,4 +20,3 @@ class MemoryCheckpointer:
 
     def clear(self, thread_id: str) -> None:
         self._store.pop(thread_id, None)
-

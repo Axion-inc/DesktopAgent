@@ -12,6 +12,16 @@ Badges (after deploying /metrics):
 
 Purpose: A comprehensive enterprise desktop AI agent for macOS 14+ that automates file operations, PDF processing, Mail.app integration, **web form automation with Chrome Extension + Native Messaging (Phase 5 WebX)**, **Template Marketplace β with Ed25519 digital signatures (Phase 6)**, **L4 Limited Full Automation with Policy Engine v1 and Planner L2 differential patches (Phase 7)**, robust verification capabilities, and enterprise orchestration. Features CLI interface, approval gates, natural language plan generation, role-based access control, queue management, plugin system, GitHub integration, multi-channel notifications, and comprehensive testing. Designed for Windows 11 support with full OS adapter architecture.
 
+## Phase 8 (LangGraph Scaffold)
+
+Minimal LangGraph-compatible runtime with node IO contracts, in-memory checkpoints, and DB-backed recorded runs.
+
+- Doc: see `docs/phase8_langgraph.md`
+- Quick demo:
+  - `./cli.py lg-run --interrupt` (in-memory, interrupt and auto-resume)
+  - `./cli.py lg-run --interrupt --recorded` (DB recorded, prints run_id)
+
+
 ## Phase 7 Features 🤖 (L4 Autopilot + Policy Engine v1 + Planner L2)
 
 **L4 Limited Full Automation** - Policy-gated autopilot with deviation detection

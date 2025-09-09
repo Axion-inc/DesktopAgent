@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 from .engine import get_web_engine, take_screenshot
 
 
@@ -9,8 +9,9 @@ def capture_dom_snapshot() -> Dict[str, Any]:
 
     Returns keys: schema, tab, scroll, screenshot
     """
-    schema = {}
-    tab = {}
+    schema: Dict[str, Any] = {}
+    tab: Dict[str, Any] = {}
+    tabs: List[Dict[str, Any]] = []
     scroll = {"x": 0, "y": 0}
     screenshot_path = None
     try:
@@ -30,7 +31,7 @@ def capture_dom_snapshot() -> Dict[str, Any]:
     return {
         "schema": schema,
         "tab": tab,
+        "tabs": tabs,
         "scroll": scroll,
         "screenshot": screenshot_path or "<redacted>",
     }
-

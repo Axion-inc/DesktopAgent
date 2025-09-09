@@ -419,12 +419,70 @@ def compute_metrics() -> Dict[str, float]:
         except Exception:
             draft_signoff_rate_7d = 0.0
 
+        # p95 step latency (24h) in milliseconds
+        step_durations: List[float] = []
+        try:
+            cur.execute(
+                """
+                SELECT (julianday(finished_at) - julianday(started_at)) * 24*60*60*1000 AS ms
+                FROM run_steps
+                WHERE finished_at IS NOT NULL AND started_at IS NOT NULL
+                  AND finished_at >= datetime('now','-1 day')
+                """
+            )
+            step_durations = [float(r[0]) for r in cur.fetchall() if r[0] is not None]
+            step_durations.sort()
+
+            def percentile_list(lst: List[float], p: float) -> float:
+                if not lst:
+                    return 0.0
+                k = (len(lst) - 1) * p
+                f = math.floor(k)
+                c = math.ceil(k)
+                if f == c:
+                    return float(lst[int(k)])
+                return float(lst[f] + (lst[c] - lst[f]) * (k - f))
+
+            p95_step_latency_ms_24h = round(percentile_list(step_durations, 0.95) or 0.0)
+        except Exception:
+            p95_step_latency_ms_24h = 0.0
+
         out.update({
             "planning_runs_24h": planning_runs_24h,
             "page_change_interrupts_24h": page_change_interrupts_24h,
             "planner_draft_count_24h": planner_draft_count_24h,
             "navigator_avg_batch": round(navigator_avg_batch, 2),
             "draft_signoff_rate_7d": draft_signoff_rate_7d,
+            "p95_step_latency_ms_24h": p95_step_latency_ms_24h,
+            # resume_success_rate_24h: fraction of interrupted runs that later completed successfully
+            # Compute from run_steps that had page_change_interrupt and final run status
+            **(lambda: (
+                (lambda interrupted, resumed_success: {"resume_success_rate_24h": round((resumed_success / (interrupted or 1)), 2)}) (
+                    interrupted=(lambda: (
+                        cur.execute(
+                            """
+                            SELECT COUNT(DISTINCT r.id)
+                            FROM runs r
+                            JOIN run_steps s ON s.run_id = r.id
+                            WHERE s.error_message = 'page_change_interrupt'
+                              AND s.finished_at >= datetime('now','-1 day')
+                            """
+                        ), cur.fetchone()[0] or 0
+                    ))(),
+                    resumed_success=(lambda: (
+                        cur.execute(
+                            """
+                            SELECT COUNT(DISTINCT r.id)
+                            FROM runs r
+                            JOIN run_steps s ON s.run_id = r.id
+                            WHERE s.error_message = 'page_change_interrupt'
+                              AND s.finished_at >= datetime('now','-1 day')
+                              AND r.status = 'success'
+                            """
+                        ), cur.fetchone()[0] or 0
+                    ))()
+                )
+            ))()
         })
     except Exception:
         out.update({
@@ -433,6 +491,8 @@ def compute_metrics() -> Dict[str, float]:
             "planner_draft_count_24h": 0,
             "navigator_avg_batch": 0.0,
             "draft_signoff_rate_7d": 0.0,
+            "p95_step_latency_ms_24h": 0.0,
+            "resume_success_rate_24h": 0.0,
         })
 
     # Phase 4 metrics integration
