@@ -21,6 +21,13 @@ This document describes the Phase 8 loop: Plan → Navigate → Verify with inte
 - Checkpoint: `app/orch/checkpoint.MemoryCheckpointer` stores state per `thread_id`.
 - Orchestrator: `app/orch/graph.Orchestrator` simulates a LangGraph-like executor. `run()` sets a checkpoint before Navigate; `resume()` restarts from the saved phase.
 
+### Optional: LangGraph Integration
+
+- A facade `app/orch/langgraph_impl.LangGraphOrchestrator` is provided. If the `langgraph` package is installed, this can be wired to actual nodes/checkpointer.
+- Two-stage adoption is recommended:
+  1) Local-only trial: `pip install langgraph==<stable>` and run `pytest -k langgraph_orchestrator`.
+  2) CI rollout: pin the version in `requirements.txt` and enable related tests in CI.
+
 ## Metrics
 
 - planning_runs_24h, navigator_avg_batch, page_change_interrupts_24h,
@@ -30,4 +37,3 @@ This document describes the Phase 8 loop: Plan → Navigate → Verify with inte
 
 - LLM drafts are never executed. Only after passing `DraftPipeline` (lint → dry-run×3 → sign) they become executable.
 - Dangerous actions are never auto-added by patches (`apply_patch` blocks them).
-
