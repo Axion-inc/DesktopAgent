@@ -28,6 +28,11 @@ This document describes the Phase 8 loop: Plan → Navigate → Verify with inte
   1) Local-only trial: `pip install langgraph==<stable>` and run `pytest -k langgraph_orchestrator`.
   2) CI rollout: pin the version in `requirements.txt` and enable related tests in CI.
 
+### Current State (Scaffolding)
+
+- `app/orch/langgraph_graph.LangGraphRuntime` forwards to the existing Orchestrator while the node graph is stabilized.
+- This allows us to merge APIs and tests early; later we can flip the internals to real graph nodes without changing callers.
+
 ## Metrics
 
 - planning_runs_24h, navigator_avg_batch, page_change_interrupts_24h,
