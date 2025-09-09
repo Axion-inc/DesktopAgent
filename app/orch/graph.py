@@ -110,6 +110,23 @@ class Orchestrator:
         plan_step = insert_run_step(run_id, 2, "planner_draft", input_json=json.dumps({"dom": "captured"}), status="running")
         plan = self._plan(dom, instruction)
         finalize_run_step(plan_step, status="success", output_json=json.dumps({"patch": plan.get("patch"), "draft": True}))
+        # Persist a patch artifact for UI (optional)
+        try:
+            import os
+            os.makedirs("artifacts/patches", exist_ok=True)
+            artifact = {
+                "step_index": 2,
+                "adopt": False,
+                "proposal": plan.get("patch", {}),
+                "evidence": {
+                    "screenshot": (dom or {}).get("screenshot"),
+                    "schema": (dom or {}).get("schema"),
+                },
+            }
+            with open(f"artifacts/patches/run_{run_id}_step_2_patch.json", "w", encoding="utf-8") as f:
+                json.dump(artifact, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
 
         # checkpoint
         self.ck.save(thread_id, {"phase": "after_plan", "instruction": instruction, "plan": plan, "dom": dom, "run_id": run_id, "plan_id": plan_id})
