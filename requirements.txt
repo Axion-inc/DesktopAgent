@@ -12,3 +12,4 @@ cryptography
 croniter
 watchdog
 websockets
+langgraph==0.2.38
